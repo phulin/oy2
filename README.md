@@ -165,9 +165,9 @@ npx wrangler d1 migrations create oy2-db migration_name
 ```
 oy2/
 ├── src/
-│   ├── App.jsx          # SolidJS app
-│   ├── main.jsx         # Frontend entrypoint
-│   ├── map.js           # Leaflet map setup
+│   ├── App.tsx          # SolidJS app
+│   ├── main.tsx         # Frontend entrypoint
+│   ├── map.ts           # Leaflet map setup
 │   └── styles.css       # UI styles
 ├── worker/
 │   ├── index.js         # Hono app for Cloudflare Workers

@@ -13,11 +13,16 @@ L.Icon.Default.mergeOptions({
   shadowUrl: markerShadowUrl,
 });
 
+type MapContainer = HTMLDivElement & {
+  _leafletMap?: L.Map;
+  _leafletTileLayer?: L.TileLayer;
+};
+
 function prefersDark() {
   return window.matchMedia?.('(prefers-color-scheme: dark)').matches;
 }
 
-export function initLocationMap(container, lat, lon) {
+export function initLocationMap(container: MapContainer, lat: number, lon: number) {
   if (container.dataset.mapInit === 'true') {
     return;
   }
@@ -44,7 +49,7 @@ export function initLocationMap(container, lat, lon) {
     const media = window.matchMedia('(prefers-color-scheme: dark)');
     const updateTiles = () => {
       const url = prefersDark() ? DARK_TILE_URL : LIGHT_TILE_URL;
-      container._leafletTileLayer.setUrl(url);
+      container._leafletTileLayer?.setUrl(url);
     };
     if (media.addEventListener) {
       media.addEventListener('change', updateTiles);

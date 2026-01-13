@@ -1,7 +1,14 @@
 import { Hono } from 'hono';
 import { sendPushNotification } from './push.js';
 
-const app = new Hono();
+type Bindings = {
+  DB: D1Database;
+  VAPID_PUBLIC_KEY: string;
+  VAPID_PRIVATE_KEY: string;
+  VAPID_SUBJECT?: string;
+};
+
+const app = new Hono<{ Bindings: Bindings }>();
 
 // Middleware to get current user from header
 app.use('*', async (c, next) => {
@@ -182,7 +189,7 @@ app.post('/api/oy', async (c) => {
       ).catch(async (err) => {
         console.error('Failed to send push:', err);
         // If push fails (expired subscription), delete it
-        if (err.statusCode === 410) {
+        if ((err as { statusCode?: number }).statusCode === 410) {
           await c.env.DB.prepare('DELETE FROM push_subscriptions WHERE user_id = ? AND endpoint = ?')
             .bind(toUserId, sub.endpoint)
             .run();
@@ -290,7 +297,7 @@ app.post('/api/lo', async (c) => {
         }
       ).catch(async (err) => {
         console.error('Failed to send push:', err);
-        if (err.statusCode === 410) {
+        if ((err as { statusCode?: number }).statusCode === 410) {
           await c.env.DB.prepare('DELETE FROM push_subscriptions WHERE user_id = ? AND endpoint = ?')
             .bind(toUserId, sub.endpoint)
             .run();

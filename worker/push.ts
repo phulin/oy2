@@ -2,7 +2,7 @@ import { buildPushPayload } from '@block65/webcrypto-web-push';
 
 const DEFAULT_VAPID_SUBJECT = 'mailto:admin@example.com';
 
-function base64UrlEncode(buffer) {
+function base64UrlEncode(buffer: Uint8Array) {
   return Buffer.from(buffer)
     .toString('base64')
     .replace(/\+/g, '-')
@@ -10,7 +10,7 @@ function base64UrlEncode(buffer) {
     .replace(/=+$/g, '');
 }
 
-function base64UrlDecode(value) {
+function base64UrlDecode(value: string) {
   const base64 = value.replace(/-/g, '+').replace(/_/g, '/');
   const padding = base64.length % 4 === 0 ? '' : '='.repeat(4 - (base64.length % 4));
   return Buffer.from(base64 + padding, 'base64');
@@ -22,7 +22,19 @@ function base64UrlDecode(value) {
  * @param {Object} subscription - Push subscription object
  * @param {Object} payload - Notification payload
  */
-export async function sendPushNotification(env, subscription, payload) {
+export async function sendPushNotification(
+  env: {
+    VAPID_PUBLIC_KEY?: string;
+    VAPID_PRIVATE_KEY?: string;
+    VAPID_SUBJECT?: string;
+  },
+  subscription: {
+    endpoint: string;
+    expirationTime: number | null;
+    keys: { p256dh: string; auth: string };
+  },
+  payload: Record<string, unknown>
+) {
   if (!env.VAPID_PUBLIC_KEY || !env.VAPID_PRIVATE_KEY) {
     throw new Error('VAPID keys not configured');
   }
@@ -48,7 +60,9 @@ export async function sendPushNotification(env, subscription, payload) {
   });
 
   if (!res.ok) {
-    const err = new Error(`Push failed with status ${res.status}`);
+    const err = new Error(`Push failed with status ${res.status}`) as Error & {
+      statusCode?: number;
+    };
     err.statusCode = res.status;
     throw err;
   }

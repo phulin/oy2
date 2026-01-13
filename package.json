@@ -2,7 +2,7 @@
   "name": "oy2",
   "version": "1.0.0",
   "description": "A minimalist Oy app - send Oys to your friends",
-  "main": "worker/index.js",
+  "main": "worker/index.ts",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -32,6 +32,8 @@
   "devDependencies": {
     "@cloudflare/vite-plugin": "^1.20.1",
     "@cloudflare/workers-types": "^4.20260113.0",
+    "@types/node": "^20.14.9",
+    "typescript": "^5.6.3",
     "vite": "^7.3.1",
     "vite-plugin-solid": "^2.11.10",
     "wrangler": "^4.58.0"
