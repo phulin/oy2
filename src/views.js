@@ -1,0 +1,95 @@
+/**
+ * Server-side rendered HTML views
+ * Minimal, fast-loading HTML for the PWA
+ */
+
+export function renderHomePage() {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Oy - Send Oys to your friends">
+  <meta name="theme-color" content="#5B5FFF">
+  <title>Oy</title>
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/png" href="/icon-192.png">
+  <link rel="apple-touch-icon" href="/icon-192.png">
+  <link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+  <div id="app">
+    <!-- Login Screen -->
+    <div id="login-screen" class="screen">
+      <div class="container">
+        <h1 class="logo">Oy</h1>
+        <p class="tagline">Send Oys to your friends</p>
+        <form id="login-form">
+          <input
+            type="text"
+            id="username-input"
+            placeholder="Enter username"
+            autocomplete="username"
+            required
+            minlength="2"
+            maxlength="20"
+          >
+          <button type="submit" class="btn-primary">Get Started</button>
+        </form>
+      </div>
+    </div>
+
+    <!-- Main App Screen -->
+    <div id="main-screen" class="screen hidden">
+      <div class="container">
+        <div class="header">
+          <h1 class="logo-small">Oy</h1>
+          <div class="user-info">
+            <span id="current-username"></span>
+            <button id="logout-btn" class="btn-text">Logout</button>
+          </div>
+        </div>
+
+        <!-- Tabs -->
+        <div class="tabs">
+          <button class="tab active" data-tab="friends">Friends</button>
+          <button class="tab" data-tab="yos">Oys</button>
+          <button class="tab" data-tab="add">Add Friend</button>
+        </div>
+
+        <!-- Friends Tab -->
+        <div id="friends-tab" class="tab-content">
+          <div id="friends-list" class="list">
+            <p class="empty-state">No friends yet. Add some!</p>
+          </div>
+        </div>
+
+        <!-- Oys Tab -->
+        <div id="yos-tab" class="tab-content hidden">
+          <div id="yos-list" class="list">
+            <p class="empty-state">No Oys yet!</p>
+          </div>
+        </div>
+
+        <!-- Add Friend Tab -->
+        <div id="add-tab" class="tab-content hidden">
+          <form id="search-form">
+            <input
+              type="text"
+              id="search-input"
+              placeholder="Search username"
+              autocomplete="off"
+            >
+          </form>
+          <div id="search-results" class="list">
+            <p class="empty-state">Search for friends to add</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/js/app.js" type="module"></script>
+</body>
+</html>`;
+}

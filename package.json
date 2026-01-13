@@ -1,0 +1,32 @@
+{
+  "name": "oy2",
+  "version": "1.0.0",
+  "description": "A minimalist Oy app - send Oys to your friends",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "generate-vapid": "node scripts/generate-vapid-keys.js",
+    "db:create": "wrangler d1 create oy2-db",
+    "db:migrate": "wrangler d1 migrations apply oy2-db --remote",
+    "db:migrate:local": "wrangler d1 migrations apply oy2-db --local"
+  },
+  "keywords": [
+    "oy",
+    "pwa",
+    "social",
+    "cloudflare-workers"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "hono": "^4.0.0",
+    "web-push": "^3.6.6"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20240000.0",
+    "wrangler": "4"
+  },
+  "packageManager": "yarn@4.12.0"
+}

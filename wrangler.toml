@@ -1,0 +1,25 @@
+name = "oy2"
+main = "src/index.js"
+compatibility_date = "2024-09-23"
+compatibility_flags = ["nodejs_compat"]
+
+# D1 Database binding
+[[d1_databases]]
+binding = "DB"
+database_name = "oy2-db"
+database_id = "bf90ad59-1e3c-40e7-b144-bba66eb17287"
+
+# Assets for the PWA (static files)
+[assets]
+directory = "./public"
+binding = "ASSETS"
+
+# Environment variables (set these as secrets)
+# Run: wrangler secret put VAPID_PUBLIC_KEY
+# Run: wrangler secret put VAPID_PRIVATE_KEY
+[vars]
+# Public variables go here
+
+# Development settings
+[dev]
+port = 8787
