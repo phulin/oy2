@@ -2,6 +2,7 @@ const CACHE_NAME = 'oy-v2';
 const ASSETS = [
   '/css/app.css',
   '/js/app.js',
+  '/js/map.js',
   '/manifest.json',
   '/icon-192.png',
   '/icon-512.png',
@@ -89,6 +90,9 @@ self.addEventListener('push', (event) => {
     tag: data.tag || 'yo-notification',
     vibrate: [200, 100, 200],
     requireInteraction: false,
+    data: {
+      url: data.url || '/',
+    },
   };
 
   event.waitUntil(
@@ -100,18 +104,18 @@ self.addEventListener('push', (event) => {
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
 
+  const targetUrl = event.notification?.data?.url || '/';
+
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
-      // If app is already open, focus it
       for (const client of clientList) {
-        if ('focus' in client) {
-          return client.focus();
+        if ('navigate' in client) {
+          return client.navigate(targetUrl).then(() => client.focus());
         }
       }
 
-      // Otherwise, open a new window
       if (clients.openWindow) {
-        return clients.openWindow('/');
+        return clients.openWindow(targetUrl);
       }
     })
   );

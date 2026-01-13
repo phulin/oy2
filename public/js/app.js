@@ -1,7 +1,21 @@
+import { initLocationMap } from './map.js';
+
 // State
 let currentUser = null;
 let friends = [];
 let yos = [];
+let pendingExpandYoId = null;
+let pendingExpandType = null;
+const urlParams = new URLSearchParams(window.location.search);
+const requestedTab = urlParams.get('tab');
+const requestedYoId = urlParams.get('yo');
+const requestedExpand = urlParams.get('expand');
+const initialTab = ['friends', 'yos', 'add'].includes(requestedTab) ? requestedTab : 'friends';
+
+if (requestedYoId && !Number.isNaN(Number(requestedYoId))) {
+  pendingExpandYoId = Number(requestedYoId);
+  pendingExpandType = requestedExpand;
+}
 
 // DOM elements
 const loginScreen = document.getElementById('login-screen');
@@ -149,6 +163,7 @@ loginForm.addEventListener('submit', async (e) => {
     localStorage.setItem('username', username);
 
     showMainScreen();
+    setActiveTab(initialTab);
     await registerServiceWorker();
     await loadData();
   } catch (err) {
@@ -175,6 +190,28 @@ function showMainScreen() {
   currentUsernameEl.textContent = currentUser.username;
 }
 
+function setActiveTab(tabName) {
+  tabs.forEach((t) => t.classList.remove('active'));
+  tabs.forEach((t) => {
+    if (t.dataset.tab === tabName) {
+      t.classList.add('active');
+    }
+  });
+
+  friendsTab.classList.add('hidden');
+  yosTab.classList.add('hidden');
+  addTab.classList.add('hidden');
+
+  if (tabName === 'friends') {
+    friendsTab.classList.remove('hidden');
+  } else if (tabName === 'yos') {
+    yosTab.classList.remove('hidden');
+    loadYos();
+  } else if (tabName === 'add') {
+    addTab.classList.remove('hidden');
+  }
+}
+
 // Auto-login if username exists
 const savedUsername = localStorage.getItem('username');
 if (savedUsername) {
@@ -185,6 +222,7 @@ if (savedUsername) {
     .then(({ user }) => {
       currentUser = user;
       showMainScreen();
+      setActiveTab(initialTab);
       registerServiceWorker();
       loadData();
     })
@@ -202,22 +240,7 @@ if (savedUsername) {
 tabs.forEach((tab) => {
   tab.addEventListener('click', () => {
     const tabName = tab.dataset.tab;
-
-    tabs.forEach((t) => t.classList.remove('active'));
-    tab.classList.add('active');
-
-    friendsTab.classList.add('hidden');
-    yosTab.classList.add('hidden');
-    addTab.classList.add('hidden');
-
-    if (tabName === 'friends') {
-      friendsTab.classList.remove('hidden');
-    } else if (tabName === 'yos') {
-      yosTab.classList.remove('hidden');
-      loadYos();
-    } else if (tabName === 'add') {
-      addTab.classList.remove('hidden');
-    }
+    setActiveTab(tabName);
   });
 });
 
@@ -260,7 +283,10 @@ function renderFriends() {
       <div class="list-item-content">
         <div class="list-item-title">${escapeHtml(friend.username)}</div>
       </div>
-      <button class="btn-yo" data-friend-id="${friend.id}">Oy!</button>
+      <div class="list-item-actions">
+        <button class="btn-yo" data-friend-id="${friend.id}">Oy!</button>
+        <button class="btn-lo" data-friend-id="${friend.id}">Lo!</button>
+      </div>
     </div>
   `
     )
@@ -275,6 +301,15 @@ function renderFriends() {
       setTimeout(() => btn.classList.remove('pulse'), 300);
     });
   });
+
+  friendsList.querySelectorAll('.btn-lo').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const friendId = parseInt(btn.dataset.friendId);
+      await sendLo(friendId);
+      btn.classList.add('pulse');
+      setTimeout(() => btn.classList.remove('pulse'), 300);
+    });
+  });
 }
 
 function renderYos() {
@@ -285,16 +320,155 @@ function renderYos() {
 
   yosList.innerHTML = yos
     .map(
-      (yo) => `
-    <div class="list-item">
+      (yo) => {
+        const isLocation = yo.type === 'lo' && yo.payload;
+        const title = isLocation
+          ? `Lo from ${escapeHtml(yo.from_username)}`
+          : `Oy from ${escapeHtml(yo.from_username)}`;
+        const locationToggle = isLocation
+          ? `
+            <button class="yo-location-toggle" type="button" aria-label="Toggle location">
+              <span class="yo-location-button">
+                <span class="yo-location-arrow"></span>
+              </span>
+            </button>
+          `
+          : '';
+
+        const cardClass = isLocation ? 'list-item list-item-location' : 'list-item';
+
+        return `
+    <div class="${cardClass}" ${isLocation ? `data-location-card="true" data-yo-id="${yo.id}"` : ''}>
       <div class="list-item-content">
-        <div class="list-item-title">Oy from ${escapeHtml(yo.from_username)}</div>
-        <div class="list-item-subtitle">${formatTime(yo.created_at)}</div>
+        <div class="list-item-header">
+          <div class="list-item-text">
+            <div class="list-item-title">${title}</div>
+            <div class="list-item-subtitle">${formatTime(yo.created_at)}</div>
+          </div>
+          ${isLocation ? `
+            <div class="list-item-toggle-slot">
+              ${locationToggle}
+            </div>
+          ` : ''}
+        </div>
+        ${isLocation ? `
+          <div class="list-item-map-slot" data-location-panel="true" data-open="false">
+            <div
+              class="yo-location-map"
+              data-lat="${yo.payload.lat}"
+              data-lon="${yo.payload.lon}"
+            ></div>
+          </div>
+        ` : ''}
       </div>
     </div>
   `
+      }
     )
     .join('');
+
+  maybeExpandRequestedYo();
+  attachLocationCardToggles();
+}
+
+function maybeExpandRequestedYo() {
+  if (!pendingExpandYoId) {
+    return;
+  }
+
+  if (pendingExpandType !== 'location') {
+    pendingExpandYoId = null;
+    return;
+  }
+
+  const card = document.querySelector(`[data-location-card="true"][data-yo-id="${pendingExpandYoId}"]`);
+  if (card) {
+    const panel = card.querySelector('[data-location-panel="true"]');
+    if (panel) {
+      panel.dataset.open = 'true';
+      const container = panel.querySelector('.yo-location-map');
+      initMapInPanel(container);
+      const arrow = card.querySelector('.yo-location-arrow');
+      if (arrow) {
+        arrow.classList.add('is-open');
+      }
+    }
+    card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+  pendingExpandYoId = null;
+}
+
+function attachLocationCardToggles() {
+  document.querySelectorAll('[data-location-card="true"]').forEach((card) => {
+    if (card.dataset.toggleBound === 'true') {
+      return;
+    }
+    card.dataset.toggleBound = 'true';
+
+    card.addEventListener('click', (event) => {
+      if (event.target.closest('.yo-location-map')) {
+        return;
+      }
+      if (event.target.closest('.yo-location-toggle')) {
+        return;
+      }
+      const panel = card.querySelector('[data-location-panel="true"]');
+      if (!panel) {
+        return;
+      }
+      toggleLocationPanel(panel);
+    });
+  });
+
+  document.querySelectorAll('.yo-location-toggle').forEach((btn) => {
+    if (btn.dataset.toggleBound === 'true') {
+      return;
+    }
+    btn.dataset.toggleBound = 'true';
+    btn.addEventListener('click', (event) => {
+      event.stopPropagation();
+      const card = btn.closest('[data-location-card="true"]');
+      const panel = card?.querySelector('[data-location-panel="true"]');
+      if (!panel) {
+        return;
+      }
+      toggleLocationPanel(panel);
+    });
+  });
+}
+
+function toggleLocationPanel(panel) {
+  const isOpen = panel.dataset.open === 'true';
+  panel.dataset.open = isOpen ? 'false' : 'true';
+
+  const card = panel.closest('[data-location-card="true"]');
+  const arrow = card?.querySelector('.yo-location-arrow');
+  if (arrow) {
+    arrow.classList.toggle('is-open', !isOpen);
+  }
+
+  if (!isOpen) {
+    const container = panel.querySelector('.yo-location-map');
+    initMapInPanel(container);
+  }
+}
+
+function initMapInPanel(container) {
+  if (!container || container.dataset.mapInit === 'true') {
+    return;
+  }
+
+  const lat = Number(container.dataset.lat);
+  const lon = Number(container.dataset.lon);
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+    return;
+  }
+
+  try {
+    initLocationMap(container, lat, lon);
+  } catch (err) {
+    console.error('Failed to init map:', err);
+  }
 }
 
 async function sendYo(toUserId) {
@@ -302,6 +476,39 @@ async function sendYo(toUserId) {
     await api('/api/oy', {
       method: 'POST',
       body: JSON.stringify({ toUserId }),
+    });
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+function getCurrentPosition(options) {
+  return new Promise((resolve, reject) => {
+    if (!navigator.geolocation) {
+      reject(new Error('Geolocation not supported'));
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(resolve, reject, options);
+  });
+}
+
+async function sendLo(toUserId) {
+  try {
+    const position = await getCurrentPosition({
+      enableHighAccuracy: true,
+      timeout: 10000,
+      maximumAge: 0,
+    });
+
+    const location = {
+      lat: position.coords.latitude,
+      lon: position.coords.longitude,
+      accuracy: position.coords.accuracy,
+    };
+
+    await api('/api/lo', {
+      method: 'POST',
+      body: JSON.stringify({ toUserId, location }),
     });
   } catch (err) {
     alert(err.message);

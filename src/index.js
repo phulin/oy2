@@ -154,7 +154,10 @@ app.post('/api/oy', async (c) => {
   }
 
   // Create the Oy
-  const result = await c.env.DB.prepare('INSERT INTO yos (from_user_id, to_user_id) VALUES (?, ?)')
+  const result = await c.env.DB.prepare(`
+    INSERT INTO yos (from_user_id, to_user_id, type, payload)
+    VALUES (?, ?, 'oy', NULL)
+  `)
     .bind(user.id, toUserId)
     .run();
 
@@ -211,7 +214,7 @@ app.get('/api/oys', async (c) => {
   }
 
   const yos = await c.env.DB.prepare(`
-    SELECT y.*, u.username as from_username
+    SELECT y.id, y.from_user_id, y.to_user_id, y.type, y.payload, y.created_at, u.username as from_username
     FROM yos y
     INNER JOIN users u ON y.from_user_id = u.id
     WHERE y.to_user_id = ?
@@ -219,7 +222,96 @@ app.get('/api/oys', async (c) => {
     LIMIT 50
   `).bind(user.id).all();
 
-  return c.json({ yos: yos.results || [] });
+  const results = (yos.results || []).map((yo) => ({
+    ...yo,
+    payload: yo.payload ? JSON.parse(yo.payload) : null,
+    type: yo.type || 'oy',
+  }));
+
+  return c.json({ yos: results });
+});
+
+// Send location (Lo!)
+app.post('/api/lo', async (c) => {
+  const user = c.get('user');
+  if (!user) {
+    return c.json({ error: 'Not authenticated' }, 401);
+  }
+
+  const { toUserId, location } = await c.req.json();
+  const lat = Number(location?.lat);
+  const lon = Number(location?.lon);
+
+  if (!toUserId || !Number.isFinite(lat) || !Number.isFinite(lon)) {
+    return c.json({ error: 'Missing location' }, 400);
+  }
+
+  // Check if they're friends
+  const areFriends = await c.env.DB.prepare('SELECT 1 FROM friendships WHERE user_id = ? AND friend_id = ? LIMIT 1')
+    .bind(user.id, toUserId)
+    .first();
+
+  if (!areFriends) {
+    return c.json({ error: 'You can only send Los to friends' }, 403);
+  }
+
+  const payload = JSON.stringify({
+    lat,
+    lon,
+    accuracy: location.accuracy || null,
+  });
+
+  const result = await c.env.DB.prepare(`
+    INSERT INTO yos (from_user_id, to_user_id, type, payload)
+    VALUES (?, ?, 'lo', ?)
+  `)
+    .bind(user.id, toUserId, payload)
+    .run();
+
+  try {
+    const subscriptions = await c.env.DB.prepare(`
+      SELECT endpoint, keys_p256dh, keys_auth
+      FROM push_subscriptions
+      WHERE user_id = ?
+    `).bind(toUserId).all();
+
+    for (const sub of subscriptions.results || []) {
+      const subscription = {
+        endpoint: sub.endpoint,
+        expirationTime: null,
+        keys: {
+          p256dh: sub.keys_p256dh,
+          auth: sub.keys_auth,
+        },
+      };
+
+      const url = `/?tab=yos&yo=${result.meta.last_row_id}&expand=location`;
+
+      await sendPushNotification(
+        c.env,
+        subscription,
+        {
+          title: 'Lo!',
+          body: `${user.username} shared a location`,
+          icon: '/icon-192.png',
+          badge: '/icon-192.png',
+          tag: `lo-${result.meta.last_row_id}`,
+          url,
+        }
+      ).catch(async (err) => {
+        console.error('Failed to send push:', err);
+        if (err.statusCode === 410) {
+          await c.env.DB.prepare('DELETE FROM push_subscriptions WHERE user_id = ? AND endpoint = ?')
+            .bind(toUserId, sub.endpoint)
+            .run();
+        }
+      });
+    }
+  } catch (err) {
+    console.error('Push notification error:', err);
+  }
+
+  return c.json({ success: true, yoId: result.meta.last_row_id });
 });
 
 // Subscribe to push notifications
