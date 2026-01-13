@@ -20,7 +20,7 @@ const requestedTab = hashValue
 const requestedYoId = urlParams.get("yo");
 const requestedExpand = urlParams.get("expand");
 const initialTab =
-	requestedTab && ["friends", "yos", "add"].includes(requestedTab)
+	requestedTab && ["friends", "oys", "add"].includes(requestedTab)
 		? requestedTab
 		: "friends";
 
@@ -303,7 +303,7 @@ export default function App() {
 	}
 
 	createEffect(() => {
-		if (tab() === "yos" && currentUser()) {
+		if (tab() === "oys" && currentUser()) {
 			loadYos();
 		}
 	});
@@ -322,7 +322,11 @@ export default function App() {
 		}
 		const hash = initialHashUsesParam ? `tab=${currentTab}` : currentTab;
 		if (window.location.hash !== `#${hash}`) {
-			window.location.hash = hash;
+			history.replaceState(
+				null,
+				"",
+				`${window.location.pathname}${window.location.search}#${hash}`,
+			);
 		}
 	});
 
@@ -331,7 +335,7 @@ export default function App() {
 		let pullTriggered = false;
 
 		const onTouchStart = (event: TouchEvent) => {
-			if (tab() !== "yos" || window.scrollY !== 0) {
+			if (tab() !== "oys" || window.scrollY !== 0) {
 				return;
 			}
 			const target = event.target as HTMLElement | null;
@@ -343,7 +347,7 @@ export default function App() {
 		};
 
 		const onTouchMove = (event: TouchEvent) => {
-			if (pullStartY === null || tab() !== "yos") {
+			if (pullStartY === null || tab() !== "oys") {
 				return;
 			}
 			const delta = event.touches[0].clientY - pullStartY;
@@ -407,9 +411,9 @@ export default function App() {
 									<Tabs.Trigger class="tab" value="friends">
 										Friends
 									</Tabs.Trigger>
-									<Tabs.Trigger class="tab" value="yos">
-										Oys
-									</Tabs.Trigger>
+								<Tabs.Trigger class="tab" value="oys">
+									Oys
+								</Tabs.Trigger>
 									<Tabs.Trigger class="tab" value="add">
 										Add Friend
 									</Tabs.Trigger>
@@ -423,7 +427,7 @@ export default function App() {
 									/>
 								</Tabs.Content>
 
-								<Tabs.Content value="yos">
+								<Tabs.Content value="oys">
 									<YosList
 										yos={yos()}
 										openLocations={openLocations}
