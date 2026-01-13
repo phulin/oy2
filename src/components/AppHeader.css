@@ -1,0 +1,17 @@
+.app-header {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	margin-bottom: 1.5rem;
+	gap: 1rem;
+}
+
+.app-title {
+	margin: 0;
+}
+
+.app-user-info {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+}

@@ -1,0 +1,32 @@
+.friends-list {
+	display: flex;
+	flex-direction: column;
+	gap: 0.75rem;
+}
+
+.friends-list-item {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	gap: 1rem;
+	padding: 0.75rem 1rem;
+}
+
+.friends-list-item-content {
+	flex: 1;
+}
+
+.friends-list-item-title {
+	font-weight: 600;
+}
+
+.friends-list-item-actions {
+	display: flex;
+	gap: 0.5rem;
+	flex-shrink: 0;
+}
+
+.friends-empty-state {
+	text-align: center;
+	padding: 2rem 1rem;
+}

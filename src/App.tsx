@@ -4,20 +4,20 @@ import { AddFriendForm } from "./components/AddFriendForm";
 import { AppHeader } from "./components/AppHeader";
 import { FriendsList } from "./components/FriendsList";
 import { LoginScreen } from "./components/LoginScreen";
+import { OysList } from "./components/OysList";
 import { PullIndicator } from "./components/PullIndicator";
+import { Screen } from "./components/Screen";
 import { UpdateToast } from "./components/UpdateToast";
-import { YosList } from "./components/YosList";
-import type { Friend, User, Yo } from "./types";
+import type { Friend, Oy, User } from "./types";
 import { urlBase64ToUint8Array } from "./utils";
+import "./App.css";
 
 const urlParams = new URLSearchParams(window.location.search);
 const hashValue = window.location.hash.replace(/^#/, "");
 const hashParams = new URLSearchParams(hashValue);
 const initialHashUsesParam = hashParams.has("tab");
-const requestedTab = hashValue
-	? hashParams.get("tab") ?? hashValue
-	: null;
-const requestedYoId = urlParams.get("yo");
+const requestedTab = hashValue ? (hashParams.get("tab") ?? hashValue) : null;
+const requestedOyId = urlParams.get("yo");
 const requestedExpand = urlParams.get("expand");
 const initialTab =
 	requestedTab && ["friends", "oys", "add"].includes(requestedTab)
@@ -28,7 +28,7 @@ export default function App() {
 	const [booting, setBooting] = createSignal(true);
 	const [currentUser, setCurrentUser] = createSignal<User | null>(null);
 	const [friends, setFriends] = createSignal<Friend[]>([]);
-	const [yos, setYos] = createSignal<Yo[]>([]);
+	const [oys, setOys] = createSignal<Oy[]>([]);
 	const [tab, setTab] = createSignal(initialTab);
 	const [openLocations, setOpenLocations] = createSignal<Set<number>>(
 		new Set(),
@@ -41,9 +41,9 @@ export default function App() {
 	);
 	const [pullActive, setPullActive] = createSignal(false);
 	const [pullRefreshing, setPullRefreshing] = createSignal(false);
-	const parsedYoId = requestedYoId ? Number(requestedYoId) : null;
-	let pendingExpandYoId: number | null =
-		parsedYoId !== null && Number.isFinite(parsedYoId) ? parsedYoId : null;
+	const parsedOyId = requestedOyId ? Number(requestedOyId) : null;
+	let pendingExpandOyId: number | null =
+		parsedOyId !== null && Number.isFinite(parsedOyId) ? parsedOyId : null;
 	let pendingExpandType: string | null = requestedExpand;
 	let hasUpdatedHash = false;
 
@@ -162,28 +162,28 @@ export default function App() {
 		}
 	}
 
-	async function loadYos() {
+	async function loadOys() {
 		try {
-			const { yos: data } = await api<{ yos: Yo[] }>("/api/oys");
-			setYos(data || []);
+			const { oys: oysData } = await api<{ oys: Oy[] }>("/api/oys");
+			setOys(oysData || []);
 		} catch (err) {
 			console.error("Failed to load oys:", err);
 		}
 
-		const expandId = pendingExpandYoId;
+		const expandId = pendingExpandOyId;
 		if (expandId !== null && pendingExpandType === "location") {
 			setOpenLocations((prev) => {
 				const next = new Set(prev);
 				next.add(expandId);
 				return next;
 			});
-			pendingExpandYoId = null;
+			pendingExpandOyId = null;
 			pendingExpandType = null;
 		}
 	}
 
 	async function loadData() {
-		await Promise.all([loadFriends(), loadYos()]);
+		await Promise.all([loadFriends(), loadOys()]);
 	}
 
 	async function handleLogin(event: SubmitEvent) {
@@ -212,7 +212,7 @@ export default function App() {
 		localStorage.removeItem("username");
 	}
 
-	async function sendYo(toUserId: number) {
+	async function sendOy(toUserId: number) {
 		try {
 			await api("/api/oy", {
 				method: "POST",
@@ -304,7 +304,7 @@ export default function App() {
 
 	createEffect(() => {
 		if (tab() === "oys" && currentUser()) {
-			loadYos();
+			loadOys();
 		}
 	});
 
@@ -316,7 +316,11 @@ export default function App() {
 		}
 		if (currentTab === "friends") {
 			if (window.location.hash) {
-				history.replaceState(null, "", window.location.pathname + window.location.search);
+				history.replaceState(
+					null,
+					"",
+					window.location.pathname + window.location.search,
+				);
 			}
 			return;
 		}
@@ -339,7 +343,7 @@ export default function App() {
 				return;
 			}
 			const target = event.target as HTMLElement | null;
-			if (target?.closest(".yo-location-map")) {
+			if (target?.closest(".oys-location-map")) {
 				return;
 			}
 			pullStartY = event.touches[0].clientY;
@@ -366,7 +370,7 @@ export default function App() {
 			}
 			if (pullTriggered) {
 				setPullRefreshing(true);
-				loadYos().finally(() => {
+				loadOys().finally(() => {
 					setPullRefreshing(false);
 					setPullActive(false);
 				});
@@ -400,47 +404,45 @@ export default function App() {
 					when={currentUser()}
 					fallback={<LoginScreen onSubmit={handleLogin} />}
 				>
-					<div class="screen">
-						<div class="container">
-							<Show when={currentUser()}>
-								{(user) => <AppHeader user={user()} onLogout={logout} />}
-							</Show>
+					<Screen>
+						<Show when={currentUser()}>
+							{(user) => <AppHeader user={user()} onLogout={logout} />}
+						</Show>
 
-							<Tabs.Root value={tab()} onChange={setTab}>
-								<Tabs.List class="tabs">
-									<Tabs.Trigger class="tab" value="friends">
-										Friends
-									</Tabs.Trigger>
-								<Tabs.Trigger class="tab" value="oys">
+						<Tabs.Root value={tab()} onChange={setTab}>
+							<Tabs.List class="app-tabs">
+								<Tabs.Trigger class="app-tab" value="friends">
+									Friends
+								</Tabs.Trigger>
+								<Tabs.Trigger class="app-tab" value="oys">
 									Oys
 								</Tabs.Trigger>
-									<Tabs.Trigger class="tab" value="add">
-										Add Friend
-									</Tabs.Trigger>
-								</Tabs.List>
+								<Tabs.Trigger class="app-tab" value="add">
+									Add Friend
+								</Tabs.Trigger>
+							</Tabs.List>
 
-								<Tabs.Content value="friends">
-									<FriendsList
-										friends={friends()}
-										onSendYo={sendYo}
-										onSendLo={sendLo}
-									/>
-								</Tabs.Content>
+							<Tabs.Content value="friends">
+								<FriendsList
+									friends={friends()}
+									onSendOy={sendOy}
+									onSendLo={sendLo}
+								/>
+							</Tabs.Content>
 
-								<Tabs.Content value="oys">
-									<YosList
-										yos={yos()}
-										openLocations={openLocations}
-										onToggleLocation={toggleLocation}
-									/>
-								</Tabs.Content>
+							<Tabs.Content value="oys">
+								<OysList
+									oys={oys()}
+									openLocations={openLocations}
+									onToggleLocation={toggleLocation}
+								/>
+							</Tabs.Content>
 
-								<Tabs.Content value="add">
-									<AddFriendForm api={api} currentUser={currentUser} />
-								</Tabs.Content>
-							</Tabs.Root>
-						</div>
-					</div>
+							<Tabs.Content value="add">
+								<AddFriendForm api={api} currentUser={currentUser} />
+							</Tabs.Content>
+						</Tabs.Root>
+					</Screen>
 				</Show>
 			</Show>
 		</>

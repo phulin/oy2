@@ -8,18 +8,18 @@ export type Friend = {
 	username: string;
 };
 
-export type YoPayload = {
+export type OyPayload = {
 	lat: number;
 	lon: number;
 	accuracy?: number | null;
 };
 
-export type Yo = {
+export type Oy = {
 	id: number;
 	from_username: string;
 	created_at: number;
 	type: string;
-	payload?: YoPayload | null;
+	payload?: OyPayload | null;
 };
 
 export type SearchUser = Friend & { added?: boolean };

@@ -1,3 +1,5 @@
+import "./PullIndicator.css";
+
 type PullIndicatorProps = {
 	active: boolean;
 	refreshing: boolean;

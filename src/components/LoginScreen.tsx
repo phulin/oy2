@@ -1,4 +1,6 @@
 import type { JSX } from "solid-js";
+import { Screen } from "./Screen";
+import "./LoginScreen.css";
 
 type LoginScreenProps = {
 	onSubmit: JSX.EventHandler<HTMLFormElement, SubmitEvent>;
@@ -6,25 +8,21 @@ type LoginScreenProps = {
 
 export function LoginScreen(props: LoginScreenProps) {
 	return (
-		<div class="screen">
-			<div class="container">
-				<h1 class="logo">Oy</h1>
-				<p class="tagline">Send Oys to your friends</p>
-				<form onSubmit={props.onSubmit}>
-					<input
-						type="text"
-						name="username"
-						placeholder="Enter username"
-						autocomplete="username"
-						required
-						minlength="2"
-						maxlength="20"
-					/>
-					<button type="submit" class="btn-primary">
-						Get Started
-					</button>
-				</form>
-			</div>
-		</div>
+		<Screen>
+			<h1 class="login-logo">Oy</h1>
+			<p class="login-tagline">Send Oys to your friends</p>
+			<form onSubmit={props.onSubmit}>
+				<input
+					type="text"
+					name="username"
+					placeholder="Enter username"
+					autocomplete="username"
+					required
+					minlength="2"
+					maxlength="20"
+				/>
+				<button type="submit">Get Started</button>
+			</form>
+		</Screen>
 	);
 }

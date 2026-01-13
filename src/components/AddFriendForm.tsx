@@ -1,5 +1,6 @@
 import { createEffect, createSignal, For, Show } from "solid-js";
 import type { SearchUser, User } from "../types";
+import "./AddFriendForm.css";
 
 type AddFriendFormProps = {
 	api: <T>(endpoint: string, options?: RequestInit) => Promise<T>;
@@ -60,11 +61,11 @@ export function AddFriendForm(props: AddFriendFormProps) {
 					onInput={(event) => setQuery(event.currentTarget.value)}
 				/>
 			</form>
-			<div class="list">
+			<div class="add-friend-list">
 				<Show
 					when={results().length > 0}
 					fallback={
-						<p class="empty-state">
+						<p class="add-friend-empty-state">
 							{showPrompt() ? "Search for friends to add" : "No users found"}
 						</p>
 					}
@@ -75,12 +76,11 @@ export function AddFriendForm(props: AddFriendFormProps) {
 						)}
 					>
 						{(user) => (
-							<div class="list-item">
-								<div class="list-item-content">
-									<div class="list-item-title">{user.username}</div>
+							<div class="add-friend-list-item">
+								<div class="add-friend-list-item-content">
+									<div class="add-friend-list-item-title">{user.username}</div>
 								</div>
 								<button
-									class="btn-secondary"
 									type="button"
 									disabled={user.added}
 									onClick={() => addFriend(user.id)}

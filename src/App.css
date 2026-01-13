@@ -1,0 +1,13 @@
+.app-tabs {
+	display: flex;
+	gap: 0.5rem;
+	margin-bottom: 1rem;
+}
+
+.app-tab {
+	flex: 1;
+}
+
+.app-tab[data-selected] {
+	font-weight: 600;
+}

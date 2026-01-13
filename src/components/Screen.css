@@ -1,0 +1,12 @@
+.app-screen {
+	min-height: 100vh;
+	display: flex;
+	flex-direction: column;
+}
+
+.app-container {
+	max-width: 600px;
+	margin: 0 auto;
+	padding: 1rem;
+	width: 100%;
+}

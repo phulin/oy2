@@ -1,0 +1,117 @@
+.oys-list {
+	display: flex;
+	flex-direction: column;
+	gap: 0.75rem;
+}
+
+.oys-list-item {
+	width: 100%;
+	text-align: left;
+	display: flex;
+	padding: 0.75rem 1rem;
+}
+
+.oys-list-item-location {
+	cursor: pointer;
+}
+
+.oys-list-item-location:focus-visible {
+	outline: 2px solid currentColor;
+	outline-offset: 2px;
+}
+
+.oys-list-item:disabled {
+	cursor: default;
+}
+
+.oys-list-item-content {
+	display: flex;
+	flex-direction: column;
+	gap: 0.5rem;
+	flex: 1;
+}
+
+.oys-list-item-header {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 0.75rem;
+	position: relative;
+	padding-right: 3.5rem;
+}
+
+.oys-list-item-text {
+	display: flex;
+	flex-direction: column;
+	gap: 0.25rem;
+}
+
+.oys-list-item-toggle-slot {
+	position: absolute;
+	top: 0;
+	right: 0;
+	display: flex;
+	align-items: flex-start;
+}
+
+.oys-list-item-title {
+	font-weight: 600;
+}
+
+.oys-list-item-subtitle {
+	font-size: 0.85rem;
+}
+
+.oys-list-item-map-slot {
+	margin: 0 -1rem -1rem;
+}
+
+.oys-location-panel {
+	max-height: 0;
+	overflow: hidden;
+	transition: max-height 0.2s ease;
+}
+
+.oys-location-panel.open {
+	max-height: 380px;
+	margin-top: 0.5rem;
+}
+
+.oys-location-toggle {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	padding: 0;
+	border: none;
+	background: transparent;
+	cursor: pointer;
+}
+
+.oys-location-button {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 40px;
+	height: 40px;
+	border-radius: 999px;
+	border: 1px solid currentColor;
+}
+
+.oys-location-arrow {
+	display: inline-block;
+	width: 0;
+	height: 0;
+	border-left: 8px solid transparent;
+	border-right: 8px solid transparent;
+	border-top: 12px solid currentColor;
+	transition: transform 0.2s ease;
+}
+
+.oys-location-arrow.is-open {
+	transform: rotate(180deg);
+}
+
+.oys-empty-state {
+	text-align: center;
+	padding: 2rem 1rem;
+}

@@ -1,5 +1,6 @@
 import { createEffect } from "solid-js";
 import { initLocationMap } from "../map";
+import "./LocationMap.css";
 
 type LocationMapProps = {
 	lat: number;
@@ -18,7 +19,7 @@ export function LocationMap(props: LocationMapProps) {
 
 	return (
 		<div
-			class="yo-location-map"
+			class="oys-location-map"
 			ref={(el) => {
 				container = el as HTMLDivElement;
 			}}
