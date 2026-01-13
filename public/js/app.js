@@ -11,6 +11,7 @@ const requestedTab = urlParams.get('tab');
 const requestedYoId = urlParams.get('yo');
 const requestedExpand = urlParams.get('expand');
 const initialTab = ['friends', 'yos', 'add'].includes(requestedTab) ? requestedTab : 'friends';
+let activeTab = initialTab;
 
 if (requestedYoId && !Number.isNaN(Number(requestedYoId))) {
   pendingExpandYoId = Number(requestedYoId);
@@ -36,6 +37,7 @@ const searchForm = document.getElementById('search-form');
 const searchInput = document.getElementById('search-input');
 const searchResults = document.getElementById('search-results');
 const bodyEl = document.body;
+const pullIndicator = document.getElementById('pull-indicator');
 
 function finishBoot() {
   bodyEl.classList.remove('booting');
@@ -191,6 +193,7 @@ function showMainScreen() {
 }
 
 function setActiveTab(tabName) {
+  activeTab = tabName;
   tabs.forEach((t) => t.classList.remove('active'));
   tabs.forEach((t) => {
     if (t.dataset.tab === tabName) {
@@ -269,6 +272,63 @@ async function loadYos() {
     console.error('Failed to load oys:', err);
   }
 }
+
+let pullStartY = null;
+let pullTriggered = false;
+
+function isAtTop() {
+  return window.scrollY === 0;
+}
+
+function showPullIndicator(isActive) {
+  pullIndicator.classList.toggle('active', isActive);
+}
+
+async function runPullRefresh() {
+  pullIndicator.classList.add('refreshing');
+  await loadYos();
+  pullIndicator.classList.remove('refreshing');
+  pullIndicator.classList.remove('active');
+}
+
+window.addEventListener('touchstart', (event) => {
+  if (activeTab !== 'yos' || !isAtTop()) {
+    return;
+  }
+  if (event.target.closest('.yo-location-map')) {
+    return;
+  }
+  pullStartY = event.touches[0].clientY;
+  pullTriggered = false;
+});
+
+window.addEventListener('touchmove', (event) => {
+  if (pullStartY === null || activeTab !== 'yos') {
+    return;
+  }
+  const delta = event.touches[0].clientY - pullStartY;
+  if (delta <= 0) {
+    showPullIndicator(false);
+    return;
+  }
+  event.preventDefault();
+  const threshold = 70;
+  pullTriggered = delta > threshold;
+  showPullIndicator(true);
+}, { passive: false });
+
+window.addEventListener('touchend', () => {
+  if (pullStartY === null) {
+    return;
+  }
+  if (pullTriggered) {
+    runPullRefresh();
+  } else {
+    pullIndicator.classList.remove('active');
+  }
+  pullStartY = null;
+  pullTriggered = false;
+});
 
 function renderFriends() {
   if (friends.length === 0) {

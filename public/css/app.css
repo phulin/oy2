@@ -37,6 +37,30 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+#pull-indicator {
+  position: fixed;
+  top: 0.6rem;
+  left: 50%;
+  width: 44px;
+  height: 6px;
+  transform: translate(-50%, -120%);
+  background: var(--primary);
+  border-radius: 999px;
+  z-index: 1000;
+  transition: transform 0.2s ease, opacity 0.2s ease;
+  opacity: 0;
+  pointer-events: none;
+}
+
+#pull-indicator.active {
+  transform: translate(-50%, 0);
+  opacity: 1;
+}
+
+#pull-indicator.refreshing {
+  opacity: 1;
+}
+
 .booting .screen {
   display: none !important;
 }
