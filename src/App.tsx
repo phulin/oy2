@@ -11,7 +11,12 @@ import type { Friend, User, Yo } from "./types";
 import { urlBase64ToUint8Array } from "./utils";
 
 const urlParams = new URLSearchParams(window.location.search);
-const requestedTab = urlParams.get("tab");
+const hashValue = window.location.hash.replace(/^#/, "");
+const hashParams = new URLSearchParams(hashValue);
+const initialHashUsesParam = hashParams.has("tab");
+const requestedTab = hashValue
+	? hashParams.get("tab") ?? hashValue
+	: null;
 const requestedYoId = urlParams.get("yo");
 const requestedExpand = urlParams.get("expand");
 const initialTab =
@@ -40,6 +45,7 @@ export default function App() {
 	let pendingExpandYoId: number | null =
 		parsedYoId !== null && Number.isFinite(parsedYoId) ? parsedYoId : null;
 	let pendingExpandType: string | null = requestedExpand;
+	let hasUpdatedHash = false;
 
 	async function api<T>(
 		endpoint: string,
@@ -299,6 +305,24 @@ export default function App() {
 	createEffect(() => {
 		if (tab() === "yos" && currentUser()) {
 			loadYos();
+		}
+	});
+
+	createEffect(() => {
+		const currentTab = tab();
+		if (!hasUpdatedHash) {
+			hasUpdatedHash = true;
+			return;
+		}
+		if (currentTab === "friends") {
+			if (window.location.hash) {
+				history.replaceState(null, "", window.location.pathname + window.location.search);
+			}
+			return;
+		}
+		const hash = initialHashUsesParam ? `tab=${currentTab}` : currentTab;
+		if (window.location.hash !== `#${hash}`) {
+			window.location.hash = hash;
 		}
 	});
 
