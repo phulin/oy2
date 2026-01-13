@@ -1,0 +1,75 @@
+.btn-primary {
+	width: 100%;
+	padding: 1rem;
+	font-size: 1rem;
+	font-weight: 600;
+	color: #ffffff;
+	background: var(--primary);
+	border: none;
+	border-radius: 8px;
+	cursor: pointer;
+	transition: background 0.2s;
+}
+
+.btn-primary:hover {
+	background: var(--primary-dark);
+}
+
+.btn-text {
+	padding: 0.5rem;
+	font-size: 0.9rem;
+	color: var(--text-light);
+	background: none;
+	border: none;
+	cursor: pointer;
+}
+
+.btn-text:hover {
+	color: var(--text);
+}
+
+.btn-secondary {
+	padding: 0.5rem 1rem;
+	font-size: 0.9rem;
+	font-weight: 600;
+	color: var(--primary);
+	background: var(--bg-secondary);
+	border: none;
+	border-radius: 6px;
+	cursor: pointer;
+	transition: background 0.2s;
+}
+
+.btn-secondary:hover {
+	background: var(--border);
+}
+
+.btn-oy,
+.btn-lo {
+	padding: 0.75rem 1.5rem;
+	font-size: 1.2rem;
+	font-weight: 700;
+	color: #ffffff;
+	border: none;
+	border-radius: 8px;
+	cursor: pointer;
+	transition: all 0.2s;
+}
+
+.btn-oy {
+	background: var(--primary-dark);
+}
+
+.btn-oy:hover {
+	background: #2f35c7;
+	transform: scale(1.05);
+}
+
+.btn-lo {
+	background: #2563eb;
+}
+
+.btn-lo:hover {
+	background: #1d4ed8;
+	transform: scale(1.05);
+}

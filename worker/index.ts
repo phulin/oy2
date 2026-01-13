@@ -277,7 +277,7 @@ app.get("/api/oys", async (c) => {
 		type: yo.type || "oy",
 	}));
 
-	return c.json({ yos: results });
+	return c.json({ oys: results });
 });
 
 // Send location (Lo!)
@@ -340,7 +340,7 @@ app.post("/api/lo", async (c) => {
 				},
 			};
 
-			const url = `/?tab=yos&yo=${result.meta.last_row_id}&expand=location`;
+			const url = `/?tab=oys&yo=${result.meta.last_row_id}&expand=location`;
 
 			await sendPushNotification(c.env, subscription, {
 				title: "Lo!",

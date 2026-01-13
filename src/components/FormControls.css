@@ -1,0 +1,16 @@
+.app-text-input {
+	width: 100%;
+	padding: 1rem;
+	font-size: 1rem;
+	border: 2px solid var(--border);
+	border-radius: 8px;
+	margin-bottom: 1rem;
+	transition: border-color 0.2s;
+	background: var(--bg);
+	color: var(--text);
+}
+
+.app-text-input:focus {
+	outline: none;
+	border-color: var(--primary);
+}

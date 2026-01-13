@@ -1,6 +1,8 @@
 import { Button } from "@kobalte/core/button";
 import { createEffect, createSignal, For, Show } from "solid-js";
 import type { SearchUser, User } from "../types";
+import "./ButtonStyles.css";
+import "./FormControls.css";
 import "./AddFriendForm.css";
 
 type AddFriendFormProps = {
@@ -60,6 +62,7 @@ export function AddFriendForm(props: AddFriendFormProps) {
 					autocomplete="off"
 					value={query()}
 					onInput={(event) => setQuery(event.currentTarget.value)}
+					class="app-text-input"
 				/>
 			</form>
 			<div class="add-friend-list">
@@ -82,6 +85,7 @@ export function AddFriendForm(props: AddFriendFormProps) {
 									<div class="add-friend-list-item-title">{user.username}</div>
 								</div>
 								<Button
+									class="btn-secondary"
 									disabled={user.added}
 									onClick={() => addFriend(user.id)}
 								>

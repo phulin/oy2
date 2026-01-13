@@ -8,7 +8,10 @@
 	width: 100%;
 	text-align: left;
 	display: flex;
-	padding: 0.75rem 1rem;
+	padding: 1rem;
+	background: var(--bg-secondary);
+	border-radius: 12px;
+	border: none;
 }
 
 .oys-list-item-location {
@@ -16,18 +19,19 @@
 }
 
 .oys-list-item-location:focus-visible {
-	outline: 2px solid currentColor;
+	outline: 2px solid var(--primary);
 	outline-offset: 2px;
 }
 
 .oys-list-item:disabled {
 	cursor: default;
+	opacity: 1;
 }
 
 .oys-list-item-content {
 	display: flex;
 	flex-direction: column;
-	gap: 0.5rem;
+	gap: 0.25rem;
 	flex: 1;
 }
 
@@ -56,10 +60,12 @@
 
 .oys-list-item-title {
 	font-weight: 600;
+	color: var(--text);
 }
 
 .oys-list-item-subtitle {
 	font-size: 0.85rem;
+	color: var(--text-light);
 }
 
 .oys-list-item-map-slot {
@@ -94,7 +100,8 @@
 	width: 40px;
 	height: 40px;
 	border-radius: 999px;
-	border: 1px solid currentColor;
+	border: 1px solid var(--border);
+	background: var(--bg);
 }
 
 .oys-location-arrow {
@@ -103,7 +110,7 @@
 	height: 0;
 	border-left: 8px solid transparent;
 	border-right: 8px solid transparent;
-	border-top: 12px solid currentColor;
+	border-top: 12px solid var(--primary);
 	transition: transform 0.2s ease;
 }
 
@@ -113,5 +120,6 @@
 
 .oys-empty-state {
 	text-align: center;
-	padding: 2rem 1rem;
+	color: var(--text-light);
+	padding: 3rem 1rem;
 }

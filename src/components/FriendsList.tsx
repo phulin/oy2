@@ -1,6 +1,7 @@
 import { Button } from "@kobalte/core/button";
 import { For, Show } from "solid-js";
 import type { Friend } from "../types";
+import "./ButtonStyles.css";
 import "./FriendsList.css";
 
 type FriendsListProps = {
@@ -23,8 +24,12 @@ export function FriendsList(props: FriendsListProps) {
 								<div class="friends-list-item-title">{friend.username}</div>
 							</div>
 							<div class="friends-list-item-actions">
-								<Button onClick={() => props.onSendOy(friend.id)}>Oy!</Button>
-								<Button onClick={() => props.onSendLo(friend.id)}>Lo!</Button>
+								<Button class="btn-oy" onClick={() => props.onSendOy(friend.id)}>
+									Oy!
+								</Button>
+								<Button class="btn-lo" onClick={() => props.onSendLo(friend.id)}>
+									Lo!
+								</Button>
 							</div>
 						</div>
 					)}

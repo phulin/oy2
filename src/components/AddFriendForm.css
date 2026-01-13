@@ -10,18 +10,26 @@
 	justify-content: space-between;
 	align-items: center;
 	gap: 1rem;
-	padding: 0.75rem 1rem;
+	padding: 1rem;
+	background: var(--bg-secondary);
+	border-radius: 12px;
+	border: none;
 }
 
 .add-friend-list-item-content {
+	display: flex;
+	flex-direction: column;
+	gap: 0.25rem;
 	flex: 1;
 }
 
 .add-friend-list-item-title {
 	font-weight: 600;
+	color: var(--text);
 }
 
 .add-friend-empty-state {
 	text-align: center;
-	padding: 2rem 1rem;
+	color: var(--text-light);
+	padding: 3rem 1rem;
 }
