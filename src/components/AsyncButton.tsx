@@ -14,16 +14,34 @@ export function AsyncButton(props: AsyncButtonProps) {
 		"disabled",
 		"class",
 		"children",
+		"onPointerUp",
+		"onTouchEnd",
+		"onTouchCancel",
 	]);
 	const [loading, setLoading] = createSignal(false);
 
-	const handleClick = async () => {
+	const handleClick = async (_event: MouseEvent) => {
 		setLoading(true);
 		try {
 			await local.onClick();
 		} finally {
 			setLoading(false);
 		}
+	};
+
+	const handlePointerUp = (event: PointerEvent) => {
+		(event.currentTarget as HTMLButtonElement).blur();
+		local.onPointerUp?.(event);
+	};
+
+	const handleTouchEnd = (event: TouchEvent) => {
+		(event.currentTarget as HTMLButtonElement).blur();
+		local.onTouchEnd?.(event);
+	};
+
+	const handleTouchCancel = (event: TouchEvent) => {
+		(event.currentTarget as HTMLButtonElement).blur();
+		local.onTouchCancel?.(event);
 	};
 
 	const className = () =>
@@ -34,6 +52,9 @@ export function AsyncButton(props: AsyncButtonProps) {
 			{...others}
 			class={className()}
 			onClick={handleClick}
+			onPointerUp={handlePointerUp}
+			onTouchEnd={handleTouchEnd}
+			onTouchCancel={handleTouchCancel}
 			disabled={local.disabled || loading()}
 			aria-busy={loading()}
 		>

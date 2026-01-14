@@ -1,0 +1,11 @@
+.swipeable-tabs {
+	flex: 1;
+	min-height: 100%;
+	touch-action: pan-y;
+	transition: transform 0.2s ease;
+	will-change: transform;
+}
+
+.swipeable-tabs.is-dragging {
+	transition: none;
+}

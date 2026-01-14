@@ -23,3 +23,10 @@
 	color: var(--primary);
 	border-bottom-color: var(--primary);
 }
+
+.app-tabs-root {
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+	min-height: 0;
+}

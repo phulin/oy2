@@ -11,10 +11,6 @@
 	transition: background 0.2s;
 }
 
-.btn-primary:hover {
-	background: var(--primary-dark);
-}
-
 .btn-text {
 	padding: 0.5rem;
 	font-size: 0.9rem;
@@ -22,10 +18,6 @@
 	background: none;
 	border: none;
 	cursor: pointer;
-}
-
-.btn-text:hover {
-	color: var(--text);
 }
 
 .btn-secondary {
@@ -38,10 +30,6 @@
 	border-radius: 6px;
 	cursor: pointer;
 	transition: background 0.2s;
-}
-
-.btn-secondary:hover {
-	background: var(--border);
 }
 
 .btn-oy,
@@ -60,16 +48,30 @@
 	background: var(--primary-dark);
 }
 
-.btn-oy:hover {
-	background: #2f35c7;
-	transform: scale(1.05);
-}
-
 .btn-lo {
 	background: #2563eb;
 }
 
-.btn-lo:hover {
-	background: #1d4ed8;
-	transform: scale(1.05);
+@media (hover: hover) and (pointer: fine) {
+	.btn-primary:hover {
+		background: var(--primary-dark);
+	}
+
+	.btn-text:hover {
+		color: var(--text);
+	}
+
+	.btn-secondary:hover {
+		background: var(--border);
+	}
+
+	.btn-oy:hover {
+		background: #2f35c7;
+		transform: scale(1.05);
+	}
+
+	.btn-lo:hover {
+		background: #1d4ed8;
+		transform: scale(1.05);
+	}
 }

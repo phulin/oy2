@@ -7,6 +7,7 @@ import { FriendsList } from "./components/FriendsList";
 import { LoginScreen } from "./components/LoginScreen";
 import { OysList } from "./components/OysList";
 import { Screen } from "./components/Screen";
+import { SwipeableTabs } from "./components/SwipeableTabs";
 import type { Friend, Oy, User } from "./types";
 import { urlBase64ToUint8Array } from "./utils";
 import "./App.css";
@@ -39,8 +40,6 @@ export default function App() {
 		parsedOyId !== null && Number.isFinite(parsedOyId) ? parsedOyId : null;
 	let pendingExpandType: string | null = requestedExpand;
 	let hasUpdatedHash = false;
-	let swipeStartX: number | null = null;
-	let swipeStartY: number | null = null;
 	const tabOrder = ["friends", "oys", "add"] as const;
 
 	async function api<T>(
@@ -277,38 +276,6 @@ export default function App() {
 		});
 	}
 
-	function handleSwipeStart(event: TouchEvent) {
-		const target = event.target as HTMLElement | null;
-		if (target?.closest("input, textarea, select, button, .oys-location-map")) {
-			return;
-		}
-		swipeStartX = event.touches[0].clientX;
-		swipeStartY = event.touches[0].clientY;
-	}
-
-	function handleSwipeEnd(event: TouchEvent) {
-		if (swipeStartX === null || swipeStartY === null) {
-			return;
-		}
-		const touch = event.changedTouches[0];
-		const deltaX = touch.clientX - swipeStartX;
-		const deltaY = touch.clientY - swipeStartY;
-		swipeStartX = null;
-		swipeStartY = null;
-
-		if (Math.abs(deltaX) < 60 || Math.abs(deltaX) < Math.abs(deltaY)) {
-			return;
-		}
-
-		const currentIndex = tabOrder.indexOf(tab() as (typeof tabOrder)[number]);
-		const direction = deltaX > 0 ? -1 : 1;
-		const nextIndex = currentIndex + direction;
-		const nextTab = tabOrder[nextIndex];
-		if (nextTab) {
-			setTab(nextTab);
-		}
-	}
-
 	onMount(async () => {
 		await registerServiceWorker();
 		const savedUsername = localStorage.getItem("username");
@@ -401,7 +368,7 @@ export default function App() {
 						{(user) => <AppHeader user={user()} onLogout={logout} />}
 					</Show>
 
-					<Tabs.Root value={tab()} onChange={setTab}>
+					<Tabs.Root value={tab()} onChange={setTab} class="app-tabs-root">
 						<Tabs.List class="app-tabs">
 							<Tabs.Trigger class="app-tab" value="friends">
 								Friends
@@ -414,11 +381,7 @@ export default function App() {
 							</Tabs.Trigger>
 						</Tabs.List>
 
-						<div
-							class="app-tab-panels"
-							onTouchStart={handleSwipeStart}
-							onTouchEnd={handleSwipeEnd}
-						>
+						<SwipeableTabs order={tabOrder} value={tab} onChange={setTab}>
 							<Tabs.Content value="friends">
 								<FriendsList
 									friends={friends()}
@@ -442,7 +405,7 @@ export default function App() {
 									friends={friends}
 								/>
 							</Tabs.Content>
-						</div>
+						</SwipeableTabs>
 					</Tabs.Root>
 				</Screen>
 			</Show>
