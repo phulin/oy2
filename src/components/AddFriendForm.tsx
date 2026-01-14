@@ -1,6 +1,6 @@
 import { Button } from "@kobalte/core/button";
-import { createEffect, createSignal, For, Show } from "solid-js";
-import type { SearchUser, User } from "../types";
+import { createEffect, createMemo, createSignal, For, Show } from "solid-js";
+import type { Friend, SearchUser, User } from "../types";
 import "./ButtonStyles.css";
 import "./FormControls.css";
 import "./AddFriendForm.css";
@@ -8,12 +8,16 @@ import "./AddFriendForm.css";
 type AddFriendFormProps = {
 	api: <T>(endpoint: string, options?: RequestInit) => Promise<T>;
 	currentUser: () => User | null;
+	friends: () => Friend[];
 };
 
 export function AddFriendForm(props: AddFriendFormProps) {
 	const [results, setResults] = createSignal<SearchUser[]>([]);
 	const [query, setQuery] = createSignal("");
 	let debounce: ReturnType<typeof setTimeout> | undefined;
+	const friendIds = createMemo(
+		() => new Set(props.friends().map((friend) => friend.id)),
+	);
 
 	createEffect(() => {
 		const value = query().trim();
@@ -84,13 +88,20 @@ export function AddFriendForm(props: AddFriendFormProps) {
 								<div class="add-friend-list-item-content">
 									<div class="add-friend-list-item-title">{user.username}</div>
 								</div>
-								<Button
-									class="btn-secondary"
-									disabled={user.added}
-									onClick={() => addFriend(user.id)}
+								<Show
+									when={!friendIds().has(user.id)}
+									fallback={
+										<span class="add-friend-status">Already friends</span>
+									}
 								>
-									{user.added ? "Added!" : "Add Friend"}
-								</Button>
+									<Button
+										class="btn-secondary"
+										disabled={user.added}
+										onClick={() => addFriend(user.id)}
+									>
+										{user.added ? "Added!" : "Add Friend"}
+									</Button>
+								</Show>
 							</div>
 						)}
 					</For>

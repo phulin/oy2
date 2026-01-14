@@ -1,3 +1,4 @@
+import { registerSW } from "virtual:pwa-register";
 import { Tabs } from "@kobalte/core";
 import { createEffect, createSignal, onCleanup, onMount, Show } from "solid-js";
 import { AddFriendForm } from "./components/AddFriendForm";
@@ -5,9 +6,7 @@ import { AppHeader } from "./components/AppHeader";
 import { FriendsList } from "./components/FriendsList";
 import { LoginScreen } from "./components/LoginScreen";
 import { OysList } from "./components/OysList";
-import { PullIndicator } from "./components/PullIndicator";
 import { Screen } from "./components/Screen";
-import { UpdateToast } from "./components/UpdateToast";
 import type { Friend, Oy, User } from "./types";
 import { urlBase64ToUint8Array } from "./utils";
 import "./App.css";
@@ -35,12 +34,6 @@ export default function App() {
 	);
 	const [swRegistration, setSwRegistration] =
 		createSignal<ServiceWorkerRegistration | null>(null);
-	const [updateReady, setUpdateReady] = createSignal(false);
-	const [updateWaiting, setUpdateWaiting] = createSignal<ServiceWorker | null>(
-		null,
-	);
-	const [pullActive, setPullActive] = createSignal(false);
-	const [pullRefreshing, setPullRefreshing] = createSignal(false);
 	const parsedOyId = requestedOyId ? Number(requestedOyId) : null;
 	let pendingExpandOyId: number | null =
 		parsedOyId !== null && Number.isFinite(parsedOyId) ? parsedOyId : null;
@@ -89,26 +82,26 @@ export default function App() {
 			return;
 		}
 
-		const existing = await registration.pushManager.getSubscription();
-		if (existing) {
-			await api("/api/push/subscribe", {
-				method: "POST",
-				body: JSON.stringify(existing.toJSON()),
-			});
-			return;
-		}
+		let subscription = await registration.pushManager.getSubscription();
 
-		const { publicKey } = await api<{ publicKey: string }>(
-			"/api/push/vapid-public-key",
-		);
-		const subscription = await registration.pushManager.subscribe({
-			userVisibleOnly: true,
-			applicationServerKey: urlBase64ToUint8Array(publicKey),
-		});
+		if (!subscription) {
+			const { publicKey } = await api<{ publicKey: string }>(
+				"/api/push/vapid-public-key",
+			);
+			subscription = await registration.pushManager.subscribe({
+				userVisibleOnly: true,
+				applicationServerKey: urlBase64ToUint8Array(publicKey),
+			});
+		}
 
 		await api("/api/push/subscribe", {
 			method: "POST",
 			body: JSON.stringify(subscription.toJSON()),
+		});
+		const user = currentUser() as User;
+		console.log("Push subscription saved", {
+			endpoint: subscription.endpoint,
+			userId: user.id,
 		});
 	}
 
@@ -117,38 +110,32 @@ export default function App() {
 			return;
 		}
 
-		const hostname = window.location.hostname;
-		if (hostname === "localhost" || hostname === "127.0.0.1") {
-			return;
-		}
+		const updateSW = registerSW({
+			immediate: true,
+			onNeedRefresh() {
+				void updateSW(true);
+			},
+		});
 
-		const registration = await navigator.serviceWorker.register("/sw.js");
-		setSwRegistration(registration);
+		navigator.serviceWorker.ready
+			.then((registration) => {
+				setSwRegistration(registration);
 
-		if (registration.waiting) {
-			setUpdateWaiting(registration.waiting);
-			setUpdateReady(true);
-		}
+				const refreshRegistration = () => {
+					if (document.visibilityState === "visible") {
+						void registration.update();
+					}
+				};
 
-		registration.addEventListener("updatefound", () => {
-			const newWorker = registration.installing;
-			if (!newWorker) {
-				return;
-			}
-			newWorker.addEventListener("statechange", () => {
-				if (
-					newWorker.state === "installed" &&
-					navigator.serviceWorker.controller
-				) {
-					setUpdateWaiting(registration.waiting);
-					setUpdateReady(true);
-				}
+				refreshRegistration();
+				document.addEventListener("visibilitychange", refreshRegistration);
+				onCleanup(() => {
+					document.removeEventListener("visibilitychange", refreshRegistration);
+				});
+			})
+			.catch((err) => {
+				console.error("Service worker ready failed:", err);
 			});
-		});
-
-		navigator.serviceWorker.addEventListener("controllerchange", () => {
-			window.location.reload();
-		});
 	}
 
 	async function loadFriends() {
@@ -210,6 +197,25 @@ export default function App() {
 	function logout() {
 		setCurrentUser(null);
 		localStorage.removeItem("username");
+
+		const registration = swRegistration();
+		if (registration) {
+			unsubscribePush(registration).catch((err) => {
+				console.error("Push unsubscribe failed:", err);
+			});
+		}
+	}
+
+	async function unsubscribePush(registration: ServiceWorkerRegistration) {
+		const subscription = await registration.pushManager.getSubscription();
+		if (!subscription) {
+			return;
+		}
+
+		await api("/api/push/unsubscribe", {
+			method: "POST",
+			body: JSON.stringify({ endpoint: subscription.endpoint }),
+		});
 	}
 
 	async function sendOy(toUserId: number) {
@@ -317,13 +323,6 @@ export default function App() {
 		}
 	});
 
-	function applyUpdate() {
-		const waiting = updateWaiting();
-		if (waiting) {
-			waiting.postMessage({ type: "SKIP_WAITING" });
-		}
-	}
-
 	createEffect(() => {
 		if (tab() === "oys" && currentUser()) {
 			loadOys();
@@ -356,117 +355,56 @@ export default function App() {
 		}
 	});
 
-	onMount(() => {
-		let pullStartY: number | null = null;
-		let pullTriggered = false;
-
-		const onTouchStart = (event: TouchEvent) => {
-			if (tab() !== "oys" || window.scrollY !== 0) {
-				return;
-			}
-			const target = event.target as HTMLElement | null;
-			if (target?.closest(".oys-location-map")) {
-				return;
-			}
-			pullStartY = event.touches[0].clientY;
-			pullTriggered = false;
-		};
-
-		const onTouchMove = (event: TouchEvent) => {
-			if (pullStartY === null || tab() !== "oys") {
-				return;
-			}
-			const delta = event.touches[0].clientY - pullStartY;
-			if (delta <= 0) {
-				setPullActive(false);
-				return;
-			}
-			event.preventDefault();
-			pullTriggered = delta > 70;
-			setPullActive(true);
-		};
-
-		const onTouchEnd = () => {
-			if (pullStartY === null) {
-				return;
-			}
-			if (pullTriggered) {
-				setPullRefreshing(true);
-				loadOys().finally(() => {
-					setPullRefreshing(false);
-					setPullActive(false);
-				});
-			} else {
-				setPullActive(false);
-			}
-			pullStartY = null;
-			pullTriggered = false;
-		};
-
-		window.addEventListener("touchstart", onTouchStart);
-		window.addEventListener("touchmove", onTouchMove, { passive: false });
-		window.addEventListener("touchend", onTouchEnd);
-
-		onCleanup(() => {
-			window.removeEventListener("touchstart", onTouchStart);
-			window.removeEventListener("touchmove", onTouchMove);
-			window.removeEventListener("touchend", onTouchEnd);
-		});
-	});
-
 	return (
-		<>
-			<PullIndicator active={pullActive()} refreshing={pullRefreshing()} />
-			<Show when={updateReady()}>
-				<UpdateToast onRefresh={applyUpdate} />
+		<Show when={!booting()}>
+			<Show
+				when={currentUser()}
+				fallback={<LoginScreen onSubmit={handleLogin} />}
+			>
+				<Screen>
+					<Show when={currentUser()}>
+						{(user) => <AppHeader user={user()} onLogout={logout} />}
+					</Show>
+
+					<Tabs.Root value={tab()} onChange={setTab}>
+						<Tabs.List class="app-tabs">
+							<Tabs.Trigger class="app-tab" value="friends">
+								Friends
+							</Tabs.Trigger>
+							<Tabs.Trigger class="app-tab" value="oys">
+								Oys
+							</Tabs.Trigger>
+							<Tabs.Trigger class="app-tab" value="add">
+								Add Friend
+							</Tabs.Trigger>
+						</Tabs.List>
+
+						<Tabs.Content value="friends">
+							<FriendsList
+								friends={friends()}
+								onSendOy={sendOy}
+								onSendLo={sendLo}
+							/>
+						</Tabs.Content>
+
+						<Tabs.Content value="oys">
+							<OysList
+								oys={oys()}
+								openLocations={openLocations}
+								onToggleLocation={toggleLocation}
+							/>
+						</Tabs.Content>
+
+						<Tabs.Content value="add">
+							<AddFriendForm
+								api={api}
+								currentUser={currentUser}
+								friends={friends}
+							/>
+						</Tabs.Content>
+					</Tabs.Root>
+				</Screen>
 			</Show>
-
-			<Show when={!booting()}>
-				<Show
-					when={currentUser()}
-					fallback={<LoginScreen onSubmit={handleLogin} />}
-				>
-					<Screen>
-						<Show when={currentUser()}>
-							{(user) => <AppHeader user={user()} onLogout={logout} />}
-						</Show>
-
-						<Tabs.Root value={tab()} onChange={setTab}>
-							<Tabs.List class="app-tabs">
-								<Tabs.Trigger class="app-tab" value="friends">
-									Friends
-								</Tabs.Trigger>
-								<Tabs.Trigger class="app-tab" value="oys">
-									Oys
-								</Tabs.Trigger>
-								<Tabs.Trigger class="app-tab" value="add">
-									Add Friend
-								</Tabs.Trigger>
-							</Tabs.List>
-
-							<Tabs.Content value="friends">
-								<FriendsList
-									friends={friends()}
-									onSendOy={sendOy}
-									onSendLo={sendLo}
-								/>
-							</Tabs.Content>
-
-							<Tabs.Content value="oys">
-								<OysList
-									oys={oys()}
-									openLocations={openLocations}
-									onToggleLocation={toggleLocation}
-								/>
-							</Tabs.Content>
-
-							<Tabs.Content value="add">
-								<AddFriendForm api={api} currentUser={currentUser} />
-							</Tabs.Content>
-						</Tabs.Root>
-					</Screen>
-				</Show>
-			</Show>
-		</>
+		</Show>
 	);
 }
