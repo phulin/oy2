@@ -253,6 +253,20 @@ export default function App() {
 				method: "POST",
 				body: JSON.stringify({ toUserId }),
 			});
+			const user = currentUser() as User;
+			const now = Date.now();
+			setFriends((prev) =>
+				prev.map((friend) =>
+					friend.id === toUserId
+						? {
+								...friend,
+								last_yo_type: "oy",
+								last_yo_created_at: now,
+								last_yo_from_user_id: user.id,
+							}
+						: friend,
+				),
+			);
 		} catch (err) {
 			alert((err as Error).message);
 		}
@@ -286,6 +300,20 @@ export default function App() {
 				method: "POST",
 				body: JSON.stringify({ toUserId, location }),
 			});
+			const user = currentUser() as User;
+			const now = Date.now();
+			setFriends((prev) =>
+				prev.map((friend) =>
+					friend.id === toUserId
+						? {
+								...friend,
+								last_yo_type: "lo",
+								last_yo_created_at: now,
+								last_yo_from_user_id: user.id,
+							}
+						: friend,
+				),
+			);
 		} catch (err) {
 			alert((err as Error).message);
 		}

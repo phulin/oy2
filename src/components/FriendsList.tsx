@@ -1,7 +1,7 @@
 import { For, Show } from "solid-js";
 import type { FriendWithLastYo } from "../types";
-import { AsyncButton } from "./AsyncButton";
 import { formatTime } from "../utils";
+import { AsyncButton } from "./AsyncButton";
 import "./ButtonStyles.css";
 import "./FriendsList.css";
 
