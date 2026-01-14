@@ -19,6 +19,14 @@ type FriendUser = {
 	username: string;
 };
 
+type FriendListRow = {
+	id: number;
+	username: string;
+	last_yo_type: string | null;
+	last_yo_created_at: number | null;
+	last_yo_from_user_id: number | null;
+};
+
 type PushSubscriptionRow = {
 	endpoint: string;
 	keys_p256dh: string;
@@ -164,17 +172,54 @@ app.get("/api/friends", async (c) => {
 		return c.json({ error: "Not authenticated" }, 401);
 	}
 
-	const friends = await c.env.DB.prepare(`
-    SELECT u.id, u.username
+	const friends = await c.env.DB.prepare(
+		`
+    SELECT
+      u.id,
+      u.username,
+      (
+        SELECT y.type
+        FROM yos y
+        WHERE (
+          y.from_user_id = u.id AND y.to_user_id = ?
+        ) OR (
+          y.from_user_id = ? AND y.to_user_id = u.id
+        )
+        ORDER BY y.created_at DESC, y.id DESC
+        LIMIT 1
+      ) AS last_yo_type,
+      (
+        SELECT y.created_at
+        FROM yos y
+        WHERE (
+          y.from_user_id = u.id AND y.to_user_id = ?
+        ) OR (
+          y.from_user_id = ? AND y.to_user_id = u.id
+        )
+        ORDER BY y.created_at DESC, y.id DESC
+        LIMIT 1
+      ) AS last_yo_created_at,
+      (
+        SELECT y.from_user_id
+        FROM yos y
+        WHERE (
+          y.from_user_id = u.id AND y.to_user_id = ?
+        ) OR (
+          y.from_user_id = ? AND y.to_user_id = u.id
+        )
+        ORDER BY y.created_at DESC, y.id DESC
+        LIMIT 1
+      ) AS last_yo_from_user_id
     FROM users u
     INNER JOIN friendships f ON u.id = f.friend_id
     WHERE f.user_id = ?
     ORDER BY u.username
-  `)
-		.bind(user.id)
+  `,
+	)
+		.bind(user.id, user.id, user.id, user.id, user.id, user.id, user.id)
 		.all();
 
-	const friendResults = (friends.results || []) as FriendUser[];
+	const friendResults = (friends.results || []) as FriendListRow[];
 	return c.json({ friends: friendResults });
 });
 

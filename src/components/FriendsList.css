@@ -29,6 +29,11 @@
 	color: var(--text);
 }
 
+.friends-list-item-subtitle {
+	font-size: 0.85rem;
+	color: var(--text-light);
+}
+
 .friends-list-item-actions {
 	display: flex;
 	gap: 0.5rem;
