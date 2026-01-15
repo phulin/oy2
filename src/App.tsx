@@ -5,9 +5,11 @@ import { AddFriendForm } from "./components/AddFriendForm";
 import { AppHeader } from "./components/AppHeader";
 import { FriendsList } from "./components/FriendsList";
 import { LoginScreen } from "./components/LoginScreen";
+import { PhoneVerificationScreen } from "./components/PhoneVerificationScreen";
 import { OysList } from "./components/OysList";
 import { Screen } from "./components/Screen";
 import { SwipeableTabs } from "./components/SwipeableTabs";
+import { VerifyCodeScreen } from "./components/VerifyCodeScreen";
 import type { FriendWithLastYo, Oy, OysCursor, User } from "./types";
 import { urlBase64ToUint8Array } from "./utils";
 import "./App.css";
@@ -24,9 +26,14 @@ const initialTab =
 		? requestedTab
 		: "friends";
 
+type AuthStep = "login" | "phone" | "verify";
+
 export default function App() {
 	const [booting, setBooting] = createSignal(true);
 	const [currentUser, setCurrentUser] = createSignal<User | null>(null);
+	const [sessionToken, setSessionToken] = createSignal<string | null>(null);
+	const [authStep, setAuthStep] = createSignal<AuthStep>("login");
+	const [pendingUsername, setPendingUsername] = createSignal<string>("");
 	const [friends, setFriends] = createSignal<FriendWithLastYo[]>([]);
 	const [oys, setOys] = createSignal<Oy[]>([]);
 	const [tab, setTab] = createSignal(initialTab);
@@ -53,9 +60,9 @@ export default function App() {
 		const headers = new Headers(options.headers || {});
 		headers.set("Content-Type", "application/json");
 
-		const user = currentUser();
-		if (user) {
-			headers.set("X-Username", user.username);
+		const token = sessionToken();
+		if (token) {
+			headers.set("X-Session-Token", token);
 		}
 
 		const response = await fetch(endpoint, { ...options, headers });
@@ -211,21 +218,93 @@ export default function App() {
 			return;
 		}
 		try {
-			const { user } = await api<{ user: User }>("/api/users", {
-				method: "POST",
-				body: JSON.stringify({ username }),
-			});
+			const { status } = await api<{ status: "needs_phone" | "code_sent" }>(
+				"/api/auth/start",
+				{
+					method: "POST",
+					body: JSON.stringify({ username }),
+				},
+			);
+			setPendingUsername(username);
+			setAuthStep(status === "needs_phone" ? "phone" : "verify");
+		} catch (err) {
+			alert((err as Error).message);
+		}
+	}
+
+	async function handlePhoneSubmit(event: SubmitEvent) {
+		event.preventDefault();
+		const form = event.currentTarget as HTMLFormElement;
+		const formData = new FormData(form);
+		const phone = String(formData.get("phone") || "").trim();
+		if (!phone) {
+			return;
+		}
+		try {
+			const { status } = await api<{ status: "needs_phone" | "code_sent" }>(
+				"/api/auth/start",
+				{
+					method: "POST",
+					body: JSON.stringify({ username: pendingUsername(), phone }),
+				},
+			);
+			setAuthStep(status === "needs_phone" ? "phone" : "verify");
+		} catch (err) {
+			alert((err as Error).message);
+		}
+	}
+
+	async function handleVerifySubmit(event: SubmitEvent) {
+		event.preventDefault();
+		const form = event.currentTarget as HTMLFormElement;
+		const formData = new FormData(form);
+		const otp = String(formData.get("otp") || "").trim();
+		if (!otp) {
+			return;
+		}
+		try {
+			const { user, token } = await api<{ user: User; token: string }>(
+				"/api/auth/verify",
+				{
+					method: "POST",
+					body: JSON.stringify({ username: pendingUsername(), otp }),
+				},
+			);
+			setSessionToken(token);
+			localStorage.setItem("sessionToken", token);
+			localStorage.setItem("username", user.username);
 			setCurrentUser(user);
-			localStorage.setItem("username", username);
 			await loadData();
 		} catch (err) {
 			alert((err as Error).message);
 		}
 	}
 
+	async function restoreSession(token: string) {
+		try {
+			setSessionToken(token);
+			const { user } = await api<{ user: User }>("/api/auth/session");
+			setCurrentUser(user);
+			await loadData();
+		} catch (_err) {
+			setSessionToken(null);
+			localStorage.removeItem("sessionToken");
+			localStorage.removeItem("username");
+			setAuthStep("login");
+			setPendingUsername("");
+		}
+	}
+
 	function logout() {
 		setCurrentUser(null);
 		localStorage.removeItem("username");
+		localStorage.removeItem("sessionToken");
+		setSessionToken(null);
+		setAuthStep("login");
+		setPendingUsername("");
+		api("/api/auth/logout", { method: "POST" }).catch((err) => {
+			console.error("Logout failed:", err);
+		});
 
 		const registration = swRegistration();
 		if (registration) {
@@ -333,18 +412,9 @@ export default function App() {
 
 	onMount(async () => {
 		await registerServiceWorker();
-		const savedUsername = localStorage.getItem("username");
-		if (savedUsername) {
-			try {
-				const { user } = await api<{ user: User }>("/api/users", {
-					method: "POST",
-					body: JSON.stringify({ username: savedUsername }),
-				});
-				setCurrentUser(user);
-				await loadData();
-			} catch (_err) {
-				localStorage.removeItem("username");
-			}
+		const savedToken = localStorage.getItem("sessionToken");
+		if (savedToken) {
+			await restoreSession(savedToken);
 		}
 		setBooting(false);
 	});
@@ -422,7 +492,19 @@ export default function App() {
 		<Show when={!booting()}>
 			<Show
 				when={currentUser()}
-				fallback={<LoginScreen onSubmit={handleLogin} />}
+				fallback={
+					<>
+						<Show when={authStep() === "login"}>
+							<LoginScreen onSubmit={handleLogin} />
+						</Show>
+						<Show when={authStep() === "phone"}>
+							<PhoneVerificationScreen onSubmit={handlePhoneSubmit} />
+						</Show>
+						<Show when={authStep() === "verify"}>
+							<VerifyCodeScreen onSubmit={handleVerifySubmit} />
+						</Show>
+					</>
+				}
 			>
 				<Screen>
 					<Show when={currentUser()}>

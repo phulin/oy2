@@ -6,12 +6,16 @@ type Bindings = {
 	VAPID_PUBLIC_KEY: string;
 	VAPID_PRIVATE_KEY: string;
 	VAPID_SUBJECT?: string;
+	TEXTBELT_API_KEY: string;
 };
 
 type User = {
 	id: number;
 	username: string;
 	created_at?: number;
+	phone?: string | null;
+	phone_verified?: number | null;
+	session_token?: string | null;
 };
 
 type FriendUser = {
@@ -58,13 +62,13 @@ const app = new Hono<{
 // Middleware to get current user from header
 app.use("*", async (c, next) => {
 	c.set("user", null);
-	const username = c.req.header("x-username");
-	if (username) {
+	const sessionToken = c.req.header("x-session-token");
+	if (sessionToken) {
 		try {
 			const user = (await c.env.DB.prepare(
-				"SELECT * FROM users WHERE username = ?",
+				"SELECT * FROM users WHERE session_token = ?",
 			)
-				.bind(username)
+				.bind(sessionToken)
 				.first()) as User | null;
 			c.set("user", user ?? null);
 		} catch (err) {
@@ -74,7 +78,170 @@ app.use("*", async (c, next) => {
 	await next();
 });
 
+async function sendOtp(
+	env: Bindings,
+	{ phone, username }: { phone: string; username: string },
+) {
+	const body = new URLSearchParams({
+		phone,
+		userid: username,
+		key: env.TEXTBELT_API_KEY,
+		message: "Your Oy verification code is $OTP",
+	});
+
+	const response = await fetch("https://textbelt.com/otp/generate", {
+		method: "POST",
+		body,
+	});
+	return response.json() as Promise<{
+		success: boolean;
+		quotaRemaining: number;
+		otp: string;
+	}>;
+}
+
+async function verifyOtp(
+	env: Bindings,
+	{ otp, username }: { otp: string; username: string },
+) {
+	const params = new URLSearchParams({
+		otp,
+		userid: username,
+		key: env.TEXTBELT_API_KEY,
+	});
+	const response = await fetch(
+		`https://textbelt.com/otp/verify?${params.toString()}`,
+	);
+	return response.json() as Promise<{ success: boolean; isValidOtp: boolean }>;
+}
+
 // ============ API Routes ============
+
+app.post("/api/auth/start", async (c) => {
+	const { username, phone } = await c.req.json();
+	const trimmedUsername = String(username || "").trim();
+	const trimmedPhone = String(phone || "").trim();
+
+	if (
+		!trimmedUsername ||
+		trimmedUsername.length < 2 ||
+		trimmedUsername.length > 20
+	) {
+		return c.json({ error: "Username must be 2-20 characters" }, 400);
+	}
+
+	let user = (await c.env.DB.prepare("SELECT * FROM users WHERE username = ?")
+		.bind(trimmedUsername)
+		.first()) as User | null;
+
+	if (user?.phone) {
+		const result = await sendOtp(c.env, {
+			phone: user.phone,
+			username: trimmedUsername,
+		});
+		if (!result.success) {
+			return c.json({ error: "Unable to send verification code" }, 400);
+		}
+		return c.json({ status: "code_sent" });
+	}
+
+	if (!trimmedPhone) {
+		return c.json({ status: "needs_phone" });
+	}
+
+	if (!user) {
+		const result = await c.env.DB.prepare(
+			"INSERT INTO users (username, phone, phone_verified) VALUES (?, ?, 0)",
+		)
+			.bind(trimmedUsername, trimmedPhone)
+			.run();
+
+		user = (await c.env.DB.prepare("SELECT * FROM users WHERE id = ?")
+			.bind(result.meta.last_row_id)
+			.first()) as User | null;
+	} else {
+		await c.env.DB.prepare(
+			"UPDATE users SET phone = ?, phone_verified = 0 WHERE id = ?",
+		)
+			.bind(trimmedPhone, user.id)
+			.run();
+	}
+
+	const result = await sendOtp(c.env, {
+		phone: trimmedPhone,
+		username: trimmedUsername,
+	});
+	if (!result.success) {
+		return c.json({ error: "Unable to send verification code" }, 400);
+	}
+
+	return c.json({ status: "code_sent" });
+});
+
+app.post("/api/auth/verify", async (c) => {
+	const { username, otp } = await c.req.json();
+	const trimmedUsername = String(username || "").trim();
+	const trimmedOtp = String(otp || "").trim();
+
+	if (!trimmedUsername || !trimmedOtp) {
+		return c.json({ error: "Missing verification code" }, 400);
+	}
+
+	const user = (await c.env.DB.prepare("SELECT * FROM users WHERE username = ?")
+		.bind(trimmedUsername)
+		.first()) as User | null;
+
+	if (!user) {
+		return c.json({ error: "User not found" }, 404);
+	}
+
+	const result = await verifyOtp(c.env, {
+		otp: trimmedOtp,
+		username: trimmedUsername,
+	});
+
+	if (!result.success) {
+		return c.json({ error: "Verification failed" }, 400);
+	}
+
+	if (!result.isValidOtp) {
+		return c.json({ error: "Invalid verification code" }, 400);
+	}
+
+	const sessionToken = crypto.randomUUID();
+	await c.env.DB.prepare(
+		"UPDATE users SET phone_verified = 1, session_token = ? WHERE id = ?",
+	)
+		.bind(sessionToken, user.id)
+		.run();
+
+	return c.json({
+		user: { id: user.id, username: user.username },
+		token: sessionToken,
+	});
+});
+
+app.get("/api/auth/session", async (c) => {
+	const user = c.get("user");
+	if (!user) {
+		return c.json({ error: "Not authenticated" }, 401);
+	}
+
+	return c.json({ user: { id: user.id, username: user.username } });
+});
+
+app.post("/api/auth/logout", async (c) => {
+	const user = c.get("user");
+	if (!user) {
+		return c.json({ error: "Not authenticated" }, 401);
+	}
+
+	await c.env.DB.prepare("UPDATE users SET session_token = NULL WHERE id = ?")
+		.bind(user.id)
+		.run();
+
+	return c.json({ success: true });
+});
 
 // Create or get user
 app.post("/api/users", async (c) => {
