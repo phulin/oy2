@@ -42,14 +42,16 @@ export function LoginScreen(props: LoginScreenProps) {
 			</form>
 			{showInstall() && (
 				<section class="login-install">
-					<h2 class="login-install-title">Install Oy on your home screen</h2>
+					<h2 class="login-install-title">
+						Important: Install Oy to home screen
+					</h2>
+					<h3 class="login-install-subtitle">
+						You'll need this for notifications!
+					</h3>
 					<ul class="login-install-list">
 						<li>iPhone: tap Share, then "Add to Home Screen".</li>
 						<li>Android: tap the menu, then "Install app".</li>
 					</ul>
-					<p class="login-install-note">
-						Open Oy faster and get notifications.
-					</p>
 				</section>
 			)}
 		</Screen>

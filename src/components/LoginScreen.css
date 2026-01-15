@@ -28,19 +28,19 @@
 	text-align: center;
 }
 
+.login-install-subtitle {
+	margin: 0 0 0.75rem;
+	font-size: 1rem;
+	font-weight: 400;
+	text-align: center;
+}
+
 .login-install-list {
 	margin: 0 0 0.75rem;
 	padding-left: 1.25rem;
 	color: var(--text-light);
 	display: grid;
 	gap: 0.5rem;
-}
-
-.login-install-note {
-	margin: 0;
-	text-align: center;
-	font-size: 0.9rem;
-	color: var(--text-light);
 }
 
 @media (max-width: 640px) {
