@@ -478,46 +478,16 @@ app.get("/api/friends", async (c) => {
     SELECT
       u.id,
       u.username,
-      (
-        SELECT y.type
-        FROM yos y
-        WHERE (
-          y.from_user_id = u.id AND y.to_user_id = ?
-        ) OR (
-          y.from_user_id = ? AND y.to_user_id = u.id
-        )
-        ORDER BY y.created_at DESC, y.id DESC
-        LIMIT 1
-      ) AS last_yo_type,
-      (
-        SELECT y.created_at
-        FROM yos y
-        WHERE (
-          y.from_user_id = u.id AND y.to_user_id = ?
-        ) OR (
-          y.from_user_id = ? AND y.to_user_id = u.id
-        )
-        ORDER BY y.created_at DESC, y.id DESC
-        LIMIT 1
-      ) AS last_yo_created_at,
-      (
-        SELECT y.from_user_id
-        FROM yos y
-        WHERE (
-          y.from_user_id = u.id AND y.to_user_id = ?
-        ) OR (
-          y.from_user_id = ? AND y.to_user_id = u.id
-        )
-        ORDER BY y.created_at DESC, y.id DESC
-        LIMIT 1
-      ) AS last_yo_from_user_id
-    FROM users u
-    INNER JOIN friendships f ON u.id = f.friend_id
+      f.last_yo_type,
+      f.last_yo_created_at,
+      f.last_yo_from_user_id
+    FROM friendships f
+    INNER JOIN users u ON u.id = f.friend_id
     WHERE f.user_id = ?
     ORDER BY u.username
   `,
 	)
-		.bind(user.id, user.id, user.id, user.id, user.id, user.id, user.id)
+		.bind(user.id)
 		.all();
 
 	const friendResults = (friends.results || []) as FriendListRow[];
@@ -549,11 +519,27 @@ app.post("/api/oy", async (c) => {
 	}
 
 	// Create the Oy
+	const createdAt = Math.floor(Date.now() / 1000);
 	const result = await c.env.DB.prepare(`
-    INSERT INTO yos (from_user_id, to_user_id, type, payload)
-    VALUES (?, ?, 'oy', NULL)
+    INSERT INTO yos (from_user_id, to_user_id, type, payload, created_at)
+    VALUES (?, ?, 'oy', NULL, ?)
   `)
-		.bind(user.id, toUserId)
+		.bind(user.id, toUserId, createdAt)
+		.run();
+	const yoId = Number(result.meta.last_row_id);
+
+	await c.env.DB.prepare(
+		`
+    UPDATE friendships
+    SET last_yo_id = ?,
+        last_yo_type = ?,
+        last_yo_created_at = ?,
+        last_yo_from_user_id = ?
+    WHERE (user_id = ? AND friend_id = ?)
+       OR (user_id = ? AND friend_id = ?)
+  `,
+	)
+		.bind(yoId, "oy", createdAt, user.id, user.id, toUserId, toUserId, user.id)
 		.run();
 
 	const notificationPayload: PushPayload = {
@@ -622,7 +608,7 @@ app.post("/api/oy", async (c) => {
 		console.error("Push notification error:", err);
 	}
 
-	return c.json({ success: true, yoId: result.meta.last_row_id });
+	return c.json({ success: true, yoId });
 });
 
 // Get recent Oys
@@ -711,11 +697,27 @@ app.post("/api/lo", async (c) => {
 		accuracy: location.accuracy || null,
 	});
 
+	const createdAt = Math.floor(Date.now() / 1000);
 	const result = await c.env.DB.prepare(`
-    INSERT INTO yos (from_user_id, to_user_id, type, payload)
-    VALUES (?, ?, 'lo', ?)
+    INSERT INTO yos (from_user_id, to_user_id, type, payload, created_at)
+    VALUES (?, ?, 'lo', ?, ?)
   `)
-		.bind(user.id, toUserId, payload)
+		.bind(user.id, toUserId, payload, createdAt)
+		.run();
+	const yoId = Number(result.meta.last_row_id);
+
+	await c.env.DB.prepare(
+		`
+    UPDATE friendships
+    SET last_yo_id = ?,
+        last_yo_type = ?,
+        last_yo_created_at = ?,
+        last_yo_from_user_id = ?
+    WHERE (user_id = ? AND friend_id = ?)
+       OR (user_id = ? AND friend_id = ?)
+  `,
+	)
+		.bind(yoId, "lo", createdAt, user.id, user.id, toUserId, toUserId, user.id)
 		.run();
 
 	const notificationPayload: PushPayload = {
@@ -724,7 +726,7 @@ app.post("/api/lo", async (c) => {
 		icon: "/icon-192.png",
 		badge: "/icon-192.png",
 		type: "lo",
-		url: `/?tab=oys&yo=${result.meta.last_row_id}&expand=location`,
+		url: `/?tab=oys&yo=${yoId}&expand=location`,
 	};
 
 	const notificationRecord = await c.env.DB.prepare(
@@ -784,7 +786,7 @@ app.post("/api/lo", async (c) => {
 		console.error("Push notification error:", err);
 	}
 
-	return c.json({ success: true, yoId: result.meta.last_row_id });
+	return c.json({ success: true, yoId });
 });
 
 // Subscribe to push notifications

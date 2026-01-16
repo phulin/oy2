@@ -565,6 +565,7 @@ export default function App() {
 									<Tabs.Content value="friends">
 										<FriendsList
 											friends={friends()}
+											currentUserId={user().id}
 											onSendOy={sendOy}
 											onSendLo={sendLo}
 										/>

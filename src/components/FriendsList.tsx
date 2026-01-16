@@ -7,6 +7,7 @@ import "./FriendsList.css";
 
 type FriendsListProps = {
 	friends: FriendWithLastYo[];
+	currentUserId: number;
 	onSendOy: (friendId: number) => Promise<void>;
 	onSendLo: (friendId: number) => Promise<void>;
 };
@@ -21,6 +22,8 @@ export function FriendsList(props: FriendsListProps) {
 				<For each={props.friends}>
 					{(friend) => {
 						const lastYoCreatedAt = friend.last_yo_created_at;
+						const lastYoDirection =
+							friend.last_yo_from_user_id === props.currentUserId ? "→" : "←";
 
 						return (
 							<div class="friends-list-item">
@@ -28,7 +31,7 @@ export function FriendsList(props: FriendsListProps) {
 									<div class="friends-list-item-title">{friend.username}</div>
 									<Show when={lastYoCreatedAt !== null}>
 										<div class="friends-list-item-subtitle">
-											{formatTime(lastYoCreatedAt as number)}
+											{lastYoDirection} {formatTime(lastYoCreatedAt as number)}
 										</div>
 									</Show>
 								</div>
