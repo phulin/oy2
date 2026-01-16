@@ -11,6 +11,7 @@ import { OysList } from "./components/OysList";
 import { Screen } from "./components/Screen";
 import { SwipeableTabs } from "./components/SwipeableTabs";
 import { VerifyCodeScreen } from "./components/VerifyCodeScreen";
+import { PrivacyPolicyScreen } from "./components/PrivacyPolicyScreen";
 import type { FriendWithLastYo, Oy, OysCursor, User } from "./types";
 import { urlBase64ToUint8Array } from "./utils";
 import "./App.css";
@@ -27,10 +28,15 @@ const initialTab =
 		? requestedTab
 		: "friends";
 const isAdminRoute = window.location.pathname === "/admin";
+const isPrivacyRoute = window.location.pathname === "/privacy";
 
 type AuthStep = "login" | "phone" | "verify";
 
 export default function App() {
+	if (isPrivacyRoute) {
+		return <PrivacyPolicyScreen />;
+	}
+
 	const [booting, setBooting] = createSignal(true);
 	const [currentUser, setCurrentUser] = createSignal<User | null>(null);
 	const [sessionToken, setSessionToken] = createSignal<string | null>(null);

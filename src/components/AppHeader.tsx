@@ -1,4 +1,5 @@
 import { Button } from "@kobalte/core/button";
+import { createSignal } from "solid-js";
 import type { User } from "../types";
 import "./ButtonStyles.css";
 import "./AppHeader.css";
@@ -9,15 +10,30 @@ type AppHeaderProps = {
 };
 
 export function AppHeader(props: AppHeaderProps) {
+	const [menuOpen, setMenuOpen] = createSignal(false);
+
 	return (
 		<div class="app-header">
-			<h1 class="app-title">Oy</h1>
-			<div class="app-user-info">
-				<span>{props.user.username}</span>
-				<Button class="btn-text" onClick={props.onLogout}>
-					Logout
-				</Button>
+			<div class="app-header-row">
+				<h1 class="app-title">Oy</h1>
+				<button
+					class="app-user-trigger"
+					type="button"
+					onClick={() => setMenuOpen((open) => !open)}
+				>
+					{props.user.username}
+				</button>
 			</div>
+			{menuOpen() ? (
+				<div class="app-user-panel">
+					<a class="app-user-action" href="/privacy">
+						Privacy Policy
+					</a>
+					<Button class="app-user-action" onClick={props.onLogout}>
+						Logout
+					</Button>
+				</div>
+			) : null}
 		</div>
 	);
 }
