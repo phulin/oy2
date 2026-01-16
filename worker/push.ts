@@ -62,6 +62,7 @@ export async function sendPushNotification(
 	});
 
 	if (!res.ok) {
+		res.body?.cancel();
 		const err = new Error(`Push failed with status ${res.status}`) as Error & {
 			statusCode?: number;
 		};
@@ -69,6 +70,7 @@ export async function sendPushNotification(
 		throw err;
 	}
 
+	res.body?.cancel();
 	return res;
 }
 
