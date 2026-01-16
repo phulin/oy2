@@ -136,15 +136,15 @@ export function AdminDashboard(props: AdminDashboardProps) {
 				{(payload) => (
 					<>
 						<div class="admin-cards">
-							<div class="admin-card">
+							<div class="admin-card card card-bordered">
 								<p class="admin-label">Active users</p>
 								<p class="admin-value">{payload().stats.activeUsersCount}</p>
 							</div>
-							<div class="admin-card">
+							<div class="admin-card card card-bordered">
 								<p class="admin-label">Notifications sent</p>
 								<p class="admin-value">{payload().stats.notificationsSent}</p>
 							</div>
-							<div class="admin-card">
+							<div class="admin-card card card-bordered">
 								<p class="admin-label">Delivery success rate</p>
 								<p class="admin-value">
 									{formatPercent(payload().stats.deliverySuccessRate)}
@@ -154,7 +154,7 @@ export function AdminDashboard(props: AdminDashboardProps) {
 									{payload().stats.deliveryFailureCount} failed
 								</p>
 							</div>
-							<div class="admin-card">
+							<div class="admin-card card card-bordered">
 								<p class="admin-label">Delivery attempts</p>
 								<p class="admin-value">{payload().stats.deliveryAttempts}</p>
 								<p class="admin-meta">
@@ -164,17 +164,17 @@ export function AdminDashboard(props: AdminDashboardProps) {
 							</div>
 						</div>
 
-						<div class="admin-section">
+						<div class="admin-section stack">
 							<div class="admin-section-header">
 								<h2>Authentication</h2>
 								<span class="admin-meta">
 									Phone auth {phoneAuthEnabled() ? "enabled" : "disabled"}
 								</span>
 							</div>
-							<div class="admin-toggle-row">
+							<div class="admin-toggle-row stack stack-md">
 								<label class="admin-toggle">
-									<span class="admin-toggle-copy">
-										<span class="admin-toggle-title">
+									<span class="admin-toggle-copy stack stack-sm">
+										<span class="admin-toggle-title item-title">
 											Require phone verification
 										</span>
 										<span class="admin-meta">
@@ -203,7 +203,7 @@ export function AdminDashboard(props: AdminDashboardProps) {
 							</div>
 						</div>
 
-						<div class="admin-section">
+						<div class="admin-section stack">
 							<div class="admin-section-header">
 								<h2>Active sessions</h2>
 								<span class="admin-meta">

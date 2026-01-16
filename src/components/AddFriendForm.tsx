@@ -69,11 +69,11 @@ export function AddFriendForm(props: AddFriendFormProps) {
 					class="app-text-input"
 				/>
 			</form>
-			<div class="add-friend-list">
+			<div class="add-friend-list stack">
 				<Show
 					when={results().length > 0}
 					fallback={
-						<p class="add-friend-empty-state">
+						<p class="add-friend-empty-state empty-state">
 							{showPrompt() ? "Search for friends to add" : "No users found"}
 						</p>
 					}
@@ -84,9 +84,11 @@ export function AddFriendForm(props: AddFriendFormProps) {
 						)}
 					>
 						{(user) => (
-							<div class="add-friend-list-item">
-								<div class="add-friend-list-item-content">
-									<div class="add-friend-list-item-title">{user.username}</div>
+							<div class="add-friend-list-item card">
+								<div class="add-friend-list-item-content stack stack-sm">
+									<div class="add-friend-list-item-title item-title">
+										{user.username}
+									</div>
 								</div>
 								<Show
 									when={!friendIds().has(user.id)}

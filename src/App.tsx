@@ -593,6 +593,7 @@ export default function App() {
 						<Tabs.Content value="oys">
 							<OysList
 								oys={oys()}
+								currentUserId={user.id}
 								openLocations={openLocations}
 								onToggleLocation={toggleLocation}
 								hasMore={hasMoreOys}

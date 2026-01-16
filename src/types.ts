@@ -22,7 +22,10 @@ export type OyPayload = {
 
 export type Oy = {
 	id: number;
+	from_user_id: number;
+	to_user_id: number;
 	from_username: string;
+	to_username: string;
 	created_at: number;
 	type: string;
 	payload?: OyPayload | null;

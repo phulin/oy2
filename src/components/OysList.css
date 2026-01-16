@@ -1,17 +1,18 @@
-.oys-list {
-	display: flex;
-	flex-direction: column;
-	gap: 0.75rem;
-}
-
 .oys-list-item {
-	width: 100%;
+	width: 80%;
 	text-align: left;
 	display: flex;
-	padding: 1rem;
-	background: var(--bg-secondary);
-	border-radius: 12px;
 	border: none;
+}
+
+.oys-list-item-inbound {
+	align-self: flex-start;
+	text-align: left;
+}
+
+.oys-list-item-outbound {
+	align-self: flex-end;
+	text-align: right;
 }
 
 .oys-list-item-location {
@@ -29,9 +30,6 @@
 }
 
 .oys-list-item-content {
-	display: flex;
-	flex-direction: column;
-	gap: 0.25rem;
 	flex: 1;
 }
 
@@ -48,28 +46,12 @@
 	margin-bottom: 0.5rem;
 }
 
-.oys-list-item-text {
-	display: flex;
-	flex-direction: column;
-	gap: 0.25rem;
-}
-
 .oys-list-item-toggle-slot {
 	position: absolute;
 	top: 0;
 	right: 0;
 	display: flex;
 	align-items: flex-start;
-}
-
-.oys-list-item-title {
-	font-weight: 600;
-	color: var(--text);
-}
-
-.oys-list-item-subtitle {
-	font-size: 0.85rem;
-	color: var(--text-light);
 }
 
 .oys-list-item-map-slot {
@@ -116,12 +98,6 @@
 
 .oys-location-arrow.is-open {
 	transform: rotate(180deg);
-}
-
-.oys-empty-state {
-	text-align: center;
-	color: var(--text-light);
-	padding: 3rem 1rem;
 }
 
 .oys-list-footer {

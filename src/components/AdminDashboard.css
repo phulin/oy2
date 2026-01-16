@@ -46,10 +46,6 @@
 }
 
 .admin-card {
-	border: 1px solid var(--border);
-	border-radius: 12px;
-	padding: 1rem;
-	background: var(--bg-secondary);
 	display: flex;
 	flex-direction: column;
 	gap: 0.35rem;
@@ -72,18 +68,6 @@
 	color: var(--text-light);
 }
 
-.admin-section {
-	display: flex;
-	flex-direction: column;
-	gap: 0.75rem;
-}
-
-.admin-toggle-row {
-	display: flex;
-	flex-direction: column;
-	gap: 0.5rem;
-}
-
 .admin-toggle {
 	display: flex;
 	justify-content: space-between;
@@ -93,16 +77,6 @@
 	border: 1px solid var(--border);
 	background: var(--bg);
 	align-items: center;
-}
-
-.admin-toggle-copy {
-	display: flex;
-	flex-direction: column;
-	gap: 0.25rem;
-}
-
-.admin-toggle-title {
-	font-weight: 600;
 }
 
 .admin-toggle-control {

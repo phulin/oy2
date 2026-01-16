@@ -7,6 +7,7 @@ import "./OysList.css";
 
 type OysListProps = {
 	oys: Oy[];
+	currentUserId: number;
 	openLocations: () => Set<number>;
 	onToggleLocation: (oyId: number) => void;
 	hasMore: () => boolean;
@@ -41,11 +42,11 @@ export function OysList(props: OysListProps) {
 	});
 
 	return (
-		<div class="oys-list">
+		<div class="oys-list stack">
 			<Show
 				when={props.oys.length > 0}
 				fallback={
-					<p class="oys-empty-state">
+					<p class="oys-empty-state empty-state">
 						{props.loading() ? "Loading Oys..." : "No Oys yet!"}
 					</p>
 				}
@@ -54,28 +55,33 @@ export function OysList(props: OysListProps) {
 					{(oy) => {
 						const isLocation = oy.type === "lo" && !!oy.payload;
 						const payload = oy.payload as OyPayload;
-						const title = isLocation
-							? `Lo from ${oy.from_username}`
-							: `Oy from ${oy.from_username}`;
+						const isOutbound = oy.from_user_id === props.currentUserId;
+						const title = isOutbound
+							? isLocation
+								? `Lo to ${oy.to_username}`
+								: `Oy to ${oy.to_username}`
+							: isLocation
+								? `Lo from ${oy.from_username}`
+								: `Oy from ${oy.from_username}`;
 						const isOpen = () => props.openLocations().has(oy.id);
 
 						return (
 							<Button
-								class={`oys-list-item${
+								class={`oys-list-item card${
 									isLocation ? " oys-list-item-location" : ""
-								}`}
+								}${isOutbound ? " oys-list-item-outbound" : " oys-list-item-inbound"}`}
 								onClick={() => isLocation && props.onToggleLocation(oy.id)}
 								data-oy-id={oy.id}
 								aria-expanded={isLocation ? isOpen() : undefined}
 								disabled={!isLocation}
 							>
-								<div class="oys-list-item-content">
+								<div class="oys-list-item-content stack stack-sm">
 									<div
 										class={`oys-list-item-header${isLocation ? " oys-list-item-header-location" : ""}`}
 									>
-										<div class="oys-list-item-text">
-											<div class="oys-list-item-title">{title}</div>
-											<div class="oys-list-item-subtitle">
+										<div class="oys-list-item-text stack stack-sm">
+											<div class="oys-list-item-title item-title">{title}</div>
+											<div class="oys-list-item-subtitle item-subtitle">
 												{formatTime(oy.created_at)}
 											</div>
 										</div>

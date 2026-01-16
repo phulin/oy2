@@ -58,6 +58,7 @@ type YoRow = {
 	payload: string | null;
 	created_at: number;
 	from_username: string;
+	to_username: string;
 };
 
 type OysCursor = {
@@ -696,10 +697,13 @@ app.get("/api/oys", async (c) => {
 
 	const yos = await c.env.DB.prepare(
 		`
-    SELECT y.id, y.from_user_id, y.to_user_id, y.type, y.payload, y.created_at, u.username as from_username
+    SELECT y.id, y.from_user_id, y.to_user_id, y.type, y.payload, y.created_at,
+           u_from.username as from_username,
+           u_to.username as to_username
     FROM yos y
-    INNER JOIN users u ON y.from_user_id = u.id
-    WHERE y.to_user_id = ?
+    INNER JOIN users u_from ON y.from_user_id = u_from.id
+    INNER JOIN users u_to ON y.to_user_id = u_to.id
+    WHERE (y.to_user_id = ? OR y.from_user_id = ?)
       AND (
         ? = 0
         OR y.created_at < ?
@@ -710,6 +714,7 @@ app.get("/api/oys", async (c) => {
   `,
 	)
 		.bind(
+			user.id,
 			user.id,
 			hasCursor ? 1 : 0,
 			hasCursor ? before : 0,

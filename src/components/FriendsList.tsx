@@ -16,12 +16,12 @@ type FriendsListProps = {
 export function FriendsList(props: FriendsListProps) {
 	const skeletonItems = () => Array.from({ length: 4 });
 	return (
-		<div class="friends-list">
+		<div class="friends-list stack">
 			<Show
 				when={props.friends.length > 0}
 				fallback={
 					props.loading() ? (
-						<div class="friends-skeleton" aria-hidden="true">
+						<div class="friends-skeleton stack" aria-hidden="true">
 							<For each={skeletonItems()}>
 								{() => (
 									<div class="friends-skeleton-card">
@@ -31,7 +31,9 @@ export function FriendsList(props: FriendsListProps) {
 							</For>
 						</div>
 					) : (
-						<p class="friends-empty-state">No friends yet. Add some!</p>
+						<p class="friends-empty-state empty-state">
+							No friends yet. Add some!
+						</p>
 					)
 				}
 			>
@@ -42,11 +44,13 @@ export function FriendsList(props: FriendsListProps) {
 							friend.last_yo_from_user_id === props.currentUserId ? "→" : "←";
 
 						return (
-							<div class="friends-list-item">
-								<div class="friends-list-item-content">
-									<div class="friends-list-item-title">{friend.username}</div>
+							<div class="friends-list-item card">
+								<div class="friends-list-item-content stack stack-sm">
+									<div class="friends-list-item-title item-title">
+										{friend.username}
+									</div>
 									<Show when={lastYoCreatedAt !== null}>
-										<div class="friends-list-item-subtitle">
+										<div class="friends-list-item-subtitle item-subtitle">
 											{lastYoDirection} {formatTime(lastYoCreatedAt as number)}
 										</div>
 									</Show>
