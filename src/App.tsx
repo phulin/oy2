@@ -212,6 +212,14 @@ export default function App() {
 		await Promise.all([loadFriends(), loadOysPage({ reset: true })]);
 	}
 
+	async function applyAuthSession(user: User, token: string) {
+		setSessionToken(token);
+		localStorage.setItem("sessionToken", token);
+		localStorage.setItem("username", user.username);
+		setCurrentUser(user);
+		await loadData();
+	}
+
 	async function handleLogin(event: SubmitEvent) {
 		event.preventDefault();
 		const form = event.currentTarget as HTMLFormElement;
@@ -221,15 +229,19 @@ export default function App() {
 			return;
 		}
 		try {
-			const { status } = await api<{ status: "needs_phone" | "code_sent" }>(
-				"/api/auth/start",
-				{
-					method: "POST",
-					body: JSON.stringify({ username }),
-				},
-			);
+			const response = await api<
+				| { status: "needs_phone" | "code_sent" }
+				| { status: "authenticated"; user: User; token: string }
+			>("/api/auth/start", {
+				method: "POST",
+				body: JSON.stringify({ username }),
+			});
 			setPendingUsername(username);
-			setAuthStep(status === "needs_phone" ? "phone" : "verify");
+			if (response.status === "authenticated") {
+				await applyAuthSession(response.user, response.token);
+				return;
+			}
+			setAuthStep(response.status === "needs_phone" ? "phone" : "verify");
 		} catch (err) {
 			alert((err as Error).message);
 		}
@@ -244,14 +256,18 @@ export default function App() {
 			return;
 		}
 		try {
-			const { status } = await api<{ status: "needs_phone" | "code_sent" }>(
-				"/api/auth/start",
-				{
-					method: "POST",
-					body: JSON.stringify({ username: pendingUsername(), phone }),
-				},
-			);
-			setAuthStep(status === "needs_phone" ? "phone" : "verify");
+			const response = await api<
+				| { status: "needs_phone" | "code_sent" }
+				| { status: "authenticated"; user: User; token: string }
+			>("/api/auth/start", {
+				method: "POST",
+				body: JSON.stringify({ username: pendingUsername(), phone }),
+			});
+			if (response.status === "authenticated") {
+				await applyAuthSession(response.user, response.token);
+				return;
+			}
+			setAuthStep(response.status === "needs_phone" ? "phone" : "verify");
 		} catch (err) {
 			alert((err as Error).message);
 		}
@@ -273,11 +289,7 @@ export default function App() {
 					body: JSON.stringify({ username: pendingUsername(), otp }),
 				},
 			);
-			setSessionToken(token);
-			localStorage.setItem("sessionToken", token);
-			localStorage.setItem("username", user.username);
-			setCurrentUser(user);
-			await loadData();
+			await applyAuthSession(user, token);
 		} catch (err) {
 			alert((err as Error).message);
 		}

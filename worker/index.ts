@@ -7,6 +7,7 @@ type Bindings = {
 	VAPID_PRIVATE_KEY: string;
 	VAPID_SUBJECT?: string;
 	TEXTBELT_API_KEY: string;
+	SETTINGS: KVNamespace;
 };
 
 type User = {
@@ -75,11 +76,24 @@ const app = new Hono<{
 const PUSH_MAX_ATTEMPTS = 3;
 const PUSH_BACKOFF_MS = 250;
 const PUSH_BACKOFF_MULTIPLIER = 2;
+const PHONE_AUTH_KV_KEY = "phone_auth_enabled";
 
 const delay = (ms: number) =>
 	new Promise((resolve) => {
 		setTimeout(resolve, ms);
 	});
+
+async function getPhoneAuthEnabled(env: Bindings) {
+	const stored = await env.SETTINGS.get(PHONE_AUTH_KV_KEY);
+	if (stored === null) {
+		return true;
+	}
+	return stored === "true";
+}
+
+async function setPhoneAuthEnabled(env: Bindings, enabled: boolean) {
+	await env.SETTINGS.put(PHONE_AUTH_KV_KEY, enabled ? "true" : "false");
+}
 
 async function recordDeliveryAttempt(
 	env: Bindings,
@@ -199,16 +213,14 @@ async function sendOtp(
 	env: Bindings,
 	{ phone, username }: { phone: string; username: string },
 ) {
-	const body = new URLSearchParams({
-		phone,
-		userid: username,
-		key: env.TEXTBELT_API_KEY,
-		message: "Your Oy verification code is $OTP",
-	});
-
 	const response = await fetch("https://textbelt.com/otp/generate", {
 		method: "POST",
-		body,
+		body: new URLSearchParams({
+			phone,
+			userid: username,
+			key: env.TEXTBELT_API_KEY,
+			message: "Your Oy verification code is $OTP",
+		}),
 	});
 	return response.json() as Promise<{
 		success: boolean;
@@ -252,6 +264,45 @@ app.post("/api/auth/start", async (c) => {
 	)
 		.bind(trimmedUsername)
 		.first()) as User | null;
+
+	const phoneAuthEnabled = await getPhoneAuthEnabled(c.env);
+	if (!phoneAuthEnabled) {
+		if (!user) {
+			const result = await c.env.DB.prepare(
+				"INSERT INTO users (username, phone, phone_verified) VALUES (?, ?, 0)",
+			)
+				.bind(trimmedUsername, trimmedPhone || null)
+				.run();
+			user = (await c.env.DB.prepare("SELECT * FROM users WHERE id = ?")
+				.bind(result.meta.last_row_id)
+				.first()) as User | null;
+		} else if (trimmedPhone && trimmedPhone !== user.phone) {
+			await c.env.DB.prepare("UPDATE users SET phone = ? WHERE id = ?")
+				.bind(trimmedPhone, user.id)
+				.run();
+		}
+
+		if (!user) {
+			return c.json({ error: "User not found" }, 404);
+		}
+
+		const sessionToken = crypto.randomUUID();
+		const now = Math.floor(Date.now() / 1000);
+		await c.env.DB.prepare("UPDATE users SET last_seen = ? WHERE id = ?")
+			.bind(now, user.id)
+			.run();
+		await c.env.DB.prepare(
+			"INSERT INTO sessions (token, user_id) VALUES (?, ?)",
+		)
+			.bind(sessionToken, user.id)
+			.run();
+
+		return c.json({
+			status: "authenticated",
+			user: { id: user.id, username: user.username },
+			token: sessionToken,
+		});
+	}
 
 	if (user?.phone) {
 		const result = await sendOtp(c.env, {
@@ -314,6 +365,24 @@ app.post("/api/auth/verify", async (c) => {
 
 	if (!user) {
 		return c.json({ error: "User not found" }, 404);
+	}
+
+	const phoneAuthEnabled = await getPhoneAuthEnabled(c.env);
+	if (!phoneAuthEnabled) {
+		const sessionToken = crypto.randomUUID();
+		const now = Math.floor(Date.now() / 1000);
+		await c.env.DB.prepare("UPDATE users SET last_seen = ? WHERE id = ?")
+			.bind(now, user.id)
+			.run();
+		await c.env.DB.prepare(
+			"INSERT INTO sessions (token, user_id) VALUES (?, ?)",
+		)
+			.bind(sessionToken, user.id)
+			.run();
+		return c.json({
+			user: { id: user.id, username: user.username },
+			token: sessionToken,
+		});
 	}
 
 	const result = await verifyOtp(c.env, {
@@ -951,6 +1020,31 @@ app.get("/api/admin/stats", async (c) => {
 		}>,
 		generatedAt: now,
 	});
+});
+
+app.get("/api/admin/phone-auth", async (c) => {
+	const adminCheck = requireAdmin(c);
+	if (!adminCheck.ok) {
+		return c.json(adminCheck.response, adminCheck.status);
+	}
+
+	const enabled = await getPhoneAuthEnabled(c.env);
+	return c.json({ enabled });
+});
+
+app.put("/api/admin/phone-auth", async (c) => {
+	const adminCheck = requireAdmin(c);
+	if (!adminCheck.ok) {
+		return c.json(adminCheck.response, adminCheck.status);
+	}
+
+	const { enabled } = await c.req.json();
+	if (typeof enabled !== "boolean") {
+		return c.json({ error: "Missing enabled flag" }, 400);
+	}
+
+	await setPhoneAuthEnabled(c.env, enabled);
+	return c.json({ enabled });
 });
 
 // Export the app as a Worker
