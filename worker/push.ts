@@ -50,7 +50,7 @@ export async function sendPushNotification(
 	const message: PushMessage = {
 		data: payload,
 		options: {
-			ttl: 60,
+			ttl: 3600,
 		},
 	};
 

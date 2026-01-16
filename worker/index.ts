@@ -16,6 +16,8 @@ type User = {
 	phone?: string | null;
 	phone_verified?: number | null;
 	session_token?: string | null;
+	admin?: number | null;
+	last_seen?: number | null;
 };
 
 type FriendUser = {
@@ -35,6 +37,17 @@ type PushSubscriptionRow = {
 	endpoint: string;
 	keys_p256dh: string;
 	keys_auth: string;
+};
+
+type PushPayload = {
+	title: string;
+	body: string;
+	icon?: string;
+	badge?: string;
+	type: "oy" | "lo";
+	tag?: string;
+	url?: string;
+	notificationId?: number;
 };
 
 type YoRow = {
@@ -59,6 +72,99 @@ const app = new Hono<{
 	};
 }>();
 
+const PUSH_MAX_ATTEMPTS = 3;
+const PUSH_BACKOFF_MS = 250;
+const PUSH_BACKOFF_MULTIPLIER = 2;
+
+const delay = (ms: number) =>
+	new Promise((resolve) => {
+		setTimeout(resolve, ms);
+	});
+
+async function recordDeliveryAttempt(
+	env: Bindings,
+	{
+		notificationId,
+		endpoint,
+		attempt,
+		success,
+		statusCode,
+		errorMessage,
+	}: {
+		notificationId: number;
+		endpoint: string;
+		attempt: number;
+		success: boolean;
+		statusCode?: number;
+		errorMessage?: string;
+	},
+) {
+	await env.DB.prepare(
+		`
+    INSERT INTO notification_deliveries
+      (notification_id, endpoint, attempt, success, status_code, error_message)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `,
+	)
+		.bind(
+			notificationId,
+			endpoint,
+			attempt,
+			success ? 1 : 0,
+			statusCode ?? null,
+			errorMessage ?? null,
+		)
+		.run();
+}
+
+async function sendPushWithRetry(
+	env: Bindings,
+	subscription: {
+		endpoint: string;
+		expirationTime: number | null;
+		keys: { p256dh: string; auth: string };
+	},
+	payload: PushPayload,
+	notificationId: number,
+) {
+	let lastStatusCode: number | undefined;
+	for (let attempt = 1; attempt <= PUSH_MAX_ATTEMPTS; attempt += 1) {
+		try {
+			const response = await sendPushNotification(env, subscription, payload);
+			await recordDeliveryAttempt(env, {
+				notificationId,
+				endpoint: subscription.endpoint,
+				attempt,
+				success: true,
+				statusCode: response.status,
+			});
+			return { delivered: true };
+		} catch (err) {
+			const statusCode = (err as { statusCode?: number }).statusCode;
+			lastStatusCode = statusCode;
+			const errorMessage = err instanceof Error ? err.message : String(err);
+			await recordDeliveryAttempt(env, {
+				notificationId,
+				endpoint: subscription.endpoint,
+				attempt,
+				success: false,
+				statusCode,
+				errorMessage,
+			});
+			if (statusCode === 410) {
+				return { delivered: false, statusCode };
+			}
+			if (attempt < PUSH_MAX_ATTEMPTS) {
+				const backoff =
+					PUSH_BACKOFF_MS * PUSH_BACKOFF_MULTIPLIER ** (attempt - 1);
+				await delay(backoff);
+			}
+		}
+	}
+
+	return { delivered: false, statusCode: lastStatusCode };
+}
+
 // Middleware to get current user from header
 app.use("*", async (c, next) => {
 	c.set("user", null);
@@ -71,6 +177,12 @@ app.use("*", async (c, next) => {
 				.bind(sessionToken)
 				.first()) as User | null;
 			c.set("user", user ?? null);
+			if (user) {
+				const now = Math.floor(Date.now() / 1000);
+				await c.env.DB.prepare("UPDATE users SET last_seen = ? WHERE id = ?")
+					.bind(now, user.id)
+					.run();
+			}
 		} catch (err) {
 			console.error("Error fetching user:", err);
 		}
@@ -214,9 +326,9 @@ app.post("/api/auth/verify", async (c) => {
 
 	const sessionToken = crypto.randomUUID();
 	await c.env.DB.prepare(
-		"UPDATE users SET phone_verified = 1, session_token = ? WHERE id = ?",
+		"UPDATE users SET phone_verified = 1, session_token = ?, last_seen = ? WHERE id = ?",
 	)
-		.bind(sessionToken, user.id)
+		.bind(sessionToken, Math.floor(Date.now() / 1000), user.id)
 		.run();
 
 	return c.json({
@@ -434,6 +546,29 @@ app.post("/api/oy", async (c) => {
 		.bind(user.id, toUserId)
 		.run();
 
+	const notificationPayload: PushPayload = {
+		title: "Oy!",
+		body: `${user.username} sent you an Oy!`,
+		icon: "/icon-192.png",
+		badge: "/icon-192.png",
+		type: "oy",
+	};
+
+	const notificationRecord = await c.env.DB.prepare(
+		`
+    INSERT INTO notifications (to_user_id, from_user_id, type, payload)
+    VALUES (?, ?, ?, ?)
+  `,
+	)
+		.bind(toUserId, user.id, "oy", JSON.stringify(notificationPayload))
+		.run();
+	const notificationId = Number(notificationRecord.meta.last_row_id);
+	const deliveryPayload: PushPayload = {
+		...notificationPayload,
+		notificationId,
+		tag: `notification-${notificationId}`,
+	};
+
 	// Send push notification
 	try {
 		const subscriptions = await c.env.DB.prepare(`
@@ -456,24 +591,22 @@ app.post("/api/oy", async (c) => {
 				},
 			};
 
-			await sendPushNotification(c.env, subscription, {
-				title: "Oy!",
-				body: `${user.username} sent you an Oy!`,
-				icon: "/icon-192.png",
-				badge: "/icon-192.png",
-				type: "oy",
-				tag: `yo-${result.meta.last_row_id}`,
-			}).catch(async (err) => {
-				console.error("Failed to send push:", err);
-				// If push fails (expired subscription), delete it
-				if ((err as { statusCode?: number }).statusCode === 410) {
+			const { delivered, statusCode } = await sendPushWithRetry(
+				c.env,
+				subscription,
+				deliveryPayload,
+				notificationId,
+			);
+			if (!delivered) {
+				console.error("Failed to send push:", statusCode);
+				if (statusCode === 410) {
 					await c.env.DB.prepare(
 						"DELETE FROM push_subscriptions WHERE user_id = ? AND endpoint = ?",
 					)
 						.bind(toUserId, sub.endpoint)
 						.run();
 				}
-			});
+			}
 		}
 	} catch (err) {
 		console.error("Push notification error:", err);
@@ -575,6 +708,30 @@ app.post("/api/lo", async (c) => {
 		.bind(user.id, toUserId, payload)
 		.run();
 
+	const notificationPayload: PushPayload = {
+		title: "Lo!",
+		body: `${user.username} shared a location`,
+		icon: "/icon-192.png",
+		badge: "/icon-192.png",
+		type: "lo",
+		url: `/?tab=oys&yo=${result.meta.last_row_id}&expand=location`,
+	};
+
+	const notificationRecord = await c.env.DB.prepare(
+		`
+    INSERT INTO notifications (to_user_id, from_user_id, type, payload)
+    VALUES (?, ?, ?, ?)
+  `,
+	)
+		.bind(toUserId, user.id, "lo", JSON.stringify(notificationPayload))
+		.run();
+	const notificationId = Number(notificationRecord.meta.last_row_id);
+	const deliveryPayload: PushPayload = {
+		...notificationPayload,
+		notificationId,
+		tag: `notification-${notificationId}`,
+	};
+
 	try {
 		const subscriptions = await c.env.DB.prepare(`
       SELECT endpoint, keys_p256dh, keys_auth
@@ -596,26 +753,22 @@ app.post("/api/lo", async (c) => {
 				},
 			};
 
-			const url = `/?tab=oys&yo=${result.meta.last_row_id}&expand=location`;
-
-			await sendPushNotification(c.env, subscription, {
-				title: "Lo!",
-				body: `${user.username} shared a location`,
-				icon: "/icon-192.png",
-				badge: "/icon-192.png",
-				type: "lo",
-				tag: `lo-${result.meta.last_row_id}`,
-				url,
-			}).catch(async (err) => {
-				console.error("Failed to send push:", err);
-				if ((err as { statusCode?: number }).statusCode === 410) {
+			const { delivered, statusCode } = await sendPushWithRetry(
+				c.env,
+				subscription,
+				deliveryPayload,
+				notificationId,
+			);
+			if (!delivered) {
+				console.error("Failed to send push:", statusCode);
+				if (statusCode === 410) {
 					await c.env.DB.prepare(
 						"DELETE FROM push_subscriptions WHERE user_id = ? AND endpoint = ?",
 					)
 						.bind(toUserId, sub.endpoint)
 						.run();
 				}
-			});
+			}
 		}
 	} catch (err) {
 		console.error("Push notification error:", err);
@@ -637,12 +790,18 @@ app.post("/api/push/subscribe", async (c) => {
 		return c.json({ error: "Invalid subscription" }, 400);
 	}
 
-	await c.env.DB.prepare(`
-    INSERT OR REPLACE INTO push_subscriptions (user_id, endpoint, keys_p256dh, keys_auth)
-    VALUES (?, ?, ?, ?)
-  `)
-		.bind(user.id, endpoint, keys.p256dh, keys.auth)
-		.run();
+	await c.env.DB.batch([
+		c.env.DB.prepare("DELETE FROM push_subscriptions WHERE endpoint = ?").bind(
+			endpoint,
+		),
+		c.env.DB.prepare(
+			`
+      INSERT OR REPLACE INTO push_subscriptions
+        (user_id, endpoint, keys_p256dh, keys_auth)
+      VALUES (?, ?, ?, ?)
+    `,
+		).bind(user.id, endpoint, keys.p256dh, keys.auth),
+	]);
 
 	return c.json({ success: true });
 });
@@ -672,6 +831,111 @@ app.post("/api/push/unsubscribe", async (c) => {
 // Get VAPID public key
 app.get("/api/push/vapid-public-key", async (c) => {
 	return c.json({ publicKey: c.env.VAPID_PUBLIC_KEY });
+});
+
+function requireAdmin(c: { get: (key: "user") => User | null }) {
+	const user = c.get("user");
+	if (!user) {
+		return {
+			ok: false,
+			response: { error: "Not authenticated" },
+			status: 401 as const,
+		};
+	}
+	if (!user.admin) {
+		return {
+			ok: false,
+			response: { error: "Not authorized" },
+			status: 403 as const,
+		};
+	}
+	return { ok: true, user };
+}
+
+app.get("/api/admin/stats", async (c) => {
+	const adminCheck = requireAdmin(c);
+	if (!adminCheck.ok) {
+		return c.json(adminCheck.response, adminCheck.status);
+	}
+
+	const now = Math.floor(Date.now() / 1000);
+	const since = now - 60 * 60 * 24;
+
+	const activeUsersQuery = await c.env.DB.prepare(
+		`
+    SELECT id, username, last_seen
+    FROM users
+    WHERE session_token IS NOT NULL AND last_seen >= ?
+    ORDER BY last_seen DESC
+  `,
+	)
+		.bind(since)
+		.all();
+
+	const notificationsQuery = await c.env.DB.prepare(
+		"SELECT COUNT(*) as count FROM notifications WHERE created_at >= ?",
+	)
+		.bind(since)
+		.first();
+
+	const deliveriesQuery = await c.env.DB.prepare(
+		`
+    SELECT
+      SUM(CASE WHEN success = 1 THEN 1 ELSE 0 END) as success_count,
+      COUNT(*) as total_count
+    FROM notification_deliveries
+    WHERE created_at >= ?
+  `,
+	)
+		.bind(since)
+		.first();
+
+	const usersCountQuery = await c.env.DB.prepare(
+		"SELECT COUNT(*) as count FROM users",
+	).first();
+
+	const subscriptionsCountQuery = await c.env.DB.prepare(
+		"SELECT COUNT(*) as count FROM push_subscriptions",
+	).first();
+
+	const notificationsSent = Number(
+		(notificationsQuery as { count?: number | null } | null)?.count ?? 0,
+	);
+	const totalDeliveries = Number(
+		(deliveriesQuery as { total_count?: number | null } | null)?.total_count ??
+			0,
+	);
+	const successDeliveries = Number(
+		(deliveriesQuery as { success_count?: number | null } | null)
+			?.success_count ?? 0,
+	);
+
+	const stats = {
+		activeUsersCount: (activeUsersQuery.results || []).length,
+		notificationsSent,
+		deliveryAttempts: totalDeliveries,
+		deliverySuccessCount: successDeliveries,
+		deliveryFailureCount: Math.max(0, totalDeliveries - successDeliveries),
+		deliverySuccessRate: totalDeliveries
+			? successDeliveries / totalDeliveries
+			: 0,
+		subscriptionsCount: Number(
+			(subscriptionsCountQuery as { count?: number | null } | null)?.count ?? 0,
+		),
+		usersCount: Number(
+			(usersCountQuery as { count?: number | null } | null)?.count ?? 0,
+		),
+	};
+
+	return c.json({
+		stats,
+		activeUsers: (activeUsersQuery.results || []) as Array<{
+			id: number;
+			username: string;
+			last_seen: number;
+		}>,
+		generatedAt: now,
+	});
 });
 
 // Export the app as a Worker

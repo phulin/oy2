@@ -19,6 +19,7 @@ self.addEventListener("push", (event) => {
 		badge?: string;
 		tag?: string;
 		url?: string;
+		notificationId?: number;
 	} = {
 		title: "Oy!",
 		body: "Someone sent you an Oy!",
@@ -36,11 +37,16 @@ self.addEventListener("push", (event) => {
 		body: data.body,
 		icon: data.icon || "/icon-192.png",
 		badge: data.badge || "/icon-192.png",
-		tag: data.tag || "yo-notification",
+		tag:
+			data.tag ||
+			(data.notificationId
+				? `notification-${data.notificationId}`
+				: "yo-notification"),
 		vibrate: [200, 100, 200],
 		requireInteraction: false,
 		data: {
 			url: data.url || "/",
+			notificationId: data.notificationId,
 		},
 	};
 

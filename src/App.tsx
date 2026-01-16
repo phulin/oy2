@@ -2,6 +2,7 @@ import { registerSW } from "virtual:pwa-register";
 import { Tabs } from "@kobalte/core";
 import { createEffect, createSignal, onCleanup, onMount, Show } from "solid-js";
 import { AddFriendForm } from "./components/AddFriendForm";
+import { AdminDashboard } from "./components/AdminDashboard";
 import { AppHeader } from "./components/AppHeader";
 import { FriendsList } from "./components/FriendsList";
 import { LoginScreen } from "./components/LoginScreen";
@@ -25,6 +26,7 @@ const initialTab =
 	requestedTab && ["friends", "oys", "add"].includes(requestedTab)
 		? requestedTab
 		: "friends";
+const isAdminRoute = window.location.pathname === "/admin";
 
 type AuthStep = "login" | "phone" | "verify";
 
@@ -52,6 +54,7 @@ export default function App() {
 	let pendingExpandType: string | null = requestedExpand;
 	let hasUpdatedHash = false;
 	const tabOrder = ["friends", "oys", "add"] as const;
+	const seenNotificationLimit = 100;
 
 	async function api<T>(
 		endpoint: string,
@@ -426,10 +429,42 @@ export default function App() {
 
 		const oyAudio = new Audio("/oy.wav");
 		oyAudio.preload = "auto";
+		const seenNotificationIdsRaw = localStorage.getItem("seenNotificationIds");
+		const seenNotificationIds = seenNotificationIdsRaw
+			? (JSON.parse(seenNotificationIdsRaw) as number[])
+			: [];
+		const seenNotificationSet = new Set(seenNotificationIds);
+
+		const rememberNotification = (notificationId: number) => {
+			if (seenNotificationSet.has(notificationId)) {
+				return false;
+			}
+			seenNotificationSet.add(notificationId);
+			seenNotificationIds.push(notificationId);
+			if (seenNotificationIds.length > seenNotificationLimit) {
+				seenNotificationIds.splice(
+					0,
+					seenNotificationIds.length - seenNotificationLimit,
+				);
+			}
+			localStorage.setItem(
+				"seenNotificationIds",
+				JSON.stringify(seenNotificationIds),
+			);
+			return true;
+		};
 
 		const onMessage = (event: MessageEvent) => {
-			const payload = event.data?.payload as { type?: string } | undefined;
+			const payload = event.data?.payload as
+				| { type?: string; notificationId?: number }
+				| undefined;
 			if (payload?.type !== "oy") {
+				return;
+			}
+			if (
+				payload.notificationId &&
+				!rememberNotification(payload.notificationId)
+			) {
 				return;
 			}
 			void oyAudio.play();
@@ -506,55 +541,59 @@ export default function App() {
 					</>
 				}
 			>
-				<Screen>
-					<Show when={currentUser()}>
-						{(user) => <AppHeader user={user()} onLogout={logout} />}
-					</Show>
+				{(user) =>
+					isAdminRoute ? (
+						<AdminDashboard user={user()} api={api} onLogout={logout} />
+					) : (
+						<Screen>
+							<AppHeader user={user()} onLogout={logout} />
 
-					<Tabs.Root value={tab()} onChange={setTab} class="app-tabs-root">
-						<Tabs.List class="app-tabs">
-							<Tabs.Trigger class="app-tab" value="friends">
-								Friends
-							</Tabs.Trigger>
-							<Tabs.Trigger class="app-tab" value="oys">
-								Oys
-							</Tabs.Trigger>
-							<Tabs.Trigger class="app-tab" value="add">
-								Add Friend
-							</Tabs.Trigger>
-						</Tabs.List>
+							<Tabs.Root value={tab()} onChange={setTab} class="app-tabs-root">
+								<Tabs.List class="app-tabs">
+									<Tabs.Trigger class="app-tab" value="friends">
+										Friends
+									</Tabs.Trigger>
+									<Tabs.Trigger class="app-tab" value="oys">
+										Oys
+									</Tabs.Trigger>
+									<Tabs.Trigger class="app-tab" value="add">
+										Add Friend
+									</Tabs.Trigger>
+								</Tabs.List>
 
-						<SwipeableTabs order={tabOrder} value={tab} onChange={setTab}>
-							<Tabs.Content value="friends">
-								<FriendsList
-									friends={friends()}
-									onSendOy={sendOy}
-									onSendLo={sendLo}
-								/>
-							</Tabs.Content>
+								<SwipeableTabs order={tabOrder} value={tab} onChange={setTab}>
+									<Tabs.Content value="friends">
+										<FriendsList
+											friends={friends()}
+											onSendOy={sendOy}
+											onSendLo={sendLo}
+										/>
+									</Tabs.Content>
 
-							<Tabs.Content value="oys">
-								<OysList
-									oys={oys()}
-									openLocations={openLocations}
-									onToggleLocation={toggleLocation}
-									hasMore={hasMoreOys}
-									loadingMore={loadingMoreOys}
-									loading={loadingOys}
-									onLoadMore={() => loadOysPage()}
-								/>
-							</Tabs.Content>
+									<Tabs.Content value="oys">
+										<OysList
+											oys={oys()}
+											openLocations={openLocations}
+											onToggleLocation={toggleLocation}
+											hasMore={hasMoreOys}
+											loadingMore={loadingMoreOys}
+											loading={loadingOys}
+											onLoadMore={() => loadOysPage()}
+										/>
+									</Tabs.Content>
 
-							<Tabs.Content value="add">
-								<AddFriendForm
-									api={api}
-									currentUser={currentUser}
-									friends={friends}
-								/>
-							</Tabs.Content>
-						</SwipeableTabs>
-					</Tabs.Root>
-				</Screen>
+									<Tabs.Content value="add">
+										<AddFriendForm
+											api={api}
+											currentUser={currentUser}
+											friends={friends}
+										/>
+									</Tabs.Content>
+								</SwipeableTabs>
+							</Tabs.Root>
+						</Screen>
+					)
+				}
 			</Show>
 		</Show>
 	);
