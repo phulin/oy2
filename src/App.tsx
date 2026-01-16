@@ -39,6 +39,7 @@ export default function App() {
 
 	const [booting, setBooting] = createSignal(true);
 	const [currentUser, setCurrentUser] = createSignal<User | null>(null);
+	const [cachedUser, setCachedUser] = createSignal<User | null>(null);
 	const [sessionToken, setSessionToken] = createSignal<string | null>(null);
 	const [authStep, setAuthStep] = createSignal<AuthStep>("login");
 	const [pendingUsername, setPendingUsername] = createSignal<string>("");
@@ -53,8 +54,10 @@ export default function App() {
 	const parsedOyId = requestedOyId ? Number(requestedOyId) : null;
 	const [loadingOys, setLoadingOys] = createSignal(false);
 	const [loadingMoreOys, setLoadingMoreOys] = createSignal(false);
+	const [loadingFriends, setLoadingFriends] = createSignal(false);
 	const [hasMoreOys, setHasMoreOys] = createSignal(true);
 	const [oysCursor, setOysCursor] = createSignal<OysCursor | null>(null);
+	const [restoringSession, setRestoringSession] = createSignal(false);
 	let pendingExpandOyId: number | null =
 		parsedOyId !== null && Number.isFinite(parsedOyId) ? parsedOyId : null;
 	let pendingExpandType: string | null = requestedExpand;
@@ -161,6 +164,7 @@ export default function App() {
 	}
 
 	async function loadFriends() {
+		setLoadingFriends(true);
 		try {
 			const { friends: data } = await api<{ friends: FriendWithLastYo[] }>(
 				"/api/friends",
@@ -168,6 +172,8 @@ export default function App() {
 			setFriends(data || []);
 		} catch (err) {
 			console.error("Failed to load friends:", err);
+		} finally {
+			setLoadingFriends(false);
 		}
 	}
 
@@ -435,7 +441,19 @@ export default function App() {
 		await registerServiceWorker();
 		const savedToken = localStorage.getItem("sessionToken");
 		if (savedToken) {
+			setCachedUser({
+				id: -1,
+				username: localStorage.getItem("username") as string,
+			});
+			setRestoringSession(true);
+			setLoadingFriends(true);
+			setBooting(false);
 			await restoreSession(savedToken);
+			setRestoringSession(false);
+			if (!currentUser()) {
+				setLoadingFriends(false);
+			}
+			return;
 		}
 		setBooting(false);
 	});
@@ -541,78 +559,84 @@ export default function App() {
 		}
 	});
 
+	const renderApp = (user: User) =>
+		isAdminRoute ? (
+			<AdminDashboard user={user} api={api} onLogout={logout} />
+		) : (
+			<Screen>
+				<AppHeader user={user} onLogout={logout} />
+
+				<Tabs.Root value={tab()} onChange={setTab} class="app-tabs-root">
+					<Tabs.List class="app-tabs">
+						<Tabs.Trigger class="app-tab" value="friends">
+							Friends
+						</Tabs.Trigger>
+						<Tabs.Trigger class="app-tab" value="oys">
+							Oys
+						</Tabs.Trigger>
+						<Tabs.Trigger class="app-tab" value="add">
+							Add Friend
+						</Tabs.Trigger>
+					</Tabs.List>
+
+					<SwipeableTabs order={tabOrder} value={tab} onChange={setTab}>
+						<Tabs.Content value="friends">
+							<FriendsList
+								friends={friends()}
+								currentUserId={user.id}
+								loading={loadingFriends}
+								onSendOy={sendOy}
+								onSendLo={sendLo}
+							/>
+						</Tabs.Content>
+
+						<Tabs.Content value="oys">
+							<OysList
+								oys={oys()}
+								openLocations={openLocations}
+								onToggleLocation={toggleLocation}
+								hasMore={hasMoreOys}
+								loadingMore={loadingMoreOys}
+								loading={loadingOys}
+								onLoadMore={() => loadOysPage()}
+							/>
+						</Tabs.Content>
+
+						<Tabs.Content value="add">
+							<AddFriendForm
+								api={api}
+								currentUser={currentUser}
+								friends={friends}
+							/>
+						</Tabs.Content>
+					</SwipeableTabs>
+				</Tabs.Root>
+			</Screen>
+		);
+
 	return (
 		<Show when={!booting()}>
 			<Show
 				when={currentUser()}
 				fallback={
-					<>
-						<Show when={authStep() === "login"}>
-							<LoginScreen onSubmit={handleLogin} />
-						</Show>
-						<Show when={authStep() === "phone"}>
-							<PhoneVerificationScreen onSubmit={handlePhoneSubmit} />
-						</Show>
-						<Show when={authStep() === "verify"}>
-							<VerifyCodeScreen onSubmit={handleVerifySubmit} />
-						</Show>
-					</>
-				}
-			>
-				{(user) =>
-					isAdminRoute ? (
-						<AdminDashboard user={user()} api={api} onLogout={logout} />
+					restoringSession() && cachedUser() ? (
+						renderApp(cachedUser() as User)
 					) : (
-						<Screen>
-							<AppHeader user={user()} onLogout={logout} />
-
-							<Tabs.Root value={tab()} onChange={setTab} class="app-tabs-root">
-								<Tabs.List class="app-tabs">
-									<Tabs.Trigger class="app-tab" value="friends">
-										Friends
-									</Tabs.Trigger>
-									<Tabs.Trigger class="app-tab" value="oys">
-										Oys
-									</Tabs.Trigger>
-									<Tabs.Trigger class="app-tab" value="add">
-										Add Friend
-									</Tabs.Trigger>
-								</Tabs.List>
-
-								<SwipeableTabs order={tabOrder} value={tab} onChange={setTab}>
-									<Tabs.Content value="friends">
-										<FriendsList
-											friends={friends()}
-											currentUserId={user().id}
-											onSendOy={sendOy}
-											onSendLo={sendLo}
-										/>
-									</Tabs.Content>
-
-									<Tabs.Content value="oys">
-										<OysList
-											oys={oys()}
-											openLocations={openLocations}
-											onToggleLocation={toggleLocation}
-											hasMore={hasMoreOys}
-											loadingMore={loadingMoreOys}
-											loading={loadingOys}
-											onLoadMore={() => loadOysPage()}
-										/>
-									</Tabs.Content>
-
-									<Tabs.Content value="add">
-										<AddFriendForm
-											api={api}
-											currentUser={currentUser}
-											friends={friends}
-										/>
-									</Tabs.Content>
-								</SwipeableTabs>
-							</Tabs.Root>
-						</Screen>
+						<>
+							<Show when={authStep() === "login"}>
+								<LoginScreen onSubmit={handleLogin} />
+							</Show>
+							<Show when={authStep() === "phone"}>
+								<PhoneVerificationScreen onSubmit={handlePhoneSubmit} />
+							</Show>
+							<Show when={authStep() === "verify"}>
+								<VerifyCodeScreen onSubmit={handleVerifySubmit} />
+							</Show>
+						</>
 					)
 				}
+			>
+				{(user) => renderApp(user())}
 			</Show>
 		</Show>
 	);

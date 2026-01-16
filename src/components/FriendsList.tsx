@@ -8,16 +8,32 @@ import "./FriendsList.css";
 type FriendsListProps = {
 	friends: FriendWithLastYo[];
 	currentUserId: number;
+	loading: () => boolean;
 	onSendOy: (friendId: number) => Promise<void>;
 	onSendLo: (friendId: number) => Promise<void>;
 };
 
 export function FriendsList(props: FriendsListProps) {
+	const skeletonItems = () => Array.from({ length: 4 });
 	return (
 		<div class="friends-list">
 			<Show
 				when={props.friends.length > 0}
-				fallback={<p class="friends-empty-state">No friends yet. Add some!</p>}
+				fallback={
+					props.loading() ? (
+						<div class="friends-skeleton" aria-hidden="true">
+							<For each={skeletonItems()}>
+								{() => (
+									<div class="friends-skeleton-card">
+										<div class="friends-skeleton-shimmer" />
+									</div>
+								)}
+							</For>
+						</div>
+					) : (
+						<p class="friends-empty-state">No friends yet. Add some!</p>
+					)
+				}
 			>
 				<For each={props.friends}>
 					{(friend) => {

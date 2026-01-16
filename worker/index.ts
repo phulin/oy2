@@ -266,7 +266,6 @@ app.post("/api/auth/start", async (c) => {
 		.first()) as User | null;
 
 	const phoneAuthEnabled = await getPhoneAuthEnabled(c.env);
-	console.log("phoneAuthEnabled", phoneAuthEnabled);
 	if (!phoneAuthEnabled) {
 		if (!user) {
 			const result = await c.env.DB.prepare(
