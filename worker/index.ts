@@ -71,6 +71,7 @@ const app = new Hono<{
 	Variables: {
 		user: User | null;
 		sessionToken: string | null;
+		bootMs: number;
 	};
 }>();
 
@@ -78,6 +79,7 @@ const PUSH_MAX_ATTEMPTS = 3;
 const PUSH_BACKOFF_MS = 250;
 const PUSH_BACKOFF_MULTIPLIER = 2;
 const PHONE_AUTH_KV_KEY = "phone_auth_enabled";
+const bootTime = performance.now();
 
 const delay = (ms: number) =>
 	new Promise((resolve) => {
@@ -181,6 +183,18 @@ async function sendPushWithRetry(
 }
 
 // Middleware to get current user from header
+app.use("*", async (c, next) => {
+	const bootMs = performance.now() - bootTime;
+	const handlerStart = performance.now();
+	c.set("bootMs", bootMs);
+	await next();
+	const handlerMs = performance.now() - handlerStart;
+	c.header(
+		"Server-Timing",
+		`boot;dur=${bootMs.toFixed(1)}, handler;dur=${handlerMs.toFixed(1)}`,
+	);
+});
+
 app.use("*", async (c, next) => {
 	c.set("user", null);
 	c.set("sessionToken", null);

@@ -465,6 +465,41 @@ export default function App() {
 
 		const oyAudio = new Audio("/oy.wav");
 		oyAudio.preload = "auto";
+		let audioUnlocked = false;
+		let waitingForGesture = false;
+		let gestureHandler: (() => void) | null = null;
+
+		const removeGestureListeners = () => {
+			if (!gestureHandler) {
+				return;
+			}
+			document.removeEventListener("click", gestureHandler);
+			document.removeEventListener("touchstart", gestureHandler);
+			document.removeEventListener("keydown", gestureHandler);
+			gestureHandler = null;
+		};
+
+		const ensureAudioUnlocked = () => {
+			if (audioUnlocked || waitingForGesture) {
+				return;
+			}
+			waitingForGesture = true;
+			gestureHandler = () => {
+				removeGestureListeners();
+				waitingForGesture = false;
+				void oyAudio
+					.play()
+					.then(() => {
+						oyAudio.pause();
+						oyAudio.currentTime = 0;
+						audioUnlocked = true;
+					})
+					.catch(() => {});
+			};
+			document.addEventListener("click", gestureHandler);
+			document.addEventListener("touchstart", gestureHandler);
+			document.addEventListener("keydown", gestureHandler);
+		};
 		const seenNotificationIdsRaw = localStorage.getItem("seenNotificationIds");
 		const seenNotificationIds = seenNotificationIdsRaw
 			? (JSON.parse(seenNotificationIdsRaw) as number[])
@@ -506,12 +541,15 @@ export default function App() {
 			if (currentUser()) {
 				void loadFriends();
 			}
-			void oyAudio.play();
+			void oyAudio.play().catch(() => {
+				ensureAudioUnlocked();
+			});
 		};
 
 		navigator.serviceWorker.addEventListener("message", onMessage);
 		onCleanup(() => {
 			navigator.serviceWorker.removeEventListener("message", onMessage);
+			removeGestureListeners();
 		});
 	});
 
