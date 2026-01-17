@@ -213,9 +213,12 @@ app.use("*", async (c, next) => {
 			if (user) {
 				c.set("sessionToken", sessionToken);
 				const now = Math.floor(Date.now() / 1000);
-				await c.env.DB.prepare("UPDATE users SET last_seen = ? WHERE id = ?")
+				const updatePromise = c.env.DB.prepare(
+					"UPDATE users SET last_seen = ? WHERE id = ?",
+				)
 					.bind(now, user.id)
 					.run();
+				c.executionCtx.waitUntil(updatePromise);
 			}
 		} catch (err) {
 			console.error("Error fetching user:", err);
