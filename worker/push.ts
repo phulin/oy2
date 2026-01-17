@@ -1,5 +1,4 @@
 import type { PushMessage } from "@block65/webcrypto-web-push";
-import { buildPushPayload } from "@block65/webcrypto-web-push";
 
 const DEFAULT_VAPID_SUBJECT = "mailto:admin@example.com";
 
@@ -37,6 +36,7 @@ export async function sendPushNotification(
 	},
 	payload: PushMessage["data"],
 ) {
+	const { buildPushPayload } = await import("@block65/webcrypto-web-push");
 	if (!env.VAPID_PUBLIC_KEY || !env.VAPID_PRIVATE_KEY) {
 		throw new Error("VAPID keys not configured");
 	}
