@@ -494,7 +494,7 @@ export default function App() {
 			const payload = event.data?.payload as
 				| { type?: string; notificationId?: number }
 				| undefined;
-			if (payload?.type !== "oy") {
+			if (payload?.type !== "oy" && payload?.type !== "lo") {
 				return;
 			}
 			if (
