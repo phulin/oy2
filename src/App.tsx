@@ -12,6 +12,7 @@ import { PrivacyPolicyScreen } from "./components/PrivacyPolicyScreen";
 import { Screen } from "./components/Screen";
 import { SwipeableTabs } from "./components/SwipeableTabs";
 import { VerifyCodeScreen } from "./components/VerifyCodeScreen";
+import { OyToastContainer, addOyToast } from "./components/OyToast";
 import type { FriendWithLastYo, Oy, OysCursor, User } from "./types";
 import { urlBase64ToUint8Array } from "./utils";
 import "./App.css";
@@ -527,7 +528,12 @@ export default function App() {
 
 		const onMessage = (event: MessageEvent) => {
 			const payload = event.data?.payload as
-				| { type?: string; notificationId?: number }
+				| {
+						type?: string;
+						notificationId?: number;
+						title?: string;
+						body?: string;
+				  }
 				| undefined;
 			if (payload?.type !== "oy" && payload?.type !== "lo") {
 				return;
@@ -544,6 +550,15 @@ export default function App() {
 			void oyAudio.play().catch(() => {
 				ensureAudioUnlocked();
 			});
+
+		// Show toast notification for oys only
+		if (payload.type === "oy" && payload.notificationId && payload.title && payload.body) {
+			addOyToast({
+				id: payload.notificationId,
+				title: payload.title,
+				body: payload.body,
+			});
+		}
 		};
 
 		navigator.serviceWorker.addEventListener("message", onMessage);
@@ -657,29 +672,32 @@ export default function App() {
 		);
 
 	return (
-		<Show when={!booting()}>
-			<Show
-				when={currentUser()}
-				fallback={
-					restoringSession() && cachedUser() ? (
-						renderApp(cachedUser() as User)
-					) : (
-						<>
-							<Show when={authStep() === "login"}>
-								<LoginScreen onSubmit={handleLogin} />
-							</Show>
-							<Show when={authStep() === "phone"}>
-								<PhoneVerificationScreen onSubmit={handlePhoneSubmit} />
-							</Show>
-							<Show when={authStep() === "verify"}>
-								<VerifyCodeScreen onSubmit={handleVerifySubmit} />
-							</Show>
-						</>
-					)
-				}
-			>
-				{(user) => renderApp(user())}
+		<>
+			<OyToastContainer />
+			<Show when={!booting()}>
+				<Show
+					when={currentUser()}
+					fallback={
+						restoringSession() && cachedUser() ? (
+							renderApp(cachedUser() as User)
+						) : (
+							<>
+								<Show when={authStep() === "login"}>
+									<LoginScreen onSubmit={handleLogin} />
+								</Show>
+								<Show when={authStep() === "phone"}>
+									<PhoneVerificationScreen onSubmit={handlePhoneSubmit} />
+								</Show>
+								<Show when={authStep() === "verify"}>
+									<VerifyCodeScreen onSubmit={handleVerifySubmit} />
+								</Show>
+							</>
+						)
+					}
+				>
+					{(user) => renderApp(user())}
+				</Show>
 			</Show>
-		</Show>
+		</>
 	);
 }
