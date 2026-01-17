@@ -554,14 +554,19 @@ export default function App() {
 				ensureAudioUnlocked();
 			});
 
-		// Show toast notification for oys only
-		if (payload.type === "oy" && payload.notificationId && payload.title && payload.body) {
-			addOyToast({
-				id: payload.notificationId,
-				title: payload.title,
-				body: payload.body,
-			});
-		}
+			// Show toast notification for oys only
+			if (
+				payload.type === "oy" &&
+				payload.notificationId &&
+				payload.title &&
+				payload.body
+			) {
+				addOyToast({
+					id: payload.notificationId,
+					title: payload.title,
+					body: payload.body,
+				});
+			}
 		};
 
 		navigator.serviceWorker.addEventListener("message", onMessage);

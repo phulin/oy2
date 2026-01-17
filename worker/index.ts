@@ -623,30 +623,6 @@ app.post("/api/oy", async (c) => {
 		return c.json({ error: "You can only send Oys to friends" }, 403);
 	}
 
-	// Create the Oy
-	const createdAt = Math.floor(Date.now() / 1000);
-	const result = await c.env.DB.prepare(`
-    INSERT INTO yos (from_user_id, to_user_id, type, payload, created_at)
-    VALUES (?, ?, 'oy', NULL, ?)
-  `)
-		.bind(user.id, toUserId, createdAt)
-		.run();
-	const yoId = Number(result.meta.last_row_id);
-
-	await c.env.DB.prepare(
-		`
-    UPDATE friendships
-    SET last_yo_id = ?,
-        last_yo_type = ?,
-        last_yo_created_at = ?,
-        last_yo_from_user_id = ?
-    WHERE (user_id = ? AND friend_id = ?)
-       OR (user_id = ? AND friend_id = ?)
-  `,
-	)
-		.bind(yoId, "oy", createdAt, user.id, user.id, toUserId, toUserId, user.id)
-		.run();
-
 	const notificationPayload: PushPayload = {
 		title: "Oy!",
 		body: `${user.username} sent you an Oy!`,
@@ -654,16 +630,35 @@ app.post("/api/oy", async (c) => {
 		badge: "/icon-192.png",
 		type: "oy",
 	};
-
-	const notificationRecord = await c.env.DB.prepare(
-		`
-    INSERT INTO notifications (to_user_id, from_user_id, type, payload)
-    VALUES (?, ?, ?, ?)
-  `,
-	)
-		.bind(toUserId, user.id, "oy", JSON.stringify(notificationPayload))
-		.run();
-	const notificationId = Number(notificationRecord.meta.last_row_id);
+	// Create the Oy + update friendships + store notification
+	const createdAt = Math.floor(Date.now() / 1000);
+	const batchResults = await c.env.DB.batch([
+		c.env.DB.prepare(
+			`
+      INSERT INTO yos (from_user_id, to_user_id, type, payload, created_at)
+      VALUES (?, ?, 'oy', NULL, ?)
+    `,
+		).bind(user.id, toUserId, createdAt),
+		c.env.DB.prepare(
+			`
+      UPDATE friendships
+      SET last_yo_id = last_insert_rowid(),
+          last_yo_type = ?,
+          last_yo_created_at = ?,
+          last_yo_from_user_id = ?
+      WHERE (user_id = ? AND friend_id = ?)
+         OR (user_id = ? AND friend_id = ?)
+    `,
+		).bind("oy", createdAt, user.id, user.id, toUserId, toUserId, user.id),
+		c.env.DB.prepare(
+			`
+      INSERT INTO notifications (to_user_id, from_user_id, type, payload)
+      VALUES (?, ?, ?, ?)
+    `,
+		).bind(toUserId, user.id, "oy", JSON.stringify(notificationPayload)),
+	]);
+	const yoId = Number(batchResults[0].meta.last_row_id);
+	const notificationId = Number(batchResults[2].meta.last_row_id);
 	const deliveryPayload: PushPayload = {
 		...notificationPayload,
 		notificationId,
@@ -806,47 +801,75 @@ app.post("/api/lo", async (c) => {
 		accuracy: location.accuracy || null,
 	});
 
+	const notificationTitle = "Lo!";
+	const notificationBody = `${user.username} shared a location`;
+	const notificationIcon = "/icon-192.png";
+	const notificationBadge = "/icon-192.png";
+	const notificationType = "lo";
 	const createdAt = Math.floor(Date.now() / 1000);
-	const result = await c.env.DB.prepare(`
-    INSERT INTO yos (from_user_id, to_user_id, type, payload, created_at)
-    VALUES (?, ?, 'lo', ?, ?)
-  `)
-		.bind(user.id, toUserId, payload, createdAt)
-		.run();
-	const yoId = Number(result.meta.last_row_id);
-
-	await c.env.DB.prepare(
-		`
-    UPDATE friendships
-    SET last_yo_id = ?,
-        last_yo_type = ?,
-        last_yo_created_at = ?,
-        last_yo_from_user_id = ?
-    WHERE (user_id = ? AND friend_id = ?)
-       OR (user_id = ? AND friend_id = ?)
-  `,
-	)
-		.bind(yoId, "lo", createdAt, user.id, user.id, toUserId, toUserId, user.id)
-		.run();
+	const batchResults = await c.env.DB.batch([
+		c.env.DB.prepare(
+			`
+      INSERT INTO yos (from_user_id, to_user_id, type, payload, created_at)
+      VALUES (?, ?, 'lo', ?, ?)
+    `,
+		).bind(user.id, toUserId, payload, createdAt),
+		c.env.DB.prepare(
+			`
+      UPDATE friendships
+      SET last_yo_id = last_insert_rowid(),
+          last_yo_type = ?,
+          last_yo_created_at = ?,
+          last_yo_from_user_id = ?
+      WHERE (user_id = ? AND friend_id = ?)
+         OR (user_id = ? AND friend_id = ?)
+    `,
+		).bind("lo", createdAt, user.id, user.id, toUserId, toUserId, user.id),
+		c.env.DB.prepare(
+			`
+      INSERT INTO notifications (to_user_id, from_user_id, type, payload)
+      VALUES (
+        ?,
+        ?,
+        ?,
+        json_object(
+          'title',
+          ?,
+          'body',
+          ?,
+          'icon',
+          ?,
+          'badge',
+          ?,
+          'type',
+          ?,
+          'url',
+          printf('/?tab=oys&yo=%d&expand=location', last_insert_rowid())
+        )
+      )
+    `,
+		).bind(
+			toUserId,
+			user.id,
+			notificationType,
+			notificationTitle,
+			notificationBody,
+			notificationIcon,
+			notificationBadge,
+			notificationType,
+		),
+	]);
+	const yoId = Number(batchResults[0].meta.last_row_id);
+	const notificationId = Number(batchResults[2].meta.last_row_id);
 
 	const notificationPayload: PushPayload = {
-		title: "Lo!",
-		body: `${user.username} shared a location`,
-		icon: "/icon-192.png",
-		badge: "/icon-192.png",
-		type: "lo",
+		title: notificationTitle,
+		body: notificationBody,
+		icon: notificationIcon,
+		badge: notificationBadge,
+		type: notificationType,
 		url: `/?tab=oys&yo=${yoId}&expand=location`,
 	};
-
-	const notificationRecord = await c.env.DB.prepare(
-		`
-    INSERT INTO notifications (to_user_id, from_user_id, type, payload)
-    VALUES (?, ?, ?, ?)
-  `,
-	)
-		.bind(toUserId, user.id, "lo", JSON.stringify(notificationPayload))
-		.run();
-	const notificationId = Number(notificationRecord.meta.last_row_id);
 	const deliveryPayload: PushPayload = {
 		...notificationPayload,
 		notificationId,

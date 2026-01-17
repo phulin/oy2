@@ -1,4 +1,4 @@
-import { createSignal, For, onCleanup } from "solid-js";
+import { createSignal, For } from "solid-js";
 import "./OyToast.css";
 
 export type OyToastData = {
@@ -36,7 +36,8 @@ export function OyToastContainer() {
 		<div class="oy-toast-container">
 			<For each={toasts()}>
 				{(toast) => (
-					<div
+					<button
+						type="button"
 						class="oy-toast"
 						onClick={() => removeToast(toast.key)}
 					>
@@ -44,7 +45,7 @@ export function OyToastContainer() {
 							<div class="oy-toast-title">{toast.title}</div>
 							<div class="oy-toast-body">{toast.body}</div>
 						</div>
-					</div>
+					</button>
 				)}
 			</For>
 		</div>
