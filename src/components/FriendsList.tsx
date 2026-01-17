@@ -1,4 +1,4 @@
-import { For, Show } from "solid-js";
+import { createMemo, createSignal, For, onCleanup, Show } from "solid-js";
 import type { FriendWithLastYo } from "../types";
 import { formatTime } from "../utils";
 import { AsyncButton } from "./AsyncButton";
@@ -14,7 +14,23 @@ type FriendsListProps = {
 };
 
 export function FriendsList(props: FriendsListProps) {
+	const [timeTick, setTimeTick] = createSignal(Date.now());
+	const intervalId = window.setInterval(() => {
+		setTimeTick(Date.now());
+	}, 60000);
+	onCleanup(() => window.clearInterval(intervalId));
+
 	const skeletonItems = () => Array.from({ length: 4 });
+	const sortedFriends = createMemo(() =>
+		[...props.friends].sort(
+			(a, b) => (b.last_yo_created_at ?? -1) - (a.last_yo_created_at ?? -1),
+		),
+	);
+	const formatRelativeTime = (timestamp: number) => {
+		timeTick();
+		return formatTime(timestamp);
+	};
+
 	return (
 		<div class="friends-list stack">
 			<Show
@@ -37,7 +53,7 @@ export function FriendsList(props: FriendsListProps) {
 					)
 				}
 			>
-				<For each={props.friends}>
+				<For each={sortedFriends()}>
 					{(friend) => {
 						const lastYoCreatedAt = friend.last_yo_created_at;
 						const lastYoDirection =
@@ -51,7 +67,8 @@ export function FriendsList(props: FriendsListProps) {
 									</div>
 									<Show when={lastYoCreatedAt !== null}>
 										<div class="friends-list-item-subtitle item-subtitle">
-											{lastYoDirection} {formatTime(lastYoCreatedAt as number)}
+											{lastYoDirection}{" "}
+											{formatRelativeTime(lastYoCreatedAt as number)}
 										</div>
 									</Show>
 								</div>

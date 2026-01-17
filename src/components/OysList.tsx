@@ -1,5 +1,5 @@
 import { Button } from "@kobalte/core/button";
-import { For, onCleanup, onMount, Show } from "solid-js";
+import { createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import type { Oy, OyPayload } from "../types";
 import { formatTime } from "../utils";
 import { LocationMap } from "./LocationMap";
@@ -17,6 +17,12 @@ type OysListProps = {
 };
 
 export function OysList(props: OysListProps) {
+	const [timeTick, setTimeTick] = createSignal(Date.now());
+	const intervalId = window.setInterval(() => {
+		setTimeTick(Date.now());
+	}, 60000);
+	onCleanup(() => window.clearInterval(intervalId));
+
 	let sentinel: HTMLDivElement | undefined;
 	const setSentinel = (el: HTMLDivElement) => {
 		sentinel = el;
@@ -40,6 +46,11 @@ export function OysList(props: OysListProps) {
 			observer.disconnect();
 		});
 	});
+
+	const formatRelativeTime = (timestamp: number) => {
+		timeTick();
+		return formatTime(timestamp);
+	};
 
 	return (
 		<div class="oys-list stack">
@@ -82,7 +93,7 @@ export function OysList(props: OysListProps) {
 										<div class="oys-list-item-text stack stack-sm">
 											<div class="oys-list-item-title item-title">{title}</div>
 											<div class="oys-list-item-subtitle item-subtitle">
-												{formatTime(oy.created_at)}
+												{formatRelativeTime(oy.created_at)}
 											</div>
 										</div>
 										<Show when={isLocation}>
