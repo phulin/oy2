@@ -6,12 +6,12 @@ import { AdminDashboard } from "./components/AdminDashboard";
 import { AppHeader } from "./components/AppHeader";
 import { FriendsList } from "./components/FriendsList";
 import { LoginScreen } from "./components/LoginScreen";
-import { PhoneVerificationScreen } from "./components/PhoneVerificationScreen";
 import { OysList } from "./components/OysList";
+import { PhoneVerificationScreen } from "./components/PhoneVerificationScreen";
+import { PrivacyPolicyScreen } from "./components/PrivacyPolicyScreen";
 import { Screen } from "./components/Screen";
 import { SwipeableTabs } from "./components/SwipeableTabs";
 import { VerifyCodeScreen } from "./components/VerifyCodeScreen";
-import { PrivacyPolicyScreen } from "./components/PrivacyPolicyScreen";
 import type { FriendWithLastYo, Oy, OysCursor, User } from "./types";
 import { urlBase64ToUint8Array } from "./utils";
 import "./App.css";
@@ -323,15 +323,15 @@ export default function App() {
 	}
 
 	function logout() {
+		api("/api/auth/logout", { method: "POST" }).catch((err) => {
+			console.error("Logout failed:", err);
+		});
 		setCurrentUser(null);
 		localStorage.removeItem("username");
 		localStorage.removeItem("sessionToken");
 		setSessionToken(null);
 		setAuthStep("login");
 		setPendingUsername("");
-		api("/api/auth/logout", { method: "POST" }).catch((err) => {
-			console.error("Logout failed:", err);
-		});
 
 		const registration = swRegistration();
 		if (registration) {
@@ -494,7 +494,7 @@ export default function App() {
 			const payload = event.data?.payload as
 				| { type?: string; notificationId?: number }
 				| undefined;
-			if (payload?.type !== "oy") {
+			if (payload?.type !== "oy" && payload?.type !== "lo") {
 				return;
 			}
 			if (
@@ -502,6 +502,9 @@ export default function App() {
 				!rememberNotification(payload.notificationId)
 			) {
 				return;
+			}
+			if (currentUser()) {
+				void loadFriends();
 			}
 			void oyAudio.play();
 		};

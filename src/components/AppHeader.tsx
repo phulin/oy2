@@ -26,6 +26,11 @@ export function AppHeader(props: AppHeaderProps) {
 			</div>
 			{menuOpen() ? (
 				<div class="app-user-panel">
+					{props.user.admin ? (
+						<a class="app-user-action" href="/admin">
+							Admin
+						</a>
+					) : null}
 					<a class="app-user-action" href="/privacy">
 						Privacy Policy
 					</a>

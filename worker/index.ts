@@ -300,7 +300,11 @@ app.post("/api/auth/start", async (c) => {
 
 		return c.json({
 			status: "authenticated",
-			user: { id: user.id, username: user.username },
+			user: {
+				id: user.id,
+				username: user.username,
+				...(user.admin ? { admin: true } : {}),
+			},
 			token: sessionToken,
 		});
 	}
@@ -381,7 +385,11 @@ app.post("/api/auth/verify", async (c) => {
 			.bind(sessionToken, user.id)
 			.run();
 		return c.json({
-			user: { id: user.id, username: user.username },
+			user: {
+				id: user.id,
+				username: user.username,
+				...(user.admin ? { admin: true } : {}),
+			},
 			token: sessionToken,
 		});
 	}
@@ -411,7 +419,11 @@ app.post("/api/auth/verify", async (c) => {
 		.run();
 
 	return c.json({
-		user: { id: user.id, username: user.username },
+		user: {
+			id: user.id,
+			username: user.username,
+			...(user.admin ? { admin: true } : {}),
+		},
 		token: sessionToken,
 	});
 });
@@ -422,7 +434,13 @@ app.get("/api/auth/session", async (c) => {
 		return c.json({ error: "Not authenticated" }, 401);
 	}
 
-	return c.json({ user: { id: user.id, username: user.username } });
+	return c.json({
+		user: {
+			id: user.id,
+			username: user.username,
+			...(user.admin ? { admin: true } : {}),
+		},
+	});
 });
 
 app.post("/api/auth/logout", async (c) => {
