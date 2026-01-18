@@ -643,7 +643,11 @@ export default function App() {
 			<AdminDashboard user={user} api={api} onLogout={logout} />
 		) : (
 			<Screen>
-				<AppHeader user={user} onLogout={logout} onSetupNotifications={handleSetupNotifications} />
+				<AppHeader
+					user={user}
+					onLogout={logout}
+					onSetupNotifications={handleSetupNotifications}
+				/>
 
 				<Tabs.Root value={tab()} onChange={setTab} class="app-tabs-root">
 					<Tabs.List class="app-tabs">
