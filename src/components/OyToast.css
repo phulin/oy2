@@ -1,6 +1,6 @@
 .oy-toast-container {
 	position: fixed;
-	top: 1rem;
+	bottom: 1rem;
 	left: 50%;
 	transform: translateX(-50%);
 	display: flex;
@@ -18,7 +18,7 @@
 	padding: 1rem 1.25rem;
 	border-radius: 12px;
 	box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
-	animation: slideDown 0.3s ease-out;
+	animation: slideUp 0.3s ease-out;
 	pointer-events: auto;
 	cursor: pointer;
 	transition:
@@ -51,10 +51,10 @@
 	opacity: 0.95;
 }
 
-@keyframes slideDown {
+@keyframes slideUp {
 	from {
 		opacity: 0;
-		transform: translateY(-100%);
+		transform: translateY(100%);
 	}
 	to {
 		opacity: 1;
