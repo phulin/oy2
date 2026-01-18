@@ -344,18 +344,24 @@ app.use("*", async (c, next) => {
 			if (user) {
 				c.set("sessionToken", sessionToken);
 				const now = Math.floor(Date.now() / 1000);
-				const updatedUser = { ...user, last_seen: now };
-				c.set("user", updatedUser);
 				const updatePromise = c.env.DB.prepare(
 					"UPDATE users SET last_seen = ? WHERE id = ?",
 				)
 					.bind(now, user.id)
 					.run();
-				const cachePromise = c.env.SESSIONS.put(
-					sessionKey,
-					JSON.stringify(updatedUser),
+				let cachePromise: Promise<void> | null = null;
+				if (!cachedUser) {
+					const cachedUserValue = { ...user, last_seen: null };
+					cachePromise = c.env.SESSIONS.put(
+						sessionKey,
+						JSON.stringify(cachedUserValue),
+					);
+				}
+				c.executionCtx.waitUntil(
+					cachePromise
+						? Promise.all([updatePromise, cachePromise])
+						: updatePromise,
 				);
-				c.executionCtx.waitUntil(Promise.all([updatePromise, cachePromise]));
 			}
 		} catch (err) {
 			console.error("Error fetching user:", err);
