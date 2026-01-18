@@ -559,7 +559,8 @@ export default function App() {
 				payload.type === "oy" &&
 				payload.notificationId &&
 				payload.title &&
-				payload.body
+				payload.body &&
+				currentUser()
 			) {
 				addOyToast({
 					id: payload.notificationId,
