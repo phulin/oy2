@@ -17,6 +17,10 @@ database_id = "bf90ad59-1e3c-40e7-b144-bba66eb17287"
 binding = "SETTINGS"
 id = "4dd6c36f3baa4a20bb954ab3f977182b"
 
+[[kv_namespaces]]
+binding = "SESSIONS"
+id = "3dff6009997c423ead2cea611dc58cb3"
+
 [observability]
 enabled = true
 head_sampling_rate = 1

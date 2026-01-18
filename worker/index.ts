@@ -8,6 +8,7 @@ type Bindings = {
 	VAPID_SUBJECT?: string;
 	TEXTBELT_API_KEY: string;
 	SETTINGS: KVNamespace;
+	SESSIONS: KVNamespace;
 };
 
 type User = {
@@ -79,6 +80,7 @@ const PUSH_MAX_ATTEMPTS = 3;
 const PUSH_BACKOFF_MS = 250;
 const PUSH_BACKOFF_MULTIPLIER = 2;
 const PHONE_AUTH_KV_KEY = "phone_auth_enabled";
+const SESSION_KV_PREFIX = "session:";
 const bootTime = performance.now();
 
 const delay = (ms: number) =>
@@ -326,24 +328,34 @@ app.use("*", async (c, next) => {
 	const sessionToken = c.req.header("x-session-token");
 	if (sessionToken) {
 		try {
-			const user = (await c.env.DB.prepare(
-				`SELECT users.*
+			const sessionKey = `${SESSION_KV_PREFIX}${sessionToken}`;
+			const cachedUser = await c.env.SESSIONS.get(sessionKey, "json");
+			const user =
+				(cachedUser as User | null) ??
+				((await c.env.DB.prepare(
+					`SELECT users.*
         FROM sessions
         JOIN users ON users.id = sessions.user_id
         WHERE sessions.token = ?`,
-			)
-				.bind(sessionToken)
-				.first()) as User | null;
+				)
+					.bind(sessionToken)
+					.first()) as User | null);
 			c.set("user", user ?? null);
 			if (user) {
 				c.set("sessionToken", sessionToken);
 				const now = Math.floor(Date.now() / 1000);
+				const updatedUser = { ...user, last_seen: now };
+				c.set("user", updatedUser);
 				const updatePromise = c.env.DB.prepare(
 					"UPDATE users SET last_seen = ? WHERE id = ?",
 				)
 					.bind(now, user.id)
 					.run();
-				c.executionCtx.waitUntil(updatePromise);
+				const cachePromise = c.env.SESSIONS.put(
+					sessionKey,
+					JSON.stringify(updatedUser),
+				);
+				c.executionCtx.waitUntil(Promise.all([updatePromise, cachePromise]));
 			}
 		} catch (err) {
 			console.error("Error fetching user:", err);
@@ -439,6 +451,10 @@ app.post("/api/auth/start", async (c) => {
 		)
 			.bind(sessionToken, user.id)
 			.run();
+		await c.env.SESSIONS.put(
+			`${SESSION_KV_PREFIX}${sessionToken}`,
+			JSON.stringify(user),
+		);
 
 		return c.json({
 			status: "authenticated",
@@ -526,6 +542,10 @@ app.post("/api/auth/verify", async (c) => {
 		)
 			.bind(sessionToken, user.id)
 			.run();
+		await c.env.SESSIONS.put(
+			`${SESSION_KV_PREFIX}${sessionToken}`,
+			JSON.stringify(user),
+		);
 		return c.json({
 			user: {
 				id: user.id,
@@ -559,6 +579,10 @@ app.post("/api/auth/verify", async (c) => {
 	await c.env.DB.prepare("INSERT INTO sessions (token, user_id) VALUES (?, ?)")
 		.bind(sessionToken, user.id)
 		.run();
+	await c.env.SESSIONS.put(
+		`${SESSION_KV_PREFIX}${sessionToken}`,
+		JSON.stringify(user),
+	);
 
 	return c.json({
 		user: {
@@ -595,6 +619,7 @@ app.post("/api/auth/logout", async (c) => {
 	await c.env.DB.prepare("DELETE FROM sessions WHERE token = ?")
 		.bind(sessionToken)
 		.run();
+	await c.env.SESSIONS.delete(`${SESSION_KV_PREFIX}${sessionToken}`);
 
 	return c.json({ success: true });
 });
