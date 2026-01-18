@@ -31,7 +31,7 @@ jobs:
         run: yarn lint
 
       - name: Format check
-        run: yarn biome format . --check
+        run: yarn biome check .
 
       - name: Tests
         run: yarn test
