@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import { jsonRequest } from "./testHelpers";
 import {
 	createTestEnv,
+	getStreakDateBoundaries,
 	seedFriendship,
 	seedSession,
 	seedUser,
@@ -62,9 +63,17 @@ describe("friends", () => {
 		const user = seedUser(db, { username: "Main" });
 		const friend = seedUser(db, { username: "Pal" });
 		seedSession(db, user.id, "streak-token");
-		const now = Math.floor(Date.now() / 1000);
-		seedFriendship(db, user.id, friend.id, { streak: 5, lastYoCreatedAt: now });
-		seedFriendship(db, friend.id, user.id, { streak: 5, lastYoCreatedAt: now });
+		const { startOfTodayNY } = getStreakDateBoundaries();
+		const streakStartDate = startOfTodayNY - 4 * 24 * 60 * 60;
+		const lastYoCreatedAt = startOfTodayNY + 60;
+		seedFriendship(db, user.id, friend.id, {
+			lastYoCreatedAt,
+			streakStartDate,
+		});
+		seedFriendship(db, friend.id, user.id, {
+			lastYoCreatedAt,
+			streakStartDate,
+		});
 		const { res, json } = await jsonRequest(env, "/api/friends", {
 			headers: { "x-session-token": "streak-token" },
 		});
@@ -81,9 +90,17 @@ describe("friends", () => {
 		const user = seedUser(db, { username: "Main" });
 		const friend = seedUser(db, { username: "Pal" });
 		seedSession(db, user.id, "stale-streak-token");
-		const threeDaysAgo = Math.floor(Date.now() / 1000) - 3 * 24 * 60 * 60;
-		seedFriendship(db, user.id, friend.id, { streak: 10, lastYoCreatedAt: threeDaysAgo });
-		seedFriendship(db, friend.id, user.id, { streak: 10, lastYoCreatedAt: threeDaysAgo });
+		const { startOfTodayNY } = getStreakDateBoundaries();
+		const lastYoCreatedAt = startOfTodayNY - 3 * 24 * 60 * 60;
+		const streakStartDate = startOfTodayNY - 10 * 24 * 60 * 60;
+		seedFriendship(db, user.id, friend.id, {
+			lastYoCreatedAt,
+			streakStartDate,
+		});
+		seedFriendship(db, friend.id, user.id, {
+			lastYoCreatedAt,
+			streakStartDate,
+		});
 		const { res, json } = await jsonRequest(env, "/api/friends", {
 			headers: { "x-session-token": "stale-streak-token" },
 		});

@@ -1,9 +1,9 @@
 #!/usr/bin/env npx tsx
 /**
- * One-time script to compute initial streaks from the yos table.
+ * One-time script to compute initial streak start dates from the yos table.
  *
- * For each friendship, walks backwards in days from yesterday to find how many
- * consecutive days have oys. Adds 1 if there's also an oy today.
+ * For each friendship, walks backwards in days from today/yesterday to find the
+ * start date for the current streak (NY time).
  *
  * Usage:
  *   npx tsx scripts/compute-initial-streaks.ts --dry-run
@@ -121,11 +121,18 @@ async function main() {
 	// Get current NY date boundaries
 	const now = new Date();
 	const startOfTodayNY = getStartOfDayNY(now);
+	const startOfYesterdayNY = getStartOfDayNY(
+		new Date(now.getTime() - 24 * 60 * 60 * 1000),
+	);
 	const todayStr = getNYDateString(startOfTodayNY);
 
-	// Compute streaks for each friendship
-	console.log("Computing streaks...");
-	const updates: { userId: number; friendId: number; streak: number }[] = [];
+	// Compute streak start dates for each friendship
+	console.log("Computing streak start dates...");
+	const updates: {
+		userId: number;
+		friendId: number;
+		streakStartDate: number | null;
+	}[] = [];
 
 	for (const friendship of friendships) {
 		const { user_id: userId, friend_id: friendId } = friendship;
@@ -133,33 +140,45 @@ async function main() {
 		const dates = pairDates.get(key);
 
 		if (!dates || dates.size === 0) {
-			updates.push({ userId, friendId, streak: 0 });
+			updates.push({ userId, friendId, streakStartDate: null });
 			continue;
 		}
 
-		// Check if there's a yo today
+		// Check if there's a yo today or yesterday
 		const hasYoToday = dates.has(todayStr);
+		const yesterdayStr = getNYDateString(startOfYesterdayNY);
+		const hasYoYesterday = dates.has(yesterdayStr);
 
-		// Walk backwards from yesterday counting consecutive days
-		let streak = 0;
-		let checkDate = new Date(now.getTime() - 24 * 60 * 60 * 1000); // yesterday
+		if (!hasYoToday && !hasYoYesterday) {
+			updates.push({ userId, friendId, streakStartDate: null });
+			continue;
+		}
+
+		const startDateSeed = hasYoToday
+			? new Date(startOfTodayNY * 1000)
+			: new Date(startOfYesterdayNY * 1000);
+		let streakStartDate = startDateSeed;
 
 		while (true) {
-			const dateStr = getNYDateString(getStartOfDayNY(checkDate));
-			if (dates.has(dateStr)) {
-				streak++;
-				checkDate = new Date(checkDate.getTime() - 24 * 60 * 60 * 1000);
-			} else {
+			const dateStr = getNYDateString(getStartOfDayNY(streakStartDate));
+			if (!dates.has(dateStr)) {
 				break;
 			}
+			const previousDay = new Date(
+				streakStartDate.getTime() - 24 * 60 * 60 * 1000,
+			);
+			const previousDateStr = getNYDateString(getStartOfDayNY(previousDay));
+			if (!dates.has(previousDateStr)) {
+				break;
+			}
+			streakStartDate = previousDay;
 		}
 
-		// Add 1 if there's a yo today
-		if (hasYoToday) {
-			streak++;
-		}
-
-		updates.push({ userId, friendId, streak });
+		updates.push({
+			userId,
+			friendId,
+			streakStartDate: getStartOfDayNY(streakStartDate),
+		});
 	}
 
 	// Generate and execute updates
@@ -167,15 +186,15 @@ async function main() {
 
 	let nonZeroCount = 0;
 	for (const update of updates) {
-		if (update.streak !== 0) {
+		if (update.streakStartDate !== null) {
 			nonZeroCount++;
 			console.log(
-				`  (${update.userId}, ${update.friendId}) -> streak = ${update.streak}`,
+				`  (${update.userId}, ${update.friendId}) -> streak_start_date = ${update.streakStartDate}`,
 			);
 		}
 	}
 	console.log(
-		`  ... and ${updates.length - nonZeroCount} friendships with streak = 0 (no recent oys)\n`,
+		`  ... and ${updates.length - nonZeroCount} friendships with streak_start_date = NULL (no recent oys)\n`,
 	);
 
 	if (DRY_RUN) {
@@ -188,30 +207,34 @@ async function main() {
 	// Build and execute batch update
 	console.log("Applying updates...");
 
-	// Group updates by streak value for more efficient batch updates
-	const updatesByStreak = new Map<
-		number,
-		{ userId: number; friendId: number }[]
+	// Group updates by streak start date value for more efficient batch updates
+	const updatesByStartDate = new Map<
+		string,
+		{ valueSql: string; pairs: { userId: number; friendId: number }[] }
 	>();
 	for (const update of updates) {
-		let pairs = updatesByStreak.get(update.streak);
-		if (!pairs) {
-			pairs = [];
-			updatesByStreak.set(update.streak, pairs);
+		const valueSql =
+			update.streakStartDate === null ? "NULL" : `${update.streakStartDate}`;
+		const entryKey = valueSql;
+		let entry = updatesByStartDate.get(entryKey);
+		if (!entry) {
+			entry = { valueSql, pairs: [] };
+			updatesByStartDate.set(entryKey, entry);
 		}
-		pairs.push({ userId: update.userId, friendId: update.friendId });
+		entry.pairs.push({ userId: update.userId, friendId: update.friendId });
 	}
 
-	for (const [streak, pairs] of updatesByStreak) {
+	for (const entry of updatesByStartDate.values()) {
+		const { valueSql, pairs } = entry;
 		for (let i = 0; i < pairs.length; i += UPDATE_BATCH_SIZE) {
 			const batch = pairs.slice(i, i + UPDATE_BATCH_SIZE);
 			const conditions = batch
 				.map((p) => `(user_id = ${p.userId} AND friend_id = ${p.friendId})`)
 				.join(" OR ");
-			const sql = `UPDATE friendships SET streak = ${streak} WHERE ${conditions}`;
+			const sql = `UPDATE friendships SET streak_start_date = ${valueSql} WHERE ${conditions}`;
 			runD1Query(sql);
 			console.log(
-				`  Updated ${batch.length} friendships to streak = ${streak}`,
+				`  Updated ${batch.length} friendships to streak_start_date = ${valueSql}`,
 			);
 		}
 	}

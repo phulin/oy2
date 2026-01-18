@@ -19,6 +19,7 @@ type FriendshipRow = {
 	last_yo_created_at: number | null;
 	last_yo_from_user_id: number | null;
 	streak: number;
+	streak_start_date: number | null;
 };
 
 type YoRow = {
@@ -258,6 +259,7 @@ class FakeD1PreparedStatement implements D1PreparedStatement {
 				last_yo_created_at: null,
 				last_yo_from_user_id: null,
 				streak: 1,
+				streak_start_date: null,
 			});
 			return { success: true, meta: { last_row_id: 0, changes: 1 } };
 		}
@@ -284,7 +286,7 @@ class FakeD1PreparedStatement implements D1PreparedStatement {
 		if (
 			sql.startsWith("UPDATE friendships SET last_yo_id = last_insert_rowid()")
 		) {
-			const [type, createdAt, fromUserId, startOfTodayNY, startOfYesterdayNY, userA, friendA, userB, friendB] = this
+			const [type, createdAt, fromUserId, startOfYesterdayNY, startOfTodayNY, userA, friendA, userB, friendB] = this
 				.params as [string, number, number, number, number, number, number, number, number];
 			let changes = 0;
 			for (const friendship of this.db.friendships) {
@@ -297,14 +299,10 @@ class FakeD1PreparedStatement implements D1PreparedStatement {
 					const prevCreatedAt = friendship.last_yo_created_at;
 					friendship.last_yo_created_at = createdAt;
 					friendship.last_yo_from_user_id = fromUserId;
-					if (prevCreatedAt !== null && prevCreatedAt >= startOfTodayNY) {
-						// Same day - keep streak
-					} else if (prevCreatedAt !== null && prevCreatedAt >= startOfYesterdayNY) {
-						// Yesterday - increment streak
-						friendship.streak += 1;
+					if (prevCreatedAt !== null && prevCreatedAt >= startOfYesterdayNY) {
+						// Keep streak start date when continuing streak.
 					} else {
-						// Earlier than yesterday or no previous yo - reset to 1
-						friendship.streak = 1;
+						friendship.streak_start_date = startOfTodayNY;
 					}
 					changes += 1;
 				}
@@ -530,7 +528,7 @@ class FakeD1PreparedStatement implements D1PreparedStatement {
 						last_yo_type: row.last_yo_type,
 						last_yo_created_at: row.last_yo_created_at,
 						last_yo_from_user_id: row.last_yo_from_user_id,
-						streak: row.streak,
+						streak_start_date: row.streak_start_date,
 					};
 				})
 				.filter(
@@ -542,7 +540,7 @@ class FakeD1PreparedStatement implements D1PreparedStatement {
 						last_yo_type: string | null;
 						last_yo_created_at: number | null;
 						last_yo_from_user_id: number | null;
-						streak: number;
+						streak_start_date: number | null;
 					} => Boolean(row),
 				)
 				.sort((a, b) => a.username.localeCompare(b.username));
@@ -795,12 +793,21 @@ class FakeD1PreparedStatement implements D1PreparedStatement {
 			);
 			return exists ? { ok: 1 } : null;
 		}
-		if (sql.startsWith("SELECT streak FROM friendships WHERE user_id")) {
+		if (
+			sql.startsWith(
+				"SELECT last_yo_created_at, streak_start_date FROM friendships WHERE user_id",
+			)
+		) {
 			const [userId, friendId] = this.params as [number, number];
 			const friendship = this.db.friendships.find(
 				(row) => row.user_id === userId && row.friend_id === friendId,
 			);
-			return friendship ? { streak: friendship.streak } : null;
+			return friendship
+				? {
+						last_yo_created_at: friendship.last_yo_created_at,
+						streak_start_date: friendship.streak_start_date,
+					}
+				: null;
 		}
 		throw new Error(`Unhandled SQL first: ${sql}`);
 	}
@@ -875,7 +882,10 @@ export function seedFriendship(
 	db: FakeD1Database,
 	userId: number,
 	friendId: number,
-	{ streak = 1, lastYoCreatedAt = null }: { streak?: number; lastYoCreatedAt?: number | null } = {},
+	{
+		lastYoCreatedAt = null,
+		streakStartDate = null,
+	}: { lastYoCreatedAt?: number | null; streakStartDate?: number | null } = {},
 ) {
 	db.friendships.push({
 		user_id: userId,
@@ -885,7 +895,8 @@ export function seedFriendship(
 		last_yo_type: null,
 		last_yo_created_at: lastYoCreatedAt,
 		last_yo_from_user_id: null,
-		streak,
+		streak: 1,
+		streak_start_date: streakStartDate,
 	});
 }
 
@@ -951,3 +962,29 @@ export function seedNotificationDelivery(
 }
 
 const nowSeconds = () => Math.floor(Date.now() / 1000);
+
+export function getStartOfDayNY(date: Date): number {
+	const nyDateStr = date.toLocaleDateString("en-US", {
+		timeZone: "America/New_York",
+	});
+	const [month, day, year] = nyDateStr.split("/").map(Number);
+	const nyMidnight = new Date(
+		date.toLocaleString("en-US", { timeZone: "America/New_York" }),
+	);
+	nyMidnight.setFullYear(year, month - 1, day);
+	nyMidnight.setHours(0, 0, 0, 0);
+	const offset =
+		date.getTime() -
+		new Date(
+			date.toLocaleString("en-US", { timeZone: "America/New_York" }),
+		).getTime();
+	return Math.floor((nyMidnight.getTime() + offset) / 1000);
+}
+
+export function getStreakDateBoundaries() {
+	const now = new Date();
+	const startOfTodayNY = getStartOfDayNY(now);
+	const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+	const startOfYesterdayNY = getStartOfDayNY(yesterday);
+	return { startOfTodayNY, startOfYesterdayNY };
+}

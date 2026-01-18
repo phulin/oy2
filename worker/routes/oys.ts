@@ -1,4 +1,9 @@
-import { createYoAndNotification, sendPushNotifications } from "../lib";
+import {
+	computeStreakLength,
+	createYoAndNotification,
+	getStreakDateBoundaries,
+	sendPushNotifications,
+} from "../lib";
 import type { App, AppContext, OysCursor, PushPayload, YoRow } from "../types";
 
 export function registerOyRoutes(app: App) {
@@ -37,10 +42,21 @@ export function registerOyRoutes(app: App) {
 			}));
 
 		const streakRow = (await c.env.DB.prepare(
-			"SELECT streak FROM friendships WHERE user_id = ? AND friend_id = ? LIMIT 1",
+			"SELECT last_yo_created_at, streak_start_date FROM friendships WHERE user_id = ? AND friend_id = ? LIMIT 1",
 		)
 			.bind(user.id, toUserId)
-			.first()) as { streak: number };
+			.first()) as {
+			last_yo_created_at: number | null;
+			streak_start_date: number | null;
+		};
+
+		const { startOfTodayNY, startOfYesterdayNY } = getStreakDateBoundaries();
+		const streak = computeStreakLength({
+			lastYoCreatedAt: streakRow.last_yo_created_at,
+			streakStartDate: streakRow.streak_start_date,
+			startOfTodayNY,
+			startOfYesterdayNY,
+		});
 
 		c.executionCtx.waitUntil(
 			sendPushNotifications(
@@ -52,7 +68,7 @@ export function registerOyRoutes(app: App) {
 			),
 		);
 
-		return c.json({ success: true, yoId, streak: streakRow.streak });
+		return c.json({ success: true, yoId, streak });
 	});
 
 	app.get("/api/oys", async (c: AppContext) => {
@@ -197,10 +213,21 @@ export function registerOyRoutes(app: App) {
 			);
 
 		const streakRow = (await c.env.DB.prepare(
-			"SELECT streak FROM friendships WHERE user_id = ? AND friend_id = ? LIMIT 1",
+			"SELECT last_yo_created_at, streak_start_date FROM friendships WHERE user_id = ? AND friend_id = ? LIMIT 1",
 		)
 			.bind(user.id, toUserId)
-			.first()) as { streak: number };
+			.first()) as {
+			last_yo_created_at: number | null;
+			streak_start_date: number | null;
+		};
+
+		const { startOfTodayNY, startOfYesterdayNY } = getStreakDateBoundaries();
+		const streak = computeStreakLength({
+			lastYoCreatedAt: streakRow.last_yo_created_at,
+			streakStartDate: streakRow.streak_start_date,
+			startOfTodayNY,
+			startOfYesterdayNY,
+		});
 
 		c.executionCtx.waitUntil(
 			sendPushNotifications(
@@ -212,6 +239,6 @@ export function registerOyRoutes(app: App) {
 			),
 		);
 
-		return c.json({ success: true, yoId, streak: streakRow.streak });
+		return c.json({ success: true, yoId, streak });
 	});
 }

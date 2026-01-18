@@ -49,6 +49,32 @@ export function getStreakDateBoundaries(): {
 	return { startOfTodayNY, startOfYesterdayNY };
 }
 
+const SECONDS_PER_DAY = 24 * 60 * 60;
+
+export function computeStreakLength({
+	lastYoCreatedAt,
+	streakStartDate,
+	startOfTodayNY,
+	startOfYesterdayNY,
+}: {
+	lastYoCreatedAt: number | null;
+	streakStartDate: number | null;
+	startOfTodayNY: number;
+	startOfYesterdayNY: number;
+}): number {
+	if (lastYoCreatedAt === null || streakStartDate === null) {
+		return 0;
+	}
+	if (lastYoCreatedAt < startOfYesterdayNY) {
+		return 0;
+	}
+	const daysSinceStart = Math.floor(
+		(startOfTodayNY - streakStartDate) / SECONDS_PER_DAY,
+	);
+	const hasYoToday = lastYoCreatedAt >= startOfTodayNY;
+	return daysSinceStart + (hasYoToday ? 1 : 0);
+}
+
 export async function getPhoneAuthEnabled(c: AppContext) {
 	const stored = await c.env.OY2.get(PHONE_AUTH_KV_KEY);
 	if (stored === null) {
@@ -212,10 +238,9 @@ export async function createYoAndNotification(
           last_yo_type = ?,
           last_yo_created_at = ?,
           last_yo_from_user_id = ?,
-          streak = CASE
-            WHEN last_yo_created_at >= ? THEN streak
-            WHEN last_yo_created_at >= ? THEN streak + 1
-            ELSE 1
+          streak_start_date = CASE
+            WHEN last_yo_created_at >= ? THEN streak_start_date
+            ELSE ?
           END
       WHERE (user_id = ? AND friend_id = ?)
          OR (user_id = ? AND friend_id = ?)
@@ -224,8 +249,8 @@ export async function createYoAndNotification(
 			type,
 			createdAt,
 			fromUserId,
-			startOfTodayNY,
 			startOfYesterdayNY,
+			startOfTodayNY,
 			fromUserId,
 			toUserId,
 			toUserId,

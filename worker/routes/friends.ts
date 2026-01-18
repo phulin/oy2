@@ -1,4 +1,4 @@
-import { getStreakDateBoundaries } from "../lib";
+import { computeStreakLength, getStreakDateBoundaries } from "../lib";
 import type { App, FriendListRow, User } from "../types";
 
 export function registerFriendRoutes(app: App) {
@@ -48,7 +48,7 @@ export function registerFriendRoutes(app: App) {
       f.last_yo_type,
       f.last_yo_created_at,
       f.last_yo_from_user_id,
-      f.streak
+      f.streak_start_date
     FROM friendships f
     INNER JOIN users u ON u.id = f.friend_id
     WHERE f.user_id = ?
@@ -58,16 +58,23 @@ export function registerFriendRoutes(app: App) {
 			.bind(user.id)
 			.all();
 
-		const { startOfYesterdayNY } = getStreakDateBoundaries();
+		const { startOfTodayNY, startOfYesterdayNY } = getStreakDateBoundaries();
 		const friendResults = (friends.results || []).map((row) => {
 			const friend = row as FriendListRow;
-			if (
-				friend.last_yo_created_at === null ||
-				friend.last_yo_created_at < startOfYesterdayNY
-			) {
-				return { ...friend, streak: 0 };
-			}
-			return friend;
+			const streak = computeStreakLength({
+				lastYoCreatedAt: friend.last_yo_created_at,
+				streakStartDate: friend.streak_start_date,
+				startOfTodayNY,
+				startOfYesterdayNY,
+			});
+			return {
+				id: friend.id,
+				username: friend.username,
+				last_yo_type: friend.last_yo_type,
+				last_yo_created_at: friend.last_yo_created_at,
+				last_yo_from_user_id: friend.last_yo_from_user_id,
+				streak,
+			};
 		});
 		return c.json({ friends: friendResults });
 	});
