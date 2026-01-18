@@ -57,7 +57,7 @@ export function FriendsList(props: FriendsListProps) {
 					{(friend) => {
 						const lastYoCreatedAt = friend.last_yo_created_at;
 						const lastYoDirection =
-							friend.last_yo_from_user_id === props.currentUserId ? "→" : "←";
+							friend.last_yo_from_user_id === props.currentUserId ? "↗" : "↙";
 
 						return (
 							<div class="friends-list-item card">
