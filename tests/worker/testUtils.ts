@@ -795,6 +795,13 @@ class FakeD1PreparedStatement implements D1PreparedStatement {
 			);
 			return exists ? { ok: 1 } : null;
 		}
+		if (sql.startsWith("SELECT streak FROM friendships WHERE user_id")) {
+			const [userId, friendId] = this.params as [number, number];
+			const friendship = this.db.friendships.find(
+				(row) => row.user_id === userId && row.friend_id === friendId,
+			);
+			return friendship ? { streak: friendship.streak } : null;
+		}
 		throw new Error(`Unhandled SQL first: ${sql}`);
 	}
 }
