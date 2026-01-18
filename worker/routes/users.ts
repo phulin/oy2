@@ -93,4 +93,55 @@ export function registerUserRoutes(app: App) {
 		const suggestionResults = (suggestions.results || []) as FriendUser[];
 		return c.json({ users: suggestionResults });
 	});
+
+	app.post("/api/users/suggested/mutuals", async (c: AppContext) => {
+		const user = c.get("user");
+		if (!user) {
+			return c.json({ error: "Not authenticated" }, 401);
+		}
+
+		const { userIds } = await c.req.json();
+		if (!Array.isArray(userIds) || userIds.length === 0) {
+			return c.json({ mutuals: {} });
+		}
+
+		const placeholders = userIds.map(() => "?").join(", ");
+		const mutualsResult = await c.env.DB.prepare(
+			`
+    WITH current_friends AS (
+      SELECT friend_id
+      FROM friendships
+      WHERE user_id = ?
+    ),
+    ranked_mutuals AS (
+      SELECT f.user_id AS candidate_id,
+             u.username AS mutual_username,
+             ROW_NUMBER() OVER (PARTITION BY f.user_id ORDER BY u.username) AS rn
+      FROM friendships f
+      INNER JOIN current_friends cf ON cf.friend_id = f.friend_id
+      INNER JOIN users u ON u.id = f.friend_id
+      WHERE f.user_id IN (${placeholders})
+    )
+    SELECT candidate_id, mutual_username
+    FROM ranked_mutuals
+    WHERE rn <= 5
+    ORDER BY candidate_id, mutual_username
+  `,
+		)
+			.bind(user.id, ...userIds)
+			.all();
+
+		const rows = (mutualsResult.results || []) as Array<{
+			candidate_id: number;
+			mutual_username: string;
+		}>;
+		const mutuals: Record<number, string[]> = {};
+		for (const row of rows) {
+			const list = mutuals[row.candidate_id] ?? [];
+			list.push(row.mutual_username);
+			mutuals[row.candidate_id] = list;
+		}
+
+		return c.json({ mutuals });
+	});
 }

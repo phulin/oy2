@@ -73,4 +73,38 @@ describe("users", () => {
 		assert.equal(body.users[1].username, "Candidate1");
 		assert.equal(body.users[1].mutuals, 1);
 	});
+
+	it("returns mutual usernames for suggested users", async () => {
+		const { env, db } = createTestEnv();
+		const me = seedUser(db, { username: "Me" });
+		const friendA = seedUser(db, { username: "FriendA" });
+		const friendB = seedUser(db, { username: "FriendB" });
+		const candidateOne = seedUser(db, { username: "Candidate1" });
+		const candidateTwo = seedUser(db, { username: "Candidate2" });
+		seedSession(db, me.id, "mutuals-token");
+
+		seedFriendship(db, me.id, friendA.id);
+		seedFriendship(db, me.id, friendB.id);
+		seedFriendship(db, friendA.id, me.id);
+		seedFriendship(db, friendB.id, me.id);
+		seedFriendship(db, candidateOne.id, friendA.id);
+		seedFriendship(db, candidateTwo.id, friendA.id);
+		seedFriendship(db, candidateTwo.id, friendB.id);
+
+		const { res, json } = await jsonRequest(
+			env,
+			"/api/users/suggested/mutuals",
+			{
+				method: "POST",
+				body: { userIds: [candidateOne.id, candidateTwo.id] },
+				headers: { "x-session-token": "mutuals-token" },
+			},
+		);
+		const body = json as {
+			mutuals: Record<number, string[]>;
+		};
+		assert.equal(res.status, 200);
+		assert.deepEqual(body.mutuals[candidateOne.id], ["FriendA"]);
+		assert.deepEqual(body.mutuals[candidateTwo.id], ["FriendA", "FriendB"]);
+	});
 });

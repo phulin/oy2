@@ -1,4 +1,5 @@
 import { Button } from "@kobalte/core/button";
+import { Tooltip } from "@kobalte/core/tooltip";
 import { createEffect, createMemo, createSignal, For, Show } from "solid-js";
 import type { Friend, SearchUser, User } from "../types";
 import "./ButtonStyles.css";
@@ -14,6 +15,9 @@ type AddFriendFormProps = {
 export function AddFriendForm(props: AddFriendFormProps) {
 	const [results, setResults] = createSignal<SearchUser[]>([]);
 	const [query, setQuery] = createSignal("");
+	const [mutualUsernames, setMutualUsernames] = createSignal<
+		Record<number, string[]>
+	>({});
 	let debounce: ReturnType<typeof setTimeout> | undefined;
 	const friendIds = createMemo(
 		() => new Set(props.friends().map((friend) => friend.id)),
@@ -30,7 +34,27 @@ export function AddFriendForm(props: AddFriendFormProps) {
 					const { users } = await props.api<{ users: SearchUser[] }>(
 						"/api/users/suggested",
 					);
+					if (trimmedQuery().length !== 0) {
+						return;
+					}
 					setResults(users);
+					const suggestedIds = users
+						.filter((user) => user.mutuals && user.mutuals > 0)
+						.map((user) => user.id);
+					if (suggestedIds.length === 0) {
+						setMutualUsernames({});
+						return;
+					}
+					const { mutuals } = await props.api<{
+						mutuals: Record<number, string[]>;
+					}>("/api/users/suggested/mutuals", {
+						method: "POST",
+						body: JSON.stringify({ userIds: suggestedIds }),
+					});
+					if (trimmedQuery().length !== 0) {
+						return;
+					}
+					setMutualUsernames(mutuals);
 				} catch (err) {
 					console.error("Suggestions failed:", err);
 				}
@@ -38,6 +62,7 @@ export function AddFriendForm(props: AddFriendFormProps) {
 			return;
 		}
 
+		setMutualUsernames({});
 		if (value.length < 2) {
 			setResults([]);
 			return;
@@ -118,10 +143,30 @@ export function AddFriendForm(props: AddFriendFormProps) {
 										{user.username}
 									</div>
 									<Show when={user.mutuals && user.mutuals > 0}>
-										<div class="add-friend-list-item-meta">
-											{user.mutuals} mutual
-											{user.mutuals === 1 ? "" : "s"}
-										</div>
+										<Tooltip openDelay={100}>
+											<Tooltip.Trigger
+												as="button"
+												type="button"
+												class="add-friend-list-item-meta mutuals-trigger"
+											>
+												{user.mutuals} mutual
+												{user.mutuals === 1 ? "" : "s"}
+											</Tooltip.Trigger>
+											<Tooltip.Portal>
+												<Tooltip.Content class="mutuals-popover">
+													<Show
+														when={(mutualUsernames()[user.id] ?? []).length > 0}
+														fallback={
+															<span class="mutuals-loading">
+																Loading mutuals...
+															</span>
+														}
+													>
+														{(mutualUsernames()[user.id] ?? []).join(", ")}
+													</Show>
+												</Tooltip.Content>
+											</Tooltip.Portal>
+										</Tooltip>
 									</Show>
 								</div>
 								<Show
