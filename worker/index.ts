@@ -406,38 +406,132 @@ async function verifyOtp(
 	return response.json() as Promise<{ success: boolean; isValidOtp: boolean }>;
 }
 
+function authUserPayload(user: User) {
+	return {
+		id: user.id,
+		username: user.username,
+		...(user.admin ? { admin: true } : {}),
+	};
+}
+
+function normalizeUsername(username: unknown) {
+	return String(username || "").trim();
+}
+
+function validateUsername(username: string) {
+	if (!username || username.length < 2 || username.length > 20) {
+		return "Username must be 2-20 characters";
+	}
+	return null;
+}
+
+async function createSession(env: Bindings, user: User) {
+	const sessionToken = crypto.randomUUID();
+	await env.DB.prepare("INSERT INTO sessions (token, user_id) VALUES (?, ?)")
+		.bind(sessionToken, user.id)
+		.run();
+	await env.SESSIONS.put(
+		`${SESSION_KV_PREFIX}${sessionToken}`,
+		JSON.stringify(user),
+	);
+	return sessionToken;
+}
+
+async function fetchUserByUsername(env: Bindings, username: string) {
+	return (await env.DB.prepare(
+		"SELECT * FROM users WHERE username COLLATE NOCASE = ?",
+	)
+		.bind(username)
+		.first()) as User | null;
+}
+
+async function fetchUserById(env: Bindings, userId: number) {
+	return (await env.DB.prepare("SELECT * FROM users WHERE id = ?")
+		.bind(userId)
+		.first()) as User | null;
+}
+
+async function createUser(
+	env: Bindings,
+	{
+		username,
+		phone,
+		phoneVerified,
+	}: { username: string; phone?: string | null; phoneVerified?: number | null },
+) {
+	let result: D1Result;
+	if (phone !== undefined || phoneVerified !== undefined) {
+		result = await env.DB.prepare(
+			"INSERT INTO users (username, phone, phone_verified) VALUES (?, ?, ?)",
+		)
+			.bind(username, phone ?? null, phoneVerified ?? null)
+			.run();
+	} else {
+		result = await env.DB.prepare("INSERT INTO users (username) VALUES (?)")
+			.bind(username)
+			.run();
+	}
+
+	const user = await fetchUserById(env, result.meta.last_row_id);
+	return { user, result };
+}
+
+async function ensureUserPhoneForOtp(
+	env: Bindings,
+	user: User | null,
+	{ username, phone }: { username: string; phone: string },
+) {
+	if (!user) {
+		const { user: createdUser } = await createUser(env, {
+			username,
+			phone,
+			phoneVerified: 0,
+		});
+		return createdUser;
+	}
+
+	await env.DB.prepare(
+		"UPDATE users SET phone = ?, phone_verified = 0 WHERE id = ?",
+	)
+		.bind(phone, user.id)
+		.run();
+	return user;
+}
+
+async function sendOtpResponse(
+	c: { env: Bindings; json: (body: unknown, status?: number) => Response },
+	{ phone, username }: { phone: string; username: string },
+) {
+	const result = await sendOtp(c.env, { phone, username });
+	if (!result.success) {
+		return c.json({ error: "Unable to send verification code" }, 400);
+	}
+	return c.json({ status: "code_sent" });
+}
+
 // ============ API Routes ============
 
 app.post("/api/auth/start", async (c) => {
 	const { username, phone } = await c.req.json();
-	const trimmedUsername = String(username || "").trim();
+	const trimmedUsername = normalizeUsername(username);
 	const trimmedPhone = String(phone || "").trim();
 
-	if (
-		!trimmedUsername ||
-		trimmedUsername.length < 2 ||
-		trimmedUsername.length > 20
-	) {
-		return c.json({ error: "Username must be 2-20 characters" }, 400);
+	const usernameError = validateUsername(trimmedUsername);
+	if (usernameError) {
+		return c.json({ error: usernameError }, 400);
 	}
 
-	let user = (await c.env.DB.prepare(
-		"SELECT * FROM users WHERE username COLLATE NOCASE = ?",
-	)
-		.bind(trimmedUsername)
-		.first()) as User | null;
+	let user = await fetchUserByUsername(c.env, trimmedUsername);
 
 	const phoneAuthEnabled = await getPhoneAuthEnabled(c.env);
 	if (!phoneAuthEnabled) {
 		if (!user) {
-			const result = await c.env.DB.prepare(
-				"INSERT INTO users (username, phone, phone_verified) VALUES (?, ?, 0)",
-			)
-				.bind(trimmedUsername, trimmedPhone || null)
-				.run();
-			user = (await c.env.DB.prepare("SELECT * FROM users WHERE id = ?")
-				.bind(result.meta.last_row_id)
-				.first()) as User | null;
+			const { user: createdUser } = await createUser(c.env, {
+				username: trimmedUsername,
+				phone: trimmedPhone || null,
+				phoneVerified: 0,
+			});
+			user = createdUser;
 		} else if (trimmedPhone && trimmedPhone !== user.phone) {
 			await c.env.DB.prepare("UPDATE users SET phone = ? WHERE id = ?")
 				.bind(trimmedPhone, user.id)
@@ -448,74 +542,34 @@ app.post("/api/auth/start", async (c) => {
 			return c.json({ error: "User not found" }, 404);
 		}
 
-		const sessionToken = crypto.randomUUID();
-		const now = Math.floor(Date.now() / 1000);
-		await c.env.DB.prepare("UPDATE users SET last_seen = ? WHERE id = ?")
-			.bind(now, user.id)
-			.run();
-		await c.env.DB.prepare(
-			"INSERT INTO sessions (token, user_id) VALUES (?, ?)",
-		)
-			.bind(sessionToken, user.id)
-			.run();
-		await c.env.SESSIONS.put(
-			`${SESSION_KV_PREFIX}${sessionToken}`,
-			JSON.stringify(user),
-		);
-
+		const sessionToken = await createSession(c.env, user);
 		return c.json({
 			status: "authenticated",
-			user: {
-				id: user.id,
-				username: user.username,
-				...(user.admin ? { admin: true } : {}),
-			},
+			user: authUserPayload(user),
 			token: sessionToken,
 		});
 	}
 
 	if (user?.phone) {
-		const result = await sendOtp(c.env, {
+		return sendOtpResponse(c, {
 			phone: user.phone,
 			username: trimmedUsername,
 		});
-		if (!result.success) {
-			return c.json({ error: "Unable to send verification code" }, 400);
-		}
-		return c.json({ status: "code_sent" });
 	}
 
 	if (!trimmedPhone) {
 		return c.json({ status: "needs_phone" });
 	}
 
-	if (!user) {
-		const result = await c.env.DB.prepare(
-			"INSERT INTO users (username, phone, phone_verified) VALUES (?, ?, 0)",
-		)
-			.bind(trimmedUsername, trimmedPhone)
-			.run();
+	user = await ensureUserPhoneForOtp(c.env, user, {
+		username: trimmedUsername,
+		phone: trimmedPhone,
+	});
 
-		user = (await c.env.DB.prepare("SELECT * FROM users WHERE id = ?")
-			.bind(result.meta.last_row_id)
-			.first()) as User | null;
-	} else {
-		await c.env.DB.prepare(
-			"UPDATE users SET phone = ?, phone_verified = 0 WHERE id = ?",
-		)
-			.bind(trimmedPhone, user.id)
-			.run();
-	}
-
-	const result = await sendOtp(c.env, {
+	return sendOtpResponse(c, {
 		phone: trimmedPhone,
 		username: trimmedUsername,
 	});
-	if (!result.success) {
-		return c.json({ error: "Unable to send verification code" }, 400);
-	}
-
-	return c.json({ status: "code_sent" });
 });
 
 app.post("/api/auth/verify", async (c) => {
@@ -527,11 +581,7 @@ app.post("/api/auth/verify", async (c) => {
 		return c.json({ error: "Missing verification code" }, 400);
 	}
 
-	const user = (await c.env.DB.prepare(
-		"SELECT * FROM users WHERE username COLLATE NOCASE = ?",
-	)
-		.bind(trimmedUsername)
-		.first()) as User | null;
+	const user = await fetchUserByUsername(c.env, trimmedUsername);
 
 	if (!user) {
 		return c.json({ error: "User not found" }, 404);
@@ -539,26 +589,9 @@ app.post("/api/auth/verify", async (c) => {
 
 	const phoneAuthEnabled = await getPhoneAuthEnabled(c.env);
 	if (!phoneAuthEnabled) {
-		const sessionToken = crypto.randomUUID();
-		const now = Math.floor(Date.now() / 1000);
-		await c.env.DB.prepare("UPDATE users SET last_seen = ? WHERE id = ?")
-			.bind(now, user.id)
-			.run();
-		await c.env.DB.prepare(
-			"INSERT INTO sessions (token, user_id) VALUES (?, ?)",
-		)
-			.bind(sessionToken, user.id)
-			.run();
-		await c.env.SESSIONS.put(
-			`${SESSION_KV_PREFIX}${sessionToken}`,
-			JSON.stringify(user),
-		);
+		const sessionToken = await createSession(c.env, user);
 		return c.json({
-			user: {
-				id: user.id,
-				username: user.username,
-				...(user.admin ? { admin: true } : {}),
-			},
+			user: authUserPayload(user),
 			token: sessionToken,
 		});
 	}
@@ -576,27 +609,13 @@ app.post("/api/auth/verify", async (c) => {
 		return c.json({ error: "Invalid verification code" }, 400);
 	}
 
-	const sessionToken = crypto.randomUUID();
-	const now = Math.floor(Date.now() / 1000);
-	await c.env.DB.prepare(
-		"UPDATE users SET phone_verified = 1, last_seen = ? WHERE id = ?",
-	)
-		.bind(now, user.id)
+	await c.env.DB.prepare("UPDATE users SET phone_verified = 1 WHERE id = ?")
+		.bind(user.id)
 		.run();
-	await c.env.DB.prepare("INSERT INTO sessions (token, user_id) VALUES (?, ?)")
-		.bind(sessionToken, user.id)
-		.run();
-	await c.env.SESSIONS.put(
-		`${SESSION_KV_PREFIX}${sessionToken}`,
-		JSON.stringify(user),
-	);
+	const sessionToken = await createSession(c.env, user);
 
 	return c.json({
-		user: {
-			id: user.id,
-			username: user.username,
-			...(user.admin ? { admin: true } : {}),
-		},
+		user: authUserPayload(user),
 		token: sessionToken,
 	});
 });
@@ -608,11 +627,7 @@ app.get("/api/auth/session", async (c) => {
 	}
 
 	return c.json({
-		user: {
-			id: user.id,
-			username: user.username,
-			...(user.admin ? { admin: true } : {}),
-		},
+		user: authUserPayload(user),
 	});
 });
 
@@ -634,38 +649,25 @@ app.post("/api/auth/logout", async (c) => {
 // Create or get user
 app.post("/api/users", async (c) => {
 	const { username } = await c.req.json();
-	const trimmedUsername = String(username || "").trim();
+	const trimmedUsername = normalizeUsername(username);
 
-	if (
-		!trimmedUsername ||
-		trimmedUsername.length < 2 ||
-		trimmedUsername.length > 20
-	) {
-		return c.json({ error: "Username must be 2-20 characters" }, 400);
+	const usernameError = validateUsername(trimmedUsername);
+	if (usernameError) {
+		return c.json({ error: usernameError }, 400);
 	}
 
 	// Check if user exists
-	let user = (await c.env.DB.prepare(
-		"SELECT * FROM users WHERE username COLLATE NOCASE = ?",
-	)
-		.bind(trimmedUsername)
-		.first()) as User | null;
+	let user = await fetchUserByUsername(c.env, trimmedUsername);
 
 	if (!user) {
 		try {
-			const result = await c.env.DB.prepare(
-				"INSERT INTO users (username) VALUES (?)",
-			)
-				.bind(trimmedUsername)
-				.run();
-
+			const { user: createdUser, result } = await createUser(c.env, {
+				username: trimmedUsername,
+			});
 			if (!result.success) {
 				return c.json({ error: "Username already taken" }, 400);
 			}
-
-			user = (await c.env.DB.prepare("SELECT * FROM users WHERE id = ?")
-				.bind(result.meta.last_row_id)
-				.first()) as User | null;
+			user = createdUser;
 		} catch (_err) {
 			return c.json({ error: "Username already taken" }, 400);
 		}

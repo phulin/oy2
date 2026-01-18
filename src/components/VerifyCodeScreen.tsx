@@ -1,5 +1,5 @@
 import { Button } from "@kobalte/core/button";
-import { For, createSignal, type JSX } from "solid-js";
+import { createSignal, For, type JSX, onMount } from "solid-js";
 import { Screen } from "./Screen";
 import "./ButtonStyles.css";
 import "./FormControls.css";
@@ -13,6 +13,11 @@ type VerifyCodeScreenProps = {
 export function VerifyCodeScreen(props: VerifyCodeScreenProps) {
 	const [otp, setOtp] = createSignal("");
 	let formRef: HTMLFormElement | undefined;
+	let inputRef: HTMLInputElement | undefined;
+
+	onMount(() => {
+		inputRef?.focus();
+	});
 
 	const handleInput: JSX.EventHandler<HTMLInputElement, InputEvent> = (
 		event,
@@ -31,16 +36,12 @@ export function VerifyCodeScreen(props: VerifyCodeScreenProps) {
 		<Screen>
 			<h1 class="login-logo">Oy</h1>
 			<p class="login-tagline">Enter the code we texted you</p>
-			<form
-				onSubmit={props.onSubmit}
-				ref={(node) => {
-					formRef = node;
-				}}
-			>
+			<form onSubmit={props.onSubmit} ref={formRef}>
 				<div class="otp-field">
 					<input
 						type="text"
 						name="otp"
+						ref={inputRef}
 						autocomplete="one-time-code"
 						inputmode="numeric"
 						autofocus
