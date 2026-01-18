@@ -1,4 +1,4 @@
-import type { Hono } from "hono";
+import type { Context, Hono } from "hono";
 
 export type Bindings = {
 	DB: D1Database;
@@ -73,6 +73,11 @@ export type AppVariables = {
 };
 
 export type App = Hono<{
+	Bindings: Bindings;
+	Variables: AppVariables;
+}>;
+
+export type AppContext = Context<{
 	Bindings: Bindings;
 	Variables: AppVariables;
 }>;

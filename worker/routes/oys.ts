@@ -1,8 +1,8 @@
 import { createYoAndNotification, sendPushNotifications } from "../lib";
-import type { App, OysCursor, PushPayload, YoRow } from "../types";
+import type { App, AppContext, OysCursor, PushPayload, YoRow } from "../types";
 
 export function registerOyRoutes(app: App) {
-	app.post("/api/oy", async (c) => {
+	app.post("/api/oy", async (c: AppContext) => {
 		const user = c.get("user");
 		if (!user) {
 			return c.json({ error: "Not authenticated" }, 401);
@@ -32,31 +32,24 @@ export function registerOyRoutes(app: App) {
 			type: "oy",
 		};
 		const { yoId, notificationId, deliveryPayload, subscriptions } =
-			await createYoAndNotification({
-				env: c.env,
-				fromUserId: user.id,
-				toUserId,
-				type: "oy",
-				yoPayload: null,
-				makeNotificationPayload: () => ({
-					...notificationPayload,
-				}),
-			});
+			await createYoAndNotification(c, user.id, toUserId, "oy", null, () => ({
+				...notificationPayload,
+			}));
 
 		c.executionCtx.waitUntil(
-			sendPushNotifications({
-				env: c.env,
+			sendPushNotifications(
+				c,
 				subscriptions,
-				payload: deliveryPayload,
+				deliveryPayload,
 				notificationId,
 				toUserId,
-			}),
+			),
 		);
 
 		return c.json({ success: true, yoId });
 	});
 
-	app.get("/api/oys", async (c) => {
+	app.get("/api/oys", async (c: AppContext) => {
 		const user = c.get("user");
 		if (!user) {
 			return c.json({ error: "Not authenticated" }, 401);
@@ -135,7 +128,7 @@ export function registerOyRoutes(app: App) {
 		return c.json({ oys: results, nextCursor });
 	});
 
-	app.post("/api/lo", async (c) => {
+	app.post("/api/lo", async (c: AppContext) => {
 		const user = c.get("user");
 		if (!user) {
 			return c.json({ error: "Not authenticated" }, 401);
@@ -173,26 +166,26 @@ export function registerOyRoutes(app: App) {
 			type: "lo",
 		};
 		const { yoId, notificationId, deliveryPayload, subscriptions } =
-			await createYoAndNotification({
-				env: c.env,
-				fromUserId: user.id,
+			await createYoAndNotification(
+				c,
+				user.id,
 				toUserId,
-				type: "lo",
-				yoPayload: payload,
-				makeNotificationPayload: (yoIdValue) => ({
+				"lo",
+				payload,
+				(yoIdValue) => ({
 					...notificationPayload,
 					url: `/?tab=oys&yo=${yoIdValue}&expand=location`,
 				}),
-			});
+			);
 
 		c.executionCtx.waitUntil(
-			sendPushNotifications({
-				env: c.env,
+			sendPushNotifications(
+				c,
 				subscriptions,
-				payload: deliveryPayload,
+				deliveryPayload,
 				notificationId,
 				toUserId,
-			}),
+			),
 		);
 
 		return c.json({ success: true, yoId });

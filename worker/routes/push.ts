@@ -1,8 +1,8 @@
 import { invalidatePushSubscriptionsCache } from "../lib";
-import type { App } from "../types";
+import type { App, AppContext } from "../types";
 
 export function registerPushRoutes(app: App) {
-	app.post("/api/push/subscribe", async (c) => {
+	app.post("/api/push/subscribe", async (c: AppContext) => {
 		const user = c.get("user");
 		if (!user) {
 			return c.json({ error: "Not authenticated" }, 401);
@@ -27,12 +27,12 @@ export function registerPushRoutes(app: App) {
 		)
 			.bind(user.id, endpoint, keys.p256dh, keys.auth)
 			.run();
-		await invalidatePushSubscriptionsCache(c.env, user.id);
+		await invalidatePushSubscriptionsCache(c, user.id);
 
 		return c.json({ success: true });
 	});
 
-	app.post("/api/push/unsubscribe", async (c) => {
+	app.post("/api/push/unsubscribe", async (c: AppContext) => {
 		const user = c.get("user");
 		if (!user) {
 			return c.json({ error: "Not authenticated" }, 401);
@@ -49,12 +49,12 @@ export function registerPushRoutes(app: App) {
 		)
 			.bind(user.id, endpoint)
 			.run();
-		await invalidatePushSubscriptionsCache(c.env, user.id);
+		await invalidatePushSubscriptionsCache(c, user.id);
 
 		return c.json({ success: true });
 	});
 
-	app.get("/api/push/vapid-public-key", async (c) => {
+	app.get("/api/push/vapid-public-key", async (c: AppContext) => {
 		return c.json({ publicKey: c.env.VAPID_PUBLIC_KEY });
 	});
 }

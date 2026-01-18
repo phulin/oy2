@@ -22,4 +22,4 @@ environment to avoid external dependencies while keeping the route logic intact.
 - `yarn check`
 - `yarn lint`
 - `yarn format`
-- `node --test tests/worker/*.test.ts`
+- `yarn test`

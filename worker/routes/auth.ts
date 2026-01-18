@@ -11,10 +11,10 @@ import {
 	validateUsername,
 	verifyOtp,
 } from "../lib";
-import type { App } from "../types";
+import type { App, AppContext } from "../types";
 
 export function registerAuthRoutes(app: App) {
-	app.post("/api/auth/start", async (c) => {
+	app.post("/api/auth/start", async (c: AppContext) => {
 		const { username, phone } = await c.req.json();
 		const trimmedUsername = normalizeUsername(username);
 		const trimmedPhone = String(phone || "").trim();
@@ -24,12 +24,12 @@ export function registerAuthRoutes(app: App) {
 			return c.json({ error: usernameError }, 400);
 		}
 
-		let user = await fetchUserByUsername(c.env, trimmedUsername);
+		let user = await fetchUserByUsername(c, trimmedUsername);
 
-		const phoneAuthEnabled = await getPhoneAuthEnabled(c.env);
+		const phoneAuthEnabled = await getPhoneAuthEnabled(c);
 		if (!phoneAuthEnabled) {
 			if (!user) {
-				const { user: createdUser } = await createUser(c.env, {
+				const { user: createdUser } = await createUser(c, {
 					username: trimmedUsername,
 					phone: trimmedPhone || null,
 					phoneVerified: 0,
@@ -45,7 +45,7 @@ export function registerAuthRoutes(app: App) {
 				return c.json({ error: "User not found" }, 404);
 			}
 
-			const sessionToken = await createSession(c.env, user);
+			const sessionToken = await createSession(c, user);
 			return c.json({
 				status: "authenticated",
 				user: authUserPayload(user),
@@ -64,7 +64,7 @@ export function registerAuthRoutes(app: App) {
 			return c.json({ status: "needs_phone" });
 		}
 
-		user = await ensureUserPhoneForOtp(c.env, user, {
+		user = await ensureUserPhoneForOtp(c, user, {
 			username: trimmedUsername,
 			phone: trimmedPhone,
 		});
@@ -75,7 +75,7 @@ export function registerAuthRoutes(app: App) {
 		});
 	});
 
-	app.post("/api/auth/verify", async (c) => {
+	app.post("/api/auth/verify", async (c: AppContext) => {
 		const { username, otp } = await c.req.json();
 		const trimmedUsername = String(username || "").trim();
 		const trimmedOtp = String(otp || "").trim();
@@ -84,22 +84,22 @@ export function registerAuthRoutes(app: App) {
 			return c.json({ error: "Missing verification code" }, 400);
 		}
 
-		const user = await fetchUserByUsername(c.env, trimmedUsername);
+		const user = await fetchUserByUsername(c, trimmedUsername);
 
 		if (!user) {
 			return c.json({ error: "User not found" }, 404);
 		}
 
-		const phoneAuthEnabled = await getPhoneAuthEnabled(c.env);
+		const phoneAuthEnabled = await getPhoneAuthEnabled(c);
 		if (!phoneAuthEnabled) {
-			const sessionToken = await createSession(c.env, user);
+			const sessionToken = await createSession(c, user);
 			return c.json({
 				user: authUserPayload(user),
 				token: sessionToken,
 			});
 		}
 
-		const result = await verifyOtp(c.env, {
+		const result = await verifyOtp(c, {
 			otp: trimmedOtp,
 			username: trimmedUsername,
 		});
@@ -115,7 +115,7 @@ export function registerAuthRoutes(app: App) {
 		await c.env.DB.prepare("UPDATE users SET phone_verified = 1 WHERE id = ?")
 			.bind(user.id)
 			.run();
-		const sessionToken = await createSession(c.env, user);
+		const sessionToken = await createSession(c, user);
 
 		return c.json({
 			user: authUserPayload(user),
@@ -123,7 +123,7 @@ export function registerAuthRoutes(app: App) {
 		});
 	});
 
-	app.get("/api/auth/session", async (c) => {
+	app.get("/api/auth/session", async (c: AppContext) => {
 		const user = c.get("user");
 		if (!user) {
 			return c.json({ error: "Not authenticated" }, 401);
@@ -134,7 +134,7 @@ export function registerAuthRoutes(app: App) {
 		});
 	});
 
-	app.post("/api/auth/logout", async (c) => {
+	app.post("/api/auth/logout", async (c: AppContext) => {
 		const user = c.get("user");
 		const sessionToken = c.get("sessionToken");
 		if (!user || !sessionToken) {

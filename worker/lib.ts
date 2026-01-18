@@ -1,5 +1,11 @@
 import { sendPushNotification } from "./push";
-import type { Bindings, PushPayload, PushSubscriptionRow, User } from "./types";
+import type {
+	AppContext,
+	Bindings,
+	PushPayload,
+	PushSubscriptionRow,
+	User,
+} from "./types";
 
 const PUSH_MAX_ATTEMPTS = 3;
 const PUSH_BACKOFF_MS = 250;
@@ -14,52 +20,16 @@ const delay = (ms: number) =>
 		setTimeout(resolve, ms);
 	});
 
-export async function getPhoneAuthEnabled(env: Bindings) {
-	const stored = await env.OY2.get(PHONE_AUTH_KV_KEY);
+export async function getPhoneAuthEnabled(c: AppContext) {
+	const stored = await c.env.OY2.get(PHONE_AUTH_KV_KEY);
 	if (stored === null) {
 		return true;
 	}
 	return stored === "true";
 }
 
-export async function setPhoneAuthEnabled(env: Bindings, enabled: boolean) {
-	await env.OY2.put(PHONE_AUTH_KV_KEY, enabled ? "true" : "false");
-}
-
-async function recordDeliveryAttempt(
-	env: Bindings,
-	{
-		notificationId,
-		endpoint,
-		attempt,
-		success,
-		statusCode,
-		errorMessage,
-	}: {
-		notificationId: number;
-		endpoint: string;
-		attempt: number;
-		success: boolean;
-		statusCode?: number;
-		errorMessage?: string;
-	},
-) {
-	await env.DB.prepare(
-		`
-    INSERT INTO notification_deliveries
-      (notification_id, endpoint, attempt, success, status_code, error_message)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `,
-	)
-		.bind(
-			notificationId,
-			endpoint,
-			attempt,
-			success ? 1 : 0,
-			statusCode ?? null,
-			errorMessage ?? null,
-		)
-		.run();
+export async function setPhoneAuthEnabled(c: AppContext, enabled: boolean) {
+	await c.env.OY2.put(PHONE_AUTH_KV_KEY, enabled ? "true" : "false");
 }
 
 async function sendPushWithRetry(
@@ -70,26 +40,30 @@ async function sendPushWithRetry(
 		keys: { p256dh: string; auth: string };
 	},
 	payload: PushPayload,
-	notificationId: number,
 ) {
 	let lastStatusCode: number | undefined;
+	const attempts: {
+		endpoint: string;
+		attempt: number;
+		success: boolean;
+		statusCode?: number;
+		errorMessage?: string;
+	}[] = [];
 	for (let attempt = 1; attempt <= PUSH_MAX_ATTEMPTS; attempt += 1) {
 		try {
 			const response = await sendPushNotification(env, subscription, payload);
-			await recordDeliveryAttempt(env, {
-				notificationId,
+			attempts.push({
 				endpoint: subscription.endpoint,
 				attempt,
 				success: true,
 				statusCode: response.status,
 			});
-			return { delivered: true };
+			return { delivered: true, attempts };
 		} catch (err) {
 			const statusCode = (err as { statusCode?: number }).statusCode;
 			lastStatusCode = statusCode;
 			const errorMessage = err instanceof Error ? err.message : String(err);
-			await recordDeliveryAttempt(env, {
-				notificationId,
+			attempts.push({
 				endpoint: subscription.endpoint,
 				attempt,
 				success: false,
@@ -97,7 +71,7 @@ async function sendPushWithRetry(
 				errorMessage,
 			});
 			if (statusCode === 410) {
-				return { delivered: false, statusCode };
+				return { delivered: false, statusCode, attempts };
 			}
 			if (attempt < PUSH_MAX_ATTEMPTS) {
 				const backoff =
@@ -107,75 +81,92 @@ async function sendPushWithRetry(
 		}
 	}
 
-	return { delivered: false, statusCode: lastStatusCode };
+	return { delivered: false, statusCode: lastStatusCode, attempts };
 }
 
-export async function sendPushNotifications({
-	env,
-	subscriptions,
-	payload,
-	notificationId,
-	toUserId,
-}: {
-	env: Bindings;
-	subscriptions: PushSubscriptionRow[];
-	payload: PushPayload;
-	notificationId: number;
-	toUserId: number;
-}) {
+export async function sendPushNotifications(
+	c: AppContext,
+	subscriptions: PushSubscriptionRow[],
+	payload: PushPayload,
+	notificationId: number,
+	toUserId: number,
+) {
 	try {
-		let didMutateSubscriptions = false;
-		for (const sub of subscriptions) {
-			const subscription = {
-				endpoint: sub.endpoint,
-				expirationTime: null,
-				keys: {
-					p256dh: sub.keys_p256dh,
-					auth: sub.keys_auth,
-				},
-			};
+		const { env } = c;
+		const results = await Promise.all(
+			subscriptions.map((sub) => {
+				const subscription = {
+					endpoint: sub.endpoint,
+					expirationTime: null,
+					keys: {
+						p256dh: sub.keys_p256dh,
+						auth: sub.keys_auth,
+					},
+				};
 
-			const { delivered, statusCode } = await sendPushWithRetry(
-				env,
-				subscription,
-				payload,
-				notificationId,
-			);
-			if (!delivered) {
-				console.error("Failed to send push:", statusCode);
-				if (statusCode === 410) {
-					await env.DB.prepare(
-						"DELETE FROM push_subscriptions WHERE user_id = ? AND endpoint = ?",
-					)
-						.bind(toUserId, sub.endpoint)
-						.run();
+				return sendPushWithRetry(env, subscription, payload);
+			}),
+		);
+
+		let didMutateSubscriptions = false;
+		const statements: D1PreparedStatement[] = [];
+
+		for (let i = 0; i < results.length; i += 1) {
+			const result = results[i];
+			const sub = subscriptions[i];
+
+			for (const attempt of result.attempts) {
+				statements.push(
+					env.DB.prepare(
+						`
+            INSERT INTO notification_deliveries
+              (notification_id, endpoint, attempt, success, status_code, error_message)
+            VALUES (?, ?, ?, ?, ?, ?)
+          `,
+					).bind(
+						notificationId,
+						attempt.endpoint,
+						attempt.attempt,
+						attempt.success ? 1 : 0,
+						attempt.statusCode ?? null,
+						attempt.errorMessage ?? null,
+					),
+				);
+			}
+
+			if (!result.delivered) {
+				console.error("Failed to send push:", result.statusCode);
+				if (result.statusCode === 410) {
+					statements.push(
+						env.DB.prepare(
+							"DELETE FROM push_subscriptions WHERE user_id = ? AND endpoint = ?",
+						).bind(toUserId, sub.endpoint),
+					);
 					didMutateSubscriptions = true;
 				}
 			}
 		}
+
+		if (statements.length > 0) {
+			await env.DB.batch(statements);
+		}
 		if (didMutateSubscriptions) {
-			await invalidatePushSubscriptionsCache(env, toUserId);
+			await invalidatePushSubscriptionsCache(c, toUserId);
 		}
 	} catch (err) {
 		console.error("Push notification error:", err);
 	}
 }
 
-export async function createYoAndNotification({
-	env,
-	fromUserId,
-	toUserId,
-	type,
-	yoPayload,
-	makeNotificationPayload,
-}: {
-	env: Bindings;
-	fromUserId: number;
-	toUserId: number;
-	type: "oy" | "lo";
-	yoPayload: string | null;
-	makeNotificationPayload: (yoId: number) => PushPayload;
-}) {
+export async function createYoAndNotification(
+	c: AppContext,
+	fromUserId: number,
+	toUserId: number,
+	type: "oy" | "lo",
+	yoPayload: string | null,
+	makeNotificationPayload: (yoId: number) => PushPayload,
+) {
+	const { env } = c;
 	const createdAt = Math.floor(Date.now() / 1000);
 	const batchResults = await env.DB.batch([
 		env.DB.prepare(
@@ -207,7 +198,8 @@ export async function createYoAndNotification({
 
 	const yoId = Number(batchResults[0].meta.last_row_id);
 	const notificationPayload = makeNotificationPayload(yoId);
-	const notificationInsert = await env.DB.prepare(
+	const subscriptionsPromise = fetchPushSubscriptions(c, toUserId);
+	const notificationInsertPromise = env.DB.prepare(
 		`
       INSERT INTO notifications (to_user_id, from_user_id, type, payload)
       VALUES (?, ?, ?, ?)
@@ -215,8 +207,11 @@ export async function createYoAndNotification({
 	)
 		.bind(toUserId, fromUserId, type, JSON.stringify(notificationPayload))
 		.run();
+	const [notificationInsert, subscriptions] = await Promise.all([
+		notificationInsertPromise,
+		subscriptionsPromise,
+	]);
 	const notificationId = Number(notificationInsert.meta.last_row_id);
-	const subscriptions = await fetchPushSubscriptions(env, toUserId);
 
 	const deliveryPayload: PushPayload = {
 		...notificationPayload,
@@ -236,14 +231,14 @@ function pushSubscriptionsCacheKey(userId: number) {
 	return `${PUSH_SUBSCRIPTIONS_KV_PREFIX}${userId}`;
 }
 
-async function fetchPushSubscriptions(env: Bindings, userId: number) {
+async function fetchPushSubscriptions(c: AppContext, userId: number) {
 	const cacheKey = pushSubscriptionsCacheKey(userId);
-	const cached = await env.OY2.get(cacheKey, "json");
+	const cached = await c.env.OY2.get(cacheKey, "json");
 	if (cached) {
 		return cached as PushSubscriptionRow[];
 	}
 
-	const subscriptionResults = await env.DB.prepare(
+	const subscriptionResults = await c.env.DB.prepare(
 		`
       SELECT endpoint, keys_p256dh, keys_auth
       FROM push_subscriptions
@@ -255,19 +250,20 @@ async function fetchPushSubscriptions(env: Bindings, userId: number) {
 
 	const subscriptions = (subscriptionResults.results ||
 		[]) as PushSubscriptionRow[];
-	await env.OY2.put(cacheKey, JSON.stringify(subscriptions));
+	const cacheWrite = c.env.OY2.put(cacheKey, JSON.stringify(subscriptions));
+	c.executionCtx.waitUntil(cacheWrite);
 	return subscriptions;
 }
 
 export async function invalidatePushSubscriptionsCache(
-	env: Bindings,
+	c: AppContext,
 	userId: number,
 ) {
-	await env.OY2.delete(pushSubscriptionsCacheKey(userId));
+	await c.env.OY2.delete(pushSubscriptionsCacheKey(userId));
 }
 
 export async function sendOtp(
-	env: Bindings,
+	c: AppContext,
 	{ phone, username }: { phone: string; username: string },
 ) {
 	const response = await fetch("https://textbelt.com/otp/generate", {
@@ -275,7 +271,7 @@ export async function sendOtp(
 		body: new URLSearchParams({
 			phone,
 			userid: username,
-			key: env.TEXTBELT_API_KEY,
+			key: c.env.TEXTBELT_API_KEY,
 			message: "Your Oy verification code is $OTP",
 		}),
 	});
@@ -287,13 +283,13 @@ export async function sendOtp(
 }
 
 export async function verifyOtp(
-	env: Bindings,
+	c: AppContext,
 	{ otp, username }: { otp: string; username: string },
 ) {
 	const params = new URLSearchParams({
 		otp,
 		userid: username,
-		key: env.TEXTBELT_API_KEY,
+		key: c.env.TEXTBELT_API_KEY,
 	});
 	const response = await fetch(
 		`https://textbelt.com/otp/verify?${params.toString()}`,
@@ -320,34 +316,34 @@ export function validateUsername(username: string) {
 	return null;
 }
 
-export async function createSession(env: Bindings, user: User) {
+export async function createSession(c: AppContext, user: User) {
 	const sessionToken = crypto.randomUUID();
-	await env.DB.prepare("INSERT INTO sessions (token, user_id) VALUES (?, ?)")
+	await c.env.DB.prepare("INSERT INTO sessions (token, user_id) VALUES (?, ?)")
 		.bind(sessionToken, user.id)
 		.run();
-	await env.OY2.put(
+	await c.env.OY2.put(
 		`${SESSION_KV_PREFIX}${sessionToken}`,
 		JSON.stringify(user),
 	);
 	return sessionToken;
 }
 
-export async function fetchUserByUsername(env: Bindings, username: string) {
-	return (await env.DB.prepare(
+export async function fetchUserByUsername(c: AppContext, username: string) {
+	return (await c.env.DB.prepare(
 		"SELECT * FROM users WHERE username COLLATE NOCASE = ?",
 	)
 		.bind(username)
 		.first()) as User | null;
 }
 
-export async function fetchUserById(env: Bindings, userId: number) {
-	return (await env.DB.prepare("SELECT * FROM users WHERE id = ?")
+export async function fetchUserById(c: AppContext, userId: number) {
+	return (await c.env.DB.prepare("SELECT * FROM users WHERE id = ?")
 		.bind(userId)
 		.first()) as User | null;
 }
 
 export async function createUser(
-	env: Bindings,
+	c: AppContext,
 	{
 		username,
 		phone,
@@ -356,28 +352,28 @@ export async function createUser(
 ) {
 	let result: D1Result;
 	if (phone !== undefined || phoneVerified !== undefined) {
-		result = await env.DB.prepare(
+		result = await c.env.DB.prepare(
 			"INSERT INTO users (username, phone, phone_verified) VALUES (?, ?, ?)",
 		)
 			.bind(username, phone ?? null, phoneVerified ?? null)
 			.run();
 	} else {
-		result = await env.DB.prepare("INSERT INTO users (username) VALUES (?)")
+		result = await c.env.DB.prepare("INSERT INTO users (username) VALUES (?)")
 			.bind(username)
 			.run();
 	}
 
-	const user = await fetchUserById(env, result.meta.last_row_id);
+	const user = await fetchUserById(c, result.meta.last_row_id);
 	return { user, result };
 }
 
 export async function ensureUserPhoneForOtp(
-	env: Bindings,
+	c: AppContext,
 	user: User | null,
 	{ username, phone }: { username: string; phone: string },
 ) {
 	if (!user) {
-		const { user: createdUser } = await createUser(env, {
+		const { user: createdUser } = await createUser(c, {
 			username,
 			phone,
 			phoneVerified: 0,
@@ -385,7 +381,7 @@ export async function ensureUserPhoneForOtp(
 		return createdUser;
 	}
 
-	await env.DB.prepare(
+	await c.env.DB.prepare(
 		"UPDATE users SET phone = ?, phone_verified = 0 WHERE id = ?",
 	)
 		.bind(phone, user.id)
@@ -394,10 +390,10 @@ export async function ensureUserPhoneForOtp(
 }
 
 export async function sendOtpResponse(
-	c: { env: Bindings; json: (body: unknown, status?: number) => Response },
+	c: AppContext,
 	{ phone, username }: { phone: string; username: string },
 ) {
-	const result = await sendOtp(c.env, { phone, username });
+	const result = await sendOtp(c, { phone, username });
 	if (!result.success) {
 		return c.json({ error: "Unable to send verification code" }, 400);
 	}

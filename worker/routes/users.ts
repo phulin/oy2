@@ -4,10 +4,10 @@ import {
 	normalizeUsername,
 	validateUsername,
 } from "../lib";
-import type { App, FriendUser } from "../types";
+import type { App, AppContext, FriendUser } from "../types";
 
 export function registerUserRoutes(app: App) {
-	app.post("/api/users", async (c) => {
+	app.post("/api/users", async (c: AppContext) => {
 		const { username } = await c.req.json();
 		const trimmedUsername = normalizeUsername(username);
 
@@ -16,11 +16,11 @@ export function registerUserRoutes(app: App) {
 			return c.json({ error: usernameError }, 400);
 		}
 
-		let user = await fetchUserByUsername(c.env, trimmedUsername);
+		let user = await fetchUserByUsername(c, trimmedUsername);
 
 		if (!user) {
 			try {
-				const { user: createdUser, result } = await createUser(c.env, {
+				const { user: createdUser, result } = await createUser(c, {
 					username: trimmedUsername,
 				});
 				if (!result.success) {
@@ -35,7 +35,7 @@ export function registerUserRoutes(app: App) {
 		return c.json({ user });
 	});
 
-	app.get("/api/users/search", async (c) => {
+	app.get("/api/users/search", async (c: AppContext) => {
 		const user = c.get("user");
 		if (!user) {
 			return c.json({ error: "Not authenticated" }, 401);
@@ -57,7 +57,7 @@ export function registerUserRoutes(app: App) {
 		return c.json({ users: userResults });
 	});
 
-	app.get("/api/users/suggested", async (c) => {
+	app.get("/api/users/suggested", async (c: AppContext) => {
 		const user = c.get("user");
 		if (!user) {
 			return c.json({ error: "Not authenticated" }, 401);
