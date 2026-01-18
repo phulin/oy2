@@ -1,7 +1,7 @@
 import { Button } from "@kobalte/core/button";
-import { Tooltip } from "@kobalte/core/tooltip";
 import { createEffect, createMemo, createSignal, For, Show } from "solid-js";
 import type { Friend, SearchUser, User } from "../types";
+import { TouchTooltip } from "./TouchTooltip";
 import "./ButtonStyles.css";
 import "./FormControls.css";
 import "./AddFriendForm.css";
@@ -143,30 +143,28 @@ export function AddFriendForm(props: AddFriendFormProps) {
 										{user.username}
 									</div>
 									<Show when={user.mutuals && user.mutuals > 0}>
-										<Tooltip openDelay={100}>
-											<Tooltip.Trigger
-												as="button"
-												type="button"
-												class="add-friend-list-item-meta mutuals-trigger"
-											>
-												{user.mutuals} mutual
-												{user.mutuals === 1 ? "" : "s"}
-											</Tooltip.Trigger>
-											<Tooltip.Portal>
-												<Tooltip.Content class="mutuals-popover">
-													<Show
-														when={(mutualUsernames()[user.id] ?? []).length > 0}
-														fallback={
-															<span class="mutuals-loading">
-																Loading mutuals...
-															</span>
-														}
-													>
-														{(mutualUsernames()[user.id] ?? []).join(", ")}
-													</Show>
-												</Tooltip.Content>
-											</Tooltip.Portal>
-										</Tooltip>
+										<TouchTooltip
+											triggerClass="add-friend-list-item-meta mutuals-trigger"
+											contentClass="mutuals-popover"
+											trigger={
+												<>
+													{user.mutuals} mutual
+													{user.mutuals === 1 ? "" : "s"}
+												</>
+											}
+											content={
+												<Show
+													when={(mutualUsernames()[user.id] ?? []).length > 0}
+													fallback={
+														<span class="mutuals-loading">
+															Loading mutuals...
+														</span>
+													}
+												>
+													{(mutualUsernames()[user.id] ?? []).join(", ")}
+												</Show>
+											}
+										/>
 									</Show>
 								</div>
 								<Show

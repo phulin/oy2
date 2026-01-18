@@ -359,7 +359,7 @@ export default function App() {
 
 	async function sendOy(toUserId: number) {
 		try {
-			await api("/api/oy", {
+			const { streak } = await api<{ streak: number }>("/api/oy", {
 				method: "POST",
 				body: JSON.stringify({ toUserId }),
 			});
@@ -373,6 +373,7 @@ export default function App() {
 								last_yo_type: "oy",
 								last_yo_created_at: now,
 								last_yo_from_user_id: user.id,
+								streak,
 							}
 						: friend,
 				),
@@ -406,7 +407,7 @@ export default function App() {
 				accuracy: position.coords.accuracy,
 			};
 
-			await api("/api/lo", {
+			const { streak } = await api<{ streak: number }>("/api/lo", {
 				method: "POST",
 				body: JSON.stringify({ toUserId, location }),
 			});
@@ -420,6 +421,7 @@ export default function App() {
 								last_yo_type: "lo",
 								last_yo_created_at: now,
 								last_yo_from_user_id: user.id,
+								streak,
 							}
 						: friend,
 				),

@@ -36,6 +36,12 @@ export function registerOyRoutes(app: App) {
 				...notificationPayload,
 			}));
 
+		const streakRow = (await c.env.DB.prepare(
+			"SELECT streak FROM friendships WHERE user_id = ? AND friend_id = ? LIMIT 1",
+		)
+			.bind(user.id, toUserId)
+			.first()) as { streak: number };
+
 		c.executionCtx.waitUntil(
 			sendPushNotifications(
 				c,
@@ -46,7 +52,7 @@ export function registerOyRoutes(app: App) {
 			),
 		);
 
-		return c.json({ success: true, yoId });
+		return c.json({ success: true, yoId, streak: streakRow.streak });
 	});
 
 	app.get("/api/oys", async (c: AppContext) => {
@@ -190,6 +196,12 @@ export function registerOyRoutes(app: App) {
 				}),
 			);
 
+		const streakRow = (await c.env.DB.prepare(
+			"SELECT streak FROM friendships WHERE user_id = ? AND friend_id = ? LIMIT 1",
+		)
+			.bind(user.id, toUserId)
+			.first()) as { streak: number };
+
 		c.executionCtx.waitUntil(
 			sendPushNotifications(
 				c,
@@ -200,6 +212,6 @@ export function registerOyRoutes(app: App) {
 			),
 		);
 
-		return c.json({ success: true, yoId });
+		return c.json({ success: true, yoId, streak: streakRow.streak });
 	});
 }

@@ -1,10 +1,10 @@
-import { Tooltip } from "@kobalte/core/tooltip";
 import { createMemo, createSignal, For, onCleanup, Show } from "solid-js";
 import type { FriendWithLastYo } from "../types";
 import { formatTime } from "../utils";
 import { AsyncButton } from "./AsyncButton";
 import "./ButtonStyles.css";
 import "./FriendsList.css";
+import { TouchTooltip } from "./TouchTooltip";
 
 type FriendsListProps = {
 	friends: FriendWithLastYo[];
@@ -59,8 +59,6 @@ export function FriendsList(props: FriendsListProps) {
 						const lastYoCreatedAt = friend.last_yo_created_at;
 						const lastYoDirection =
 							friend.last_yo_from_user_id === props.currentUserId ? "↗" : "↙";
-						const [streakOpen, setStreakOpen] = createSignal(false);
-						const [streakLock, setStreakLock] = createSignal(false);
 
 						return (
 							<div class="friends-list-item card">
@@ -73,55 +71,12 @@ export function FriendsList(props: FriendsListProps) {
 											{lastYoDirection}{" "}
 											{formatRelativeTime(lastYoCreatedAt as number)}
 											<Show when={friend.streak >= 2}>
-												<Tooltip
-													open={streakOpen()}
-													onOpenChange={(isOpen) => {
-														if (streakLock()) {
-															if (isOpen) {
-																setStreakOpen(true);
-															}
-															return;
-														}
-														setStreakOpen(isOpen);
-													}}
-													openDelay={100}
-												>
-													<Tooltip.Trigger
-														as="button"
-														type="button"
-														class="streak-trigger"
-														onPointerDown={(event) => {
-															if (event.pointerType === "touch") {
-																setStreakLock(true);
-																setStreakOpen((open) => {
-																	const nextOpen = !open;
-																	if (!nextOpen) {
-																		setStreakLock(false);
-																	}
-																	return nextOpen;
-																});
-															}
-														}}
-													>
-														🔥
-													</Tooltip.Trigger>
-													<Tooltip.Portal>
-														<Tooltip.Content
-															class="streak-popover"
-															onPointerDownOutside={(event) => {
-																if (
-																	event.detail.originalEvent.pointerType ===
-																	"touch"
-																) {
-																	setStreakLock(false);
-																	setStreakOpen(false);
-																}
-															}}
-														>
-															{friend.streak}-day streak!
-														</Tooltip.Content>
-													</Tooltip.Portal>
-												</Tooltip>
+												<TouchTooltip
+													triggerClass="streak-trigger"
+													contentClass="streak-popover"
+													trigger="🔥"
+													content={`${friend.streak}-day streak!`}
+												/>
 											</Show>
 										</div>
 									</Show>
