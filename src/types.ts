@@ -32,7 +32,7 @@ export type Oy = {
 	payload?: OyPayload | null;
 };
 
-export type SearchUser = Friend & { added?: boolean };
+export type SearchUser = Friend & { added?: boolean; mutuals?: number };
 
 export type OysCursor = {
 	before: number;

@@ -13,3 +13,15 @@
 .add-friend-list-item-content {
 	flex: 1;
 }
+
+.add-friend-list-header {
+	font-size: 0.85rem;
+	text-transform: uppercase;
+	letter-spacing: 0.08em;
+	opacity: 0.6;
+}
+
+.add-friend-list-item-meta {
+	font-size: 0.85rem;
+	opacity: 0.6;
+}

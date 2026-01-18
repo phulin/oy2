@@ -18,10 +18,26 @@ export function AddFriendForm(props: AddFriendFormProps) {
 	const friendIds = createMemo(
 		() => new Set(props.friends().map((friend) => friend.id)),
 	);
+	const trimmedQuery = createMemo(() => query().trim());
+	const isSuggesting = createMemo(() => trimmedQuery().length === 0);
 
 	createEffect(() => {
-		const value = query().trim();
+		const value = trimmedQuery();
 		clearTimeout(debounce);
+		if (value.length === 0) {
+			debounce = setTimeout(async () => {
+				try {
+					const { users } = await props.api<{ users: SearchUser[] }>(
+						"/api/users/suggested",
+					);
+					setResults(users);
+				} catch (err) {
+					console.error("Suggestions failed:", err);
+				}
+			}, 200);
+			return;
+		}
+
 		if (value.length < 2) {
 			setResults([]);
 			return;
@@ -32,7 +48,7 @@ export function AddFriendForm(props: AddFriendFormProps) {
 				const { users } = await props.api<{ users: SearchUser[] }>(
 					`/api/users/search?q=${encodeURIComponent(value)}`,
 				);
-				setResults(users || []);
+				setResults(users);
 			} catch (err) {
 				console.error("Search failed:", err);
 			}
@@ -56,6 +72,15 @@ export function AddFriendForm(props: AddFriendFormProps) {
 	}
 
 	const showPrompt = () => query().trim().length < 2;
+	const emptyStateMessage = () => {
+		if (isSuggesting()) {
+			return "No suggested friends yet";
+		}
+		if (showPrompt()) {
+			return "Search for friends to add";
+		}
+		return "No users found";
+	};
 
 	return (
 		<>
@@ -74,10 +99,13 @@ export function AddFriendForm(props: AddFriendFormProps) {
 					when={results().length > 0}
 					fallback={
 						<p class="add-friend-empty-state empty-state">
-							{showPrompt() ? "Search for friends to add" : "No users found"}
+							{emptyStateMessage()}
 						</p>
 					}
 				>
+					<Show when={isSuggesting()}>
+						<div class="add-friend-list-header">Suggested friends</div>
+					</Show>
 					<For
 						each={results().filter(
 							(user) => user.id !== props.currentUser()?.id,
@@ -89,6 +117,12 @@ export function AddFriendForm(props: AddFriendFormProps) {
 									<div class="add-friend-list-item-title item-title">
 										{user.username}
 									</div>
+									<Show when={user.mutuals && user.mutuals > 0}>
+										<div class="add-friend-list-item-meta">
+											{user.mutuals} mutual
+											{user.mutuals === 1 ? "" : "s"}
+										</div>
+									</Show>
 								</div>
 								<Show
 									when={!friendIds().has(user.id)}
