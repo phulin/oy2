@@ -1,3 +1,4 @@
+import { getStreakDateBoundaries } from "../lib";
 import type { App, FriendListRow, User } from "../types";
 
 export function registerFriendRoutes(app: App) {
@@ -46,7 +47,8 @@ export function registerFriendRoutes(app: App) {
       u.username,
       f.last_yo_type,
       f.last_yo_created_at,
-      f.last_yo_from_user_id
+      f.last_yo_from_user_id,
+      f.streak
     FROM friendships f
     INNER JOIN users u ON u.id = f.friend_id
     WHERE f.user_id = ?
@@ -56,7 +58,17 @@ export function registerFriendRoutes(app: App) {
 			.bind(user.id)
 			.all();
 
-		const friendResults = (friends.results || []) as FriendListRow[];
+		const { startOfYesterdayNY } = getStreakDateBoundaries();
+		const friendResults = (friends.results || []).map((row) => {
+			const friend = row as FriendListRow;
+			if (
+				friend.last_yo_created_at === null ||
+				friend.last_yo_created_at < startOfYesterdayNY
+			) {
+				return { ...friend, streak: 0 };
+			}
+			return friend;
+		});
 		return c.json({ friends: friendResults });
 	});
 }

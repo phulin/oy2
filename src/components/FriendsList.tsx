@@ -1,3 +1,4 @@
+import { Tooltip } from "@kobalte/core/tooltip";
 import { createMemo, createSignal, For, onCleanup, Show } from "solid-js";
 import type { FriendWithLastYo } from "../types";
 import { formatTime } from "../utils";
@@ -69,6 +70,22 @@ export function FriendsList(props: FriendsListProps) {
 										<div class="friends-list-item-subtitle item-subtitle">
 											{lastYoDirection}{" "}
 											{formatRelativeTime(lastYoCreatedAt as number)}
+											<Show when={friend.streak >= 2}>
+												<Tooltip openDelay={100}>
+													<Tooltip.Trigger
+														as="button"
+														type="button"
+														class="streak-trigger"
+													>
+														🔥
+													</Tooltip.Trigger>
+													<Tooltip.Portal>
+														<Tooltip.Content class="streak-popover">
+															{friend.streak}-day streak!
+														</Tooltip.Content>
+													</Tooltip.Portal>
+												</Tooltip>
+											</Show>
 										</div>
 									</Show>
 								</div>

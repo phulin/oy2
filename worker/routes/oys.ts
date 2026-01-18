@@ -64,8 +64,7 @@ export function registerOyRoutes(app: App) {
 
 		const yos = await c.env.DB.prepare(
 			`
-    SELECT *
-    FROM (
+    WITH inbound AS (
       SELECT y.id, y.from_user_id, y.to_user_id, y.type, y.payload, y.created_at,
              u_from.username as from_username,
              u_to.username as to_username
@@ -78,8 +77,10 @@ export function registerOyRoutes(app: App) {
           OR y.created_at < ?
           OR (y.created_at = ? AND y.id < ?)
         )
+      ORDER BY y.created_at DESC, y.id DESC
       LIMIT ?
-      UNION ALL
+    ),
+    outbound AS (
       SELECT y.id, y.from_user_id, y.to_user_id, y.type, y.payload, y.created_at,
              u_from.username as from_username,
              u_to.username as to_username
@@ -93,7 +94,14 @@ export function registerOyRoutes(app: App) {
           OR y.created_at < ?
           OR (y.created_at = ? AND y.id < ?)
         )
+      ORDER BY y.created_at DESC, y.id DESC
       LIMIT ?
+    )
+    SELECT *
+    FROM (
+      SELECT * FROM inbound
+      UNION ALL
+      SELECT * FROM outbound
     )
     ORDER BY created_at DESC, id DESC
     LIMIT ?

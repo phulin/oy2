@@ -56,4 +56,42 @@ describe("friends", () => {
 		assert.equal(body.friends.length, 1);
 		assert.equal(body.friends[0].last_yo_type, "oy");
 	});
+
+	it("returns streak in friends list", async () => {
+		const { env, db } = createTestEnv();
+		const user = seedUser(db, { username: "Main" });
+		const friend = seedUser(db, { username: "Pal" });
+		seedSession(db, user.id, "streak-token");
+		const now = Math.floor(Date.now() / 1000);
+		seedFriendship(db, user.id, friend.id, { streak: 5, lastYoCreatedAt: now });
+		seedFriendship(db, friend.id, user.id, { streak: 5, lastYoCreatedAt: now });
+		const { res, json } = await jsonRequest(env, "/api/friends", {
+			headers: { "x-session-token": "streak-token" },
+		});
+		const body = json as {
+			friends: Array<{ streak: number }>;
+		};
+		assert.equal(res.status, 200);
+		assert.equal(body.friends.length, 1);
+		assert.equal(body.friends[0].streak, 5);
+	});
+
+	it("returns streak 0 when last yo is stale", async () => {
+		const { env, db } = createTestEnv();
+		const user = seedUser(db, { username: "Main" });
+		const friend = seedUser(db, { username: "Pal" });
+		seedSession(db, user.id, "stale-streak-token");
+		const threeDaysAgo = Math.floor(Date.now() / 1000) - 3 * 24 * 60 * 60;
+		seedFriendship(db, user.id, friend.id, { streak: 10, lastYoCreatedAt: threeDaysAgo });
+		seedFriendship(db, friend.id, user.id, { streak: 10, lastYoCreatedAt: threeDaysAgo });
+		const { res, json } = await jsonRequest(env, "/api/friends", {
+			headers: { "x-session-token": "stale-streak-token" },
+		});
+		const body = json as {
+			friends: Array<{ streak: number }>;
+		};
+		assert.equal(res.status, 200);
+		assert.equal(body.friends.length, 1);
+		assert.equal(body.friends[0].streak, 0);
+	});
 });

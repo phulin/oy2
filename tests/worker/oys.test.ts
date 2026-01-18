@@ -46,6 +46,69 @@ describe("oys and los", () => {
 		assert.equal(friendship?.last_yo_type, "oy");
 	});
 
+	it("increments streak when sending yo day after last yo", async () => {
+		const { env, db } = createTestEnv();
+		const sender = seedUser(db, { username: "Sender" });
+		const receiver = seedUser(db, { username: "Receiver" });
+		seedSession(db, sender.id, "streak-inc-token");
+		const yesterday = Math.floor(Date.now() / 1000) - 24 * 60 * 60;
+		seedFriendship(db, sender.id, receiver.id, { streak: 3, lastYoCreatedAt: yesterday });
+		seedFriendship(db, receiver.id, sender.id, { streak: 3, lastYoCreatedAt: yesterday });
+		const { res, json } = await jsonRequest(env, "/api/oy", {
+			method: "POST",
+			headers: { "x-session-token": "streak-inc-token" },
+			body: { toUserId: receiver.id },
+		});
+		assert.equal(res.status, 200);
+		assert.equal(json.success, true);
+		const friendship = db.friendships.find(
+			(row) => row.user_id === sender.id && row.friend_id === receiver.id,
+		);
+		assert.equal(friendship?.streak, 4);
+	});
+
+	it("keeps streak same when sending yo on same day", async () => {
+		const { env, db } = createTestEnv();
+		const sender = seedUser(db, { username: "Sender" });
+		const receiver = seedUser(db, { username: "Receiver" });
+		seedSession(db, sender.id, "streak-same-token");
+		const now = Math.floor(Date.now() / 1000);
+		seedFriendship(db, sender.id, receiver.id, { streak: 5, lastYoCreatedAt: now });
+		seedFriendship(db, receiver.id, sender.id, { streak: 5, lastYoCreatedAt: now });
+		const { res, json } = await jsonRequest(env, "/api/oy", {
+			method: "POST",
+			headers: { "x-session-token": "streak-same-token" },
+			body: { toUserId: receiver.id },
+		});
+		assert.equal(res.status, 200);
+		assert.equal(json.success, true);
+		const friendship = db.friendships.find(
+			(row) => row.user_id === sender.id && row.friend_id === receiver.id,
+		);
+		assert.equal(friendship?.streak, 5);
+	});
+
+	it("resets streak to 1 when sending yo after gap", async () => {
+		const { env, db } = createTestEnv();
+		const sender = seedUser(db, { username: "Sender" });
+		const receiver = seedUser(db, { username: "Receiver" });
+		seedSession(db, sender.id, "streak-reset-token");
+		const threeDaysAgo = Math.floor(Date.now() / 1000) - 3 * 24 * 60 * 60;
+		seedFriendship(db, sender.id, receiver.id, { streak: 10, lastYoCreatedAt: threeDaysAgo });
+		seedFriendship(db, receiver.id, sender.id, { streak: 10, lastYoCreatedAt: threeDaysAgo });
+		const { res, json } = await jsonRequest(env, "/api/oy", {
+			method: "POST",
+			headers: { "x-session-token": "streak-reset-token" },
+			body: { toUserId: receiver.id },
+		});
+		assert.equal(res.status, 200);
+		assert.equal(json.success, true);
+		const friendship = db.friendships.find(
+			(row) => row.user_id === sender.id && row.friend_id === receiver.id,
+		);
+		assert.equal(friendship?.streak, 1);
+	});
+
 	it("creates location payloads and notification URLs for los", async () => {
 		const { env, db } = createTestEnv();
 		const sender = seedUser(db, { username: "Locator" });

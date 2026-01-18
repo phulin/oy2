@@ -13,6 +13,7 @@ export type FriendWithLastYo = Friend & {
 	last_yo_type: string | null;
 	last_yo_created_at: number | null;
 	last_yo_from_user_id: number | null;
+	streak: number;
 };
 
 export type OyPayload = {

@@ -18,6 +18,7 @@ type FriendshipRow = {
 	last_yo_type: string | null;
 	last_yo_created_at: number | null;
 	last_yo_from_user_id: number | null;
+	streak: number;
 };
 
 type YoRow = {
@@ -256,6 +257,7 @@ class FakeD1PreparedStatement implements D1PreparedStatement {
 				last_yo_type: null,
 				last_yo_created_at: null,
 				last_yo_from_user_id: null,
+				streak: 1,
 			});
 			return { success: true, meta: { last_row_id: 0, changes: 1 } };
 		}
@@ -282,8 +284,8 @@ class FakeD1PreparedStatement implements D1PreparedStatement {
 		if (
 			sql.startsWith("UPDATE friendships SET last_yo_id = last_insert_rowid()")
 		) {
-			const [type, createdAt, fromUserId, userA, friendA, userB, friendB] = this
-				.params as [string, number, number, number, number, number, number];
+			const [type, createdAt, fromUserId, startOfTodayNY, startOfYesterdayNY, userA, friendA, userB, friendB] = this
+				.params as [string, number, number, number, number, number, number, number, number];
 			let changes = 0;
 			for (const friendship of this.db.friendships) {
 				const match =
@@ -292,8 +294,18 @@ class FakeD1PreparedStatement implements D1PreparedStatement {
 				if (match) {
 					friendship.last_yo_id = this.db.lastInsertId;
 					friendship.last_yo_type = type;
+					const prevCreatedAt = friendship.last_yo_created_at;
 					friendship.last_yo_created_at = createdAt;
 					friendship.last_yo_from_user_id = fromUserId;
+					if (prevCreatedAt !== null && prevCreatedAt >= startOfTodayNY) {
+						// Same day - keep streak
+					} else if (prevCreatedAt !== null && prevCreatedAt >= startOfYesterdayNY) {
+						// Yesterday - increment streak
+						friendship.streak += 1;
+					} else {
+						// Earlier than yesterday or no previous yo - reset to 1
+						friendship.streak = 1;
+					}
 					changes += 1;
 				}
 			}
@@ -518,6 +530,7 @@ class FakeD1PreparedStatement implements D1PreparedStatement {
 						last_yo_type: row.last_yo_type,
 						last_yo_created_at: row.last_yo_created_at,
 						last_yo_from_user_id: row.last_yo_from_user_id,
+						streak: row.streak,
 					};
 				})
 				.filter(
@@ -529,6 +542,7 @@ class FakeD1PreparedStatement implements D1PreparedStatement {
 						last_yo_type: string | null;
 						last_yo_created_at: number | null;
 						last_yo_from_user_id: number | null;
+						streak: number;
 					} => Boolean(row),
 				)
 				.sort((a, b) => a.username.localeCompare(b.username));
@@ -667,6 +681,88 @@ class FakeD1PreparedStatement implements D1PreparedStatement {
 				.slice(0, pageSize);
 			return { results: rows };
 		}
+		if (sql.startsWith("WITH inbound AS")) {
+			const [
+				userId,
+				hasCursorFlagOne,
+				beforeOne,
+				_beforeOneRepeat,
+				beforeIdOne,
+				firstLimit,
+				_userIdTwo,
+				_userIdThree,
+				hasCursorFlagTwo,
+				_beforeTwo,
+				_beforeTwoRepeat,
+				_beforeIdTwo,
+				secondLimit,
+				pageSize,
+			] = this.params as [
+				number,
+				number,
+				number,
+				number,
+				number,
+				number,
+				number,
+				number,
+				number,
+				number,
+				number,
+				number,
+				number,
+				number,
+			];
+
+			const hasCursor = Boolean(hasCursorFlagOne || hasCursorFlagTwo);
+			const before = hasCursor ? beforeOne : 0;
+			const beforeId = hasCursor ? beforeIdOne : 0;
+
+			const mapRow = (row: YoRow) => {
+				const fromUser = this.db.users.find(
+					(user) => user.id === row.from_user_id,
+				);
+				const toUser = this.db.users.find((user) => user.id === row.to_user_id);
+				return {
+					...row,
+					from_username: fromUser?.username ?? "",
+					to_username: toUser?.username ?? "",
+				};
+			};
+			const compareRows = (a: YoRow, b: YoRow) => {
+				if (b.created_at !== a.created_at) {
+					return b.created_at - a.created_at;
+				}
+				return b.id - a.id;
+			};
+			const isBeforeCursor = (row: YoRow) =>
+				!hasCursor ||
+				row.created_at < before ||
+				(row.created_at === before && row.id < beforeId);
+
+			const inbound = this.db.yos
+				.filter(
+					(row) => row.to_user_id === userId && isBeforeCursor(row),
+				)
+				.sort(compareRows)
+				.slice(0, firstLimit)
+				.map(mapRow);
+			const outbound = this.db.yos
+				.filter(
+					(row) =>
+						row.from_user_id === userId &&
+						row.to_user_id !== userId &&
+						isBeforeCursor(row),
+				)
+				.sort(compareRows)
+				.slice(0, secondLimit)
+				.map(mapRow);
+
+			const rows = [...inbound, ...outbound]
+				.sort(compareRows)
+				.slice(0, pageSize);
+			return { results: rows };
+		}
 		throw new Error(`Unhandled SQL all: ${sql}`);
 	}
 
@@ -772,6 +868,7 @@ export function seedFriendship(
 	db: FakeD1Database,
 	userId: number,
 	friendId: number,
+	{ streak = 1, lastYoCreatedAt = null }: { streak?: number; lastYoCreatedAt?: number | null } = {},
 ) {
 	db.friendships.push({
 		user_id: userId,
@@ -779,8 +876,9 @@ export function seedFriendship(
 		created_at: nowSeconds(),
 		last_yo_id: null,
 		last_yo_type: null,
-		last_yo_created_at: null,
+		last_yo_created_at: lastYoCreatedAt,
 		last_yo_from_user_id: null,
+		streak,
 	});
 }
 

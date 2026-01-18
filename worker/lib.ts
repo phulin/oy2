@@ -20,6 +20,35 @@ const delay = (ms: number) =>
 		setTimeout(resolve, ms);
 	});
 
+function getStartOfDayNY(date: Date): number {
+	const nyDateStr = date.toLocaleDateString("en-US", {
+		timeZone: "America/New_York",
+	});
+	const [month, day, year] = nyDateStr.split("/").map(Number);
+	const nyMidnight = new Date(
+		date.toLocaleString("en-US", { timeZone: "America/New_York" }),
+	);
+	nyMidnight.setFullYear(year, month - 1, day);
+	nyMidnight.setHours(0, 0, 0, 0);
+	const offset =
+		date.getTime() -
+		new Date(
+			date.toLocaleString("en-US", { timeZone: "America/New_York" }),
+		).getTime();
+	return Math.floor((nyMidnight.getTime() + offset) / 1000);
+}
+
+export function getStreakDateBoundaries(): {
+	startOfTodayNY: number;
+	startOfYesterdayNY: number;
+} {
+	const now = new Date();
+	const startOfTodayNY = getStartOfDayNY(now);
+	const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+	const startOfYesterdayNY = getStartOfDayNY(yesterday);
+	return { startOfTodayNY, startOfYesterdayNY };
+}
+
 export async function getPhoneAuthEnabled(c: AppContext) {
 	const stored = await c.env.OY2.get(PHONE_AUTH_KV_KEY);
 	if (stored === null) {
@@ -168,6 +197,7 @@ export async function createYoAndNotification(
 ) {
 	const { env } = c;
 	const createdAt = Math.floor(Date.now() / 1000);
+	const { startOfTodayNY, startOfYesterdayNY } = getStreakDateBoundaries();
 	const batchResults = await env.DB.batch([
 		env.DB.prepare(
 			`
@@ -181,7 +211,12 @@ export async function createYoAndNotification(
       SET last_yo_id = last_insert_rowid(),
           last_yo_type = ?,
           last_yo_created_at = ?,
-          last_yo_from_user_id = ?
+          last_yo_from_user_id = ?,
+          streak = CASE
+            WHEN last_yo_created_at >= ? THEN streak
+            WHEN last_yo_created_at >= ? THEN streak + 1
+            ELSE 1
+          END
       WHERE (user_id = ? AND friend_id = ?)
          OR (user_id = ? AND friend_id = ?)
     `,
@@ -189,6 +224,8 @@ export async function createYoAndNotification(
 			type,
 			createdAt,
 			fromUserId,
+			startOfTodayNY,
+			startOfYesterdayNY,
 			fromUserId,
 			toUserId,
 			toUserId,
