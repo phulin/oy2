@@ -101,7 +101,7 @@ export function AdminDashboard(props: AdminDashboardProps) {
 	onMount(() => {
 		void loadStats();
 		void loadPhoneAuthSetting();
-		const interval = setInterval(loadStats, 60_000);
+		const interval = setInterval(loadStats, 300_000);
 		onCleanup(() => clearInterval(interval));
 	});
 
