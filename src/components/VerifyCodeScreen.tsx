@@ -43,6 +43,7 @@ export function VerifyCodeScreen(props: VerifyCodeScreenProps) {
 						name="otp"
 						autocomplete="one-time-code"
 						inputmode="numeric"
+						autofocus
 						required
 						class="otp-input"
 						value={otp()}
