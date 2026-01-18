@@ -182,6 +182,131 @@ async function sendPushWithRetry(
 	return { delivered: false, statusCode: lastStatusCode };
 }
 
+async function sendPushNotifications({
+	env,
+	subscriptions,
+	payload,
+	notificationId,
+	toUserId,
+}: {
+	env: Bindings;
+	subscriptions: PushSubscriptionRow[];
+	payload: PushPayload;
+	notificationId: number;
+	toUserId: number;
+}) {
+	try {
+		for (const sub of subscriptions) {
+			const subscription = {
+				endpoint: sub.endpoint,
+				expirationTime: null,
+				keys: {
+					p256dh: sub.keys_p256dh,
+					auth: sub.keys_auth,
+				},
+			};
+
+			const { delivered, statusCode } = await sendPushWithRetry(
+				env,
+				subscription,
+				payload,
+				notificationId,
+			);
+			if (!delivered) {
+				console.error("Failed to send push:", statusCode);
+				if (statusCode === 410) {
+					await env.DB.prepare(
+						"DELETE FROM push_subscriptions WHERE user_id = ? AND endpoint = ?",
+					)
+						.bind(toUserId, sub.endpoint)
+						.run();
+				}
+			}
+		}
+	} catch (err) {
+		console.error("Push notification error:", err);
+	}
+}
+
+async function createYoAndNotification({
+	env,
+	fromUserId,
+	toUserId,
+	type,
+	yoPayload,
+	makeNotificationPayload,
+}: {
+	env: Bindings;
+	fromUserId: number;
+	toUserId: number;
+	type: "oy" | "lo";
+	yoPayload: string | null;
+	makeNotificationPayload: (yoId: number) => PushPayload;
+}) {
+	const createdAt = Math.floor(Date.now() / 1000);
+	const batchResults = await env.DB.batch([
+		env.DB.prepare(
+			`
+      INSERT INTO yos (from_user_id, to_user_id, type, payload, created_at)
+      VALUES (?, ?, ?, ?, ?)
+    `,
+		).bind(fromUserId, toUserId, type, yoPayload, createdAt),
+		env.DB.prepare(
+			`
+      UPDATE friendships
+      SET last_yo_id = last_insert_rowid(),
+          last_yo_type = ?,
+          last_yo_created_at = ?,
+          last_yo_from_user_id = ?
+      WHERE (user_id = ? AND friend_id = ?)
+         OR (user_id = ? AND friend_id = ?)
+    `,
+		).bind(
+			type,
+			createdAt,
+			fromUserId,
+			fromUserId,
+			toUserId,
+			toUserId,
+			fromUserId,
+		),
+	]);
+
+	const yoId = Number(batchResults[0].meta.last_row_id);
+	const notificationPayload = makeNotificationPayload(yoId);
+	const notificationInsert = await env.DB.prepare(
+		`
+      INSERT INTO notifications (to_user_id, from_user_id, type, payload)
+      VALUES (?, ?, ?, ?)
+    `,
+	)
+		.bind(toUserId, fromUserId, type, JSON.stringify(notificationPayload))
+		.run();
+	const notificationId = Number(notificationInsert.meta.last_row_id);
+	const subscriptionResults = await env.DB.prepare(
+		`
+      SELECT endpoint, keys_p256dh, keys_auth
+      FROM push_subscriptions
+      WHERE user_id = ?
+    `,
+	)
+		.bind(toUserId)
+		.all();
+
+	const deliveryPayload: PushPayload = {
+		...notificationPayload,
+		notificationId,
+		tag: `notification-${notificationId}`,
+	};
+
+	return {
+		yoId,
+		notificationId,
+		deliveryPayload,
+		subscriptions: (subscriptionResults.results || []) as PushSubscriptionRow[],
+	};
+}
+
 // Middleware to get current user from header
 app.use("*", async (c, next) => {
 	const bootMs = performance.now() - bootTime;
@@ -630,83 +755,27 @@ app.post("/api/oy", async (c) => {
 		badge: "/icon-192.png",
 		type: "oy",
 	};
-	// Create the Oy + update friendships + store notification
-	const createdAt = Math.floor(Date.now() / 1000);
-	const batchResults = await c.env.DB.batch([
-		c.env.DB.prepare(
-			`
-      INSERT INTO yos (from_user_id, to_user_id, type, payload, created_at)
-      VALUES (?, ?, 'oy', NULL, ?)
-    `,
-		).bind(user.id, toUserId, createdAt),
-		c.env.DB.prepare(
-			`
-      UPDATE friendships
-      SET last_yo_id = last_insert_rowid(),
-          last_yo_type = ?,
-          last_yo_created_at = ?,
-          last_yo_from_user_id = ?
-      WHERE (user_id = ? AND friend_id = ?)
-         OR (user_id = ? AND friend_id = ?)
-    `,
-		).bind("oy", createdAt, user.id, user.id, toUserId, toUserId, user.id),
-		c.env.DB.prepare(
-			`
-      INSERT INTO notifications (to_user_id, from_user_id, type, payload)
-      VALUES (?, ?, ?, ?)
-    `,
-		).bind(toUserId, user.id, "oy", JSON.stringify(notificationPayload)),
-	]);
-	const yoId = Number(batchResults[0].meta.last_row_id);
-	const notificationId = Number(batchResults[2].meta.last_row_id);
-	const deliveryPayload: PushPayload = {
-		...notificationPayload,
-		notificationId,
-		tag: `notification-${notificationId}`,
-	};
+	const { yoId, notificationId, deliveryPayload, subscriptions } =
+		await createYoAndNotification({
+			env: c.env,
+			fromUserId: user.id,
+			toUserId,
+			type: "oy",
+			yoPayload: null,
+			makeNotificationPayload: () => ({
+				...notificationPayload,
+			}),
+		});
 
-	// Send push notification
-	try {
-		const subscriptions = await c.env.DB.prepare(`
-      SELECT endpoint, keys_p256dh, keys_auth
-      FROM push_subscriptions
-      WHERE user_id = ?
-    `)
-			.bind(toUserId)
-			.all();
-
-		const subscriptionResults = (subscriptions.results ||
-			[]) as PushSubscriptionRow[];
-		for (const sub of subscriptionResults) {
-			const subscription = {
-				endpoint: sub.endpoint,
-				expirationTime: null,
-				keys: {
-					p256dh: sub.keys_p256dh,
-					auth: sub.keys_auth,
-				},
-			};
-
-			const { delivered, statusCode } = await sendPushWithRetry(
-				c.env,
-				subscription,
-				deliveryPayload,
-				notificationId,
-			);
-			if (!delivered) {
-				console.error("Failed to send push:", statusCode);
-				if (statusCode === 410) {
-					await c.env.DB.prepare(
-						"DELETE FROM push_subscriptions WHERE user_id = ? AND endpoint = ?",
-					)
-						.bind(toUserId, sub.endpoint)
-						.run();
-				}
-			}
-		}
-	} catch (err) {
-		console.error("Push notification error:", err);
-	}
+	c.executionCtx.waitUntil(
+		sendPushNotifications({
+			env: c.env,
+			subscriptions,
+			payload: deliveryPayload,
+			notificationId,
+			toUserId,
+		}),
+	);
 
 	return c.json({ success: true, yoId });
 });
@@ -801,122 +870,35 @@ app.post("/api/lo", async (c) => {
 		accuracy: location.accuracy || null,
 	});
 
-	const notificationTitle = "Lo!";
-	const notificationBody = `${user.username} shared a location`;
-	const notificationIcon = "/icon-192.png";
-	const notificationBadge = "/icon-192.png";
-	const notificationType = "lo";
-	const createdAt = Math.floor(Date.now() / 1000);
-	const batchResults = await c.env.DB.batch([
-		c.env.DB.prepare(
-			`
-      INSERT INTO yos (from_user_id, to_user_id, type, payload, created_at)
-      VALUES (?, ?, 'lo', ?, ?)
-    `,
-		).bind(user.id, toUserId, payload, createdAt),
-		c.env.DB.prepare(
-			`
-      UPDATE friendships
-      SET last_yo_id = last_insert_rowid(),
-          last_yo_type = ?,
-          last_yo_created_at = ?,
-          last_yo_from_user_id = ?
-      WHERE (user_id = ? AND friend_id = ?)
-         OR (user_id = ? AND friend_id = ?)
-    `,
-		).bind("lo", createdAt, user.id, user.id, toUserId, toUserId, user.id),
-		c.env.DB.prepare(
-			`
-      INSERT INTO notifications (to_user_id, from_user_id, type, payload)
-      VALUES (
-        ?,
-        ?,
-        ?,
-        json_object(
-          'title',
-          ?,
-          'body',
-          ?,
-          'icon',
-          ?,
-          'badge',
-          ?,
-          'type',
-          ?,
-          'url',
-          printf('/?tab=oys&yo=%d&expand=location', last_insert_rowid())
-        )
-      )
-    `,
-		).bind(
-			toUserId,
-			user.id,
-			notificationType,
-			notificationTitle,
-			notificationBody,
-			notificationIcon,
-			notificationBadge,
-			notificationType,
-		),
-	]);
-	const yoId = Number(batchResults[0].meta.last_row_id);
-	const notificationId = Number(batchResults[2].meta.last_row_id);
-
 	const notificationPayload: PushPayload = {
-		title: notificationTitle,
-		body: notificationBody,
-		icon: notificationIcon,
-		badge: notificationBadge,
-		type: notificationType,
-		url: `/?tab=oys&yo=${yoId}&expand=location`,
+		title: "Lo!",
+		body: `${user.username} shared a location`,
+		icon: "/icon-192.png",
+		badge: "/icon-192.png",
+		type: "lo",
 	};
-	const deliveryPayload: PushPayload = {
-		...notificationPayload,
-		notificationId,
-		tag: `notification-${notificationId}`,
-	};
+	const { yoId, notificationId, deliveryPayload, subscriptions } =
+		await createYoAndNotification({
+			env: c.env,
+			fromUserId: user.id,
+			toUserId,
+			type: "lo",
+			yoPayload: payload,
+			makeNotificationPayload: (yoIdValue) => ({
+				...notificationPayload,
+				url: `/?tab=oys&yo=${yoIdValue}&expand=location`,
+			}),
+		});
 
-	try {
-		const subscriptions = await c.env.DB.prepare(`
-      SELECT endpoint, keys_p256dh, keys_auth
-      FROM push_subscriptions
-      WHERE user_id = ?
-    `)
-			.bind(toUserId)
-			.all();
-
-		const subscriptionResults = (subscriptions.results ||
-			[]) as PushSubscriptionRow[];
-		for (const sub of subscriptionResults) {
-			const subscription = {
-				endpoint: sub.endpoint,
-				expirationTime: null,
-				keys: {
-					p256dh: sub.keys_p256dh,
-					auth: sub.keys_auth,
-				},
-			};
-
-			const { delivered, statusCode } = await sendPushWithRetry(
-				c.env,
-				subscription,
-				deliveryPayload,
-				notificationId,
-			);
-			if (!delivered) {
-				console.error("Failed to send push:", statusCode);
-				if (statusCode === 410) {
-					await c.env.DB.prepare(
-						"DELETE FROM push_subscriptions WHERE user_id = ? AND endpoint = ?",
-					)
-						.bind(toUserId, sub.endpoint)
-						.run();
-				}
-			}
-		}
-	} catch (err) {
-		console.error("Push notification error:", err);
-	}
+	c.executionCtx.waitUntil(
+		sendPushNotifications({
+			env: c.env,
+			subscriptions,
+			payload: deliveryPayload,
+			notificationId,
+			toUserId,
+		}),
+	);
 
 	return c.json({ success: true, yoId });
 });
