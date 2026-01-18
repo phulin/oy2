@@ -900,23 +900,45 @@ app.get("/api/oys", async (c) => {
 
 	const yos = await c.env.DB.prepare(
 		`
-    SELECT y.id, y.from_user_id, y.to_user_id, y.type, y.payload, y.created_at,
-           u_from.username as from_username,
-           u_to.username as to_username
-    FROM yos y
-    INNER JOIN users u_from ON y.from_user_id = u_from.id
-    INNER JOIN users u_to ON y.to_user_id = u_to.id
-    WHERE (y.to_user_id = ? OR y.from_user_id = ?)
-      AND (
-        ? = 0
-        OR y.created_at < ?
-        OR (y.created_at = ? AND y.id < ?)
-      )
-    ORDER BY y.created_at DESC, y.id DESC
+    SELECT *
+    FROM (
+      SELECT y.id, y.from_user_id, y.to_user_id, y.type, y.payload, y.created_at,
+             u_from.username as from_username,
+             u_to.username as to_username
+      FROM yos y
+      INNER JOIN users u_from ON y.from_user_id = u_from.id
+      INNER JOIN users u_to ON y.to_user_id = u_to.id
+      WHERE y.to_user_id = ?
+        AND (
+          ? = 0
+          OR y.created_at < ?
+          OR (y.created_at = ? AND y.id < ?)
+        )
+      UNION ALL
+      SELECT y.id, y.from_user_id, y.to_user_id, y.type, y.payload, y.created_at,
+             u_from.username as from_username,
+             u_to.username as to_username
+      FROM yos y
+      INNER JOIN users u_from ON y.from_user_id = u_from.id
+      INNER JOIN users u_to ON y.to_user_id = u_to.id
+      WHERE y.from_user_id = ?
+        AND y.to_user_id != ?
+        AND (
+          ? = 0
+          OR y.created_at < ?
+          OR (y.created_at = ? AND y.id < ?)
+        )
+    )
+    ORDER BY created_at DESC, id DESC
     LIMIT ?
   `,
 	)
 		.bind(
+			user.id,
+			hasCursor ? 1 : 0,
+			hasCursor ? before : 0,
+			hasCursor ? before : 0,
+			hasCursor ? beforeId : 0,
 			user.id,
 			user.id,
 			hasCursor ? 1 : 0,
