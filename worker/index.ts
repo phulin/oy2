@@ -1150,17 +1150,22 @@ app.get("/api/admin/stats", async (c) => {
 		c.env.DB.prepare("SELECT COUNT(*) as count FROM push_subscriptions"),
 	]);
 
-	const notificationsSent = Number(
-		(notificationsQuery as { count?: number | null } | null)?.count ?? 0,
-	);
-	const totalDeliveries = Number(
-		(deliveriesQuery as { total_count?: number | null } | null)?.total_count ??
-			0,
-	);
-	const successDeliveries = Number(
-		(deliveriesQuery as { success_count?: number | null } | null)
-			?.success_count ?? 0,
-	);
+	const notificationsRow = notificationsQuery.results?.[0] as
+		| { count?: number | null }
+		| undefined;
+	const deliveriesRow = deliveriesQuery.results?.[0] as
+		| { total_count?: number | null; success_count?: number | null }
+		| undefined;
+	const usersCountRow = usersCountQuery.results?.[0] as
+		| { count?: number | null }
+		| undefined;
+	const subscriptionsCountRow = subscriptionsCountQuery.results?.[0] as
+		| { count?: number | null }
+		| undefined;
+
+	const notificationsSent = Number(notificationsRow?.count ?? 0);
+	const totalDeliveries = Number(deliveriesRow?.total_count ?? 0);
+	const successDeliveries = Number(deliveriesRow?.success_count ?? 0);
 
 	const stats = {
 		activeUsersCount: (activeUsersQuery.results || []).length,
@@ -1171,12 +1176,8 @@ app.get("/api/admin/stats", async (c) => {
 		deliverySuccessRate: totalDeliveries
 			? successDeliveries / totalDeliveries
 			: 0,
-		subscriptionsCount: Number(
-			(subscriptionsCountQuery as { count?: number | null } | null)?.count ?? 0,
-		),
-		usersCount: Number(
-			(usersCountQuery as { count?: number | null } | null)?.count ?? 0,
-		),
+		subscriptionsCount: Number(subscriptionsCountRow?.count ?? 0),
+		usersCount: Number(usersCountRow?.count ?? 0),
 	};
 
 	return c.json({
