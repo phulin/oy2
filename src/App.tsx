@@ -345,6 +345,18 @@ export default function App() {
 		}
 	}
 
+	function handleSetupNotifications() {
+		const registration = swRegistration();
+		if (registration) {
+			ensurePushSubscription(registration).catch((err) => {
+				console.error("Notification setup failed:", err);
+				alert("Failed to enable notifications. Please try again.");
+			});
+		} else {
+			alert("Service worker not ready. Please refresh the page and try again.");
+		}
+	}
+
 	async function unsubscribePush(registration: ServiceWorkerRegistration) {
 		const subscription = await registration.pushManager.getSubscription();
 		if (!subscription) {
@@ -630,7 +642,7 @@ export default function App() {
 			<AdminDashboard user={user} api={api} onLogout={logout} />
 		) : (
 			<Screen>
-				<AppHeader user={user} onLogout={logout} />
+				<AppHeader user={user} onLogout={logout} onSetupNotifications={handleSetupNotifications} />
 
 				<Tabs.Root value={tab()} onChange={setTab} class="app-tabs-root">
 					<Tabs.List class="app-tabs">

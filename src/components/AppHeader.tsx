@@ -7,6 +7,7 @@ import "./AppHeader.css";
 type AppHeaderProps = {
 	user: User;
 	onLogout: () => void;
+	onSetupNotifications: () => void;
 };
 
 export function AppHeader(props: AppHeaderProps) {
@@ -31,6 +32,9 @@ export function AppHeader(props: AppHeaderProps) {
 							Admin
 						</a>
 					) : null}
+					<Button class="app-user-action" onClick={props.onSetupNotifications}>
+						Enable Notifications
+					</Button>
 					<a class="app-user-action" href="/privacy">
 						Privacy Policy
 					</a>
