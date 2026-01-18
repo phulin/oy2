@@ -78,6 +78,7 @@ export function registerOyRoutes(app: App) {
           OR y.created_at < ?
           OR (y.created_at = ? AND y.id < ?)
         )
+      LIMIT ?
       UNION ALL
       SELECT y.id, y.from_user_id, y.to_user_id, y.type, y.payload, y.created_at,
              u_from.username as from_username,
@@ -92,6 +93,7 @@ export function registerOyRoutes(app: App) {
           OR y.created_at < ?
           OR (y.created_at = ? AND y.id < ?)
         )
+      LIMIT ?
     )
     ORDER BY created_at DESC, id DESC
     LIMIT ?
@@ -103,12 +105,14 @@ export function registerOyRoutes(app: App) {
 				hasCursor ? before : 0,
 				hasCursor ? before : 0,
 				hasCursor ? beforeId : 0,
+				pageSize,
 				user.id,
 				user.id,
 				hasCursor ? 1 : 0,
 				hasCursor ? before : 0,
 				hasCursor ? before : 0,
 				hasCursor ? beforeId : 0,
+				pageSize,
 				pageSize,
 			)
 			.all();
