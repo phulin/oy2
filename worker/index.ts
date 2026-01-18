@@ -7,8 +7,7 @@ type Bindings = {
 	VAPID_PRIVATE_KEY: string;
 	VAPID_SUBJECT?: string;
 	TEXTBELT_API_KEY: string;
-	SETTINGS: KVNamespace;
-	SESSIONS: KVNamespace;
+	OY2: KVNamespace;
 };
 
 type User = {
@@ -80,8 +79,10 @@ const app = new Hono<{
 const PUSH_MAX_ATTEMPTS = 3;
 const PUSH_BACKOFF_MS = 250;
 const PUSH_BACKOFF_MULTIPLIER = 2;
-const PHONE_AUTH_KV_KEY = "phone_auth_enabled";
+const SETTINGS_KV_PREFIX = "settings:";
+const PHONE_AUTH_KV_KEY = `${SETTINGS_KV_PREFIX}phone_auth_enabled`;
 const SESSION_KV_PREFIX = "session:";
+const PUSH_SUBSCRIPTIONS_KV_PREFIX = "push_subscriptions:";
 const bootTime = performance.now();
 
 const delay = (ms: number) =>
@@ -90,7 +91,7 @@ const delay = (ms: number) =>
 	});
 
 async function getPhoneAuthEnabled(env: Bindings) {
-	const stored = await env.SETTINGS.get(PHONE_AUTH_KV_KEY);
+	const stored = await env.OY2.get(PHONE_AUTH_KV_KEY);
 	if (stored === null) {
 		return true;
 	}
@@ -98,7 +99,7 @@ async function getPhoneAuthEnabled(env: Bindings) {
 }
 
 async function setPhoneAuthEnabled(env: Bindings, enabled: boolean) {
-	await env.SETTINGS.put(PHONE_AUTH_KV_KEY, enabled ? "true" : "false");
+	await env.OY2.put(PHONE_AUTH_KV_KEY, enabled ? "true" : "false");
 }
 
 async function recordDeliveryAttempt(
@@ -199,6 +200,7 @@ async function sendPushNotifications({
 	toUserId: number;
 }) {
 	try {
+		let didMutateSubscriptions = false;
 		for (const sub of subscriptions) {
 			const subscription = {
 				endpoint: sub.endpoint,
@@ -223,8 +225,12 @@ async function sendPushNotifications({
 					)
 						.bind(toUserId, sub.endpoint)
 						.run();
+					didMutateSubscriptions = true;
 				}
 			}
+		}
+		if (didMutateSubscriptions) {
+			await invalidatePushSubscriptionsCache(env, toUserId);
 		}
 	} catch (err) {
 		console.error("Push notification error:", err);
@@ -286,15 +292,7 @@ async function createYoAndNotification({
 		.bind(toUserId, fromUserId, type, JSON.stringify(notificationPayload))
 		.run();
 	const notificationId = Number(notificationInsert.meta.last_row_id);
-	const subscriptionResults = await env.DB.prepare(
-		`
-      SELECT endpoint, keys_p256dh, keys_auth
-      FROM push_subscriptions
-      WHERE user_id = ?
-    `,
-	)
-		.bind(toUserId)
-		.all();
+	const subscriptions = await fetchPushSubscriptions(env, toUserId);
 
 	const deliveryPayload: PushPayload = {
 		...notificationPayload,
@@ -306,8 +304,39 @@ async function createYoAndNotification({
 		yoId,
 		notificationId,
 		deliveryPayload,
-		subscriptions: (subscriptionResults.results || []) as PushSubscriptionRow[],
+		subscriptions,
 	};
+}
+
+function pushSubscriptionsCacheKey(userId: number) {
+	return `${PUSH_SUBSCRIPTIONS_KV_PREFIX}${userId}`;
+}
+
+async function fetchPushSubscriptions(env: Bindings, userId: number) {
+	const cacheKey = pushSubscriptionsCacheKey(userId);
+	const cached = await env.OY2.get(cacheKey, "json");
+	if (cached) {
+		return cached as PushSubscriptionRow[];
+	}
+
+	const subscriptionResults = await env.DB.prepare(
+		`
+      SELECT endpoint, keys_p256dh, keys_auth
+      FROM push_subscriptions
+      WHERE user_id = ?
+    `,
+	)
+		.bind(userId)
+		.all();
+
+	const subscriptions = (subscriptionResults.results ||
+		[]) as PushSubscriptionRow[];
+	await env.OY2.put(cacheKey, JSON.stringify(subscriptions));
+	return subscriptions;
+}
+
+async function invalidatePushSubscriptionsCache(env: Bindings, userId: number) {
+	await env.OY2.delete(pushSubscriptionsCacheKey(userId));
 }
 
 // Middleware to get current user from header
@@ -330,7 +359,7 @@ app.use("*", async (c, next) => {
 	if (sessionToken) {
 		try {
 			const sessionKey = `${SESSION_KV_PREFIX}${sessionToken}`;
-			const cachedUser = await c.env.SESSIONS.get(sessionKey, "json");
+			const cachedUser = await c.env.OY2.get(sessionKey, "json");
 			const user =
 				(cachedUser as User | null) ??
 				((await c.env.DB.prepare(
@@ -353,7 +382,7 @@ app.use("*", async (c, next) => {
 				let cachePromise: Promise<void> | null = null;
 				if (!cachedUser) {
 					const cachedUserValue = { ...user, last_seen: null };
-					cachePromise = c.env.SESSIONS.put(
+					cachePromise = c.env.OY2.put(
 						sessionKey,
 						JSON.stringify(cachedUserValue),
 					);
@@ -430,7 +459,7 @@ async function createSession(env: Bindings, user: User) {
 	await env.DB.prepare("INSERT INTO sessions (token, user_id) VALUES (?, ?)")
 		.bind(sessionToken, user.id)
 		.run();
-	await env.SESSIONS.put(
+	await env.OY2.put(
 		`${SESSION_KV_PREFIX}${sessionToken}`,
 		JSON.stringify(user),
 	);
@@ -641,7 +670,7 @@ app.post("/api/auth/logout", async (c) => {
 	await c.env.DB.prepare("DELETE FROM sessions WHERE token = ?")
 		.bind(sessionToken)
 		.run();
-	await c.env.SESSIONS.delete(`${SESSION_KV_PREFIX}${sessionToken}`);
+	await c.env.OY2.delete(`${SESSION_KV_PREFIX}${sessionToken}`);
 
 	return c.json({ success: true });
 });
@@ -991,18 +1020,20 @@ app.post("/api/push/subscribe", async (c) => {
 		return c.json({ error: "Invalid subscription" }, 400);
 	}
 
-	await c.env.DB.batch([
-		c.env.DB.prepare("DELETE FROM push_subscriptions WHERE endpoint = ?").bind(
-			endpoint,
-		),
-		c.env.DB.prepare(
-			`
+	await c.env.DB.prepare("DELETE FROM push_subscriptions WHERE endpoint = ?")
+		.bind(endpoint)
+		.run();
+
+	await c.env.DB.prepare(
+		`
       INSERT OR REPLACE INTO push_subscriptions
         (user_id, endpoint, keys_p256dh, keys_auth)
       VALUES (?, ?, ?, ?)
     `,
-		).bind(user.id, endpoint, keys.p256dh, keys.auth),
-	]);
+	)
+		.bind(user.id, endpoint, keys.p256dh, keys.auth)
+		.run();
+	await invalidatePushSubscriptionsCache(c.env, user.id);
 
 	return c.json({ success: true });
 });
@@ -1025,6 +1056,7 @@ app.post("/api/push/unsubscribe", async (c) => {
 	)
 		.bind(user.id, endpoint)
 		.run();
+	await invalidatePushSubscriptionsCache(c.env, user.id);
 
 	return c.json({ success: true });
 });
@@ -1062,45 +1094,39 @@ app.get("/api/admin/stats", async (c) => {
 	const now = Math.floor(Date.now() / 1000);
 	const since = now - 60 * 60 * 24;
 
-	const activeUsersQuery = await c.env.DB.prepare(
-		`
-    SELECT id, username, last_seen
-    FROM users
-    WHERE last_seen >= ?
-      AND EXISTS (
-        SELECT 1 FROM sessions WHERE sessions.user_id = users.id
-      )
-    ORDER BY last_seen DESC
-  `,
-	)
-		.bind(since)
-		.all();
-
-	const notificationsQuery = await c.env.DB.prepare(
-		"SELECT COUNT(*) as count FROM notifications WHERE created_at >= ?",
-	)
-		.bind(since)
-		.first();
-
-	const deliveriesQuery = await c.env.DB.prepare(
-		`
-    SELECT
-      SUM(CASE WHEN success = 1 THEN 1 ELSE 0 END) as success_count,
-      COUNT(*) as total_count
-    FROM notification_deliveries
-    WHERE created_at >= ?
-  `,
-	)
-		.bind(since)
-		.first();
-
-	const usersCountQuery = await c.env.DB.prepare(
-		"SELECT COUNT(*) as count FROM users",
-	).first();
-
-	const subscriptionsCountQuery = await c.env.DB.prepare(
-		"SELECT COUNT(*) as count FROM push_subscriptions",
-	).first();
+	const [
+		activeUsersQuery,
+		notificationsQuery,
+		deliveriesQuery,
+		usersCountQuery,
+		subscriptionsCountQuery,
+	] = await c.env.DB.batch([
+		c.env.DB.prepare(
+			`
+      SELECT id, username, last_seen
+      FROM users
+      WHERE last_seen >= ?
+        AND EXISTS (
+          SELECT 1 FROM sessions WHERE sessions.user_id = users.id
+        )
+      ORDER BY last_seen DESC
+    `,
+		).bind(since),
+		c.env.DB.prepare(
+			"SELECT COUNT(*) as count FROM notifications WHERE created_at >= ?",
+		).bind(since),
+		c.env.DB.prepare(
+			`
+      SELECT
+        SUM(CASE WHEN success = 1 THEN 1 ELSE 0 END) as success_count,
+        COUNT(*) as total_count
+      FROM notification_deliveries
+      WHERE created_at >= ?
+    `,
+		).bind(since),
+		c.env.DB.prepare("SELECT COUNT(*) as count FROM users"),
+		c.env.DB.prepare("SELECT COUNT(*) as count FROM push_subscriptions"),
+	]);
 
 	const notificationsSent = Number(
 		(notificationsQuery as { count?: number | null } | null)?.count ?? 0,
