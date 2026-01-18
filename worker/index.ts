@@ -1,5 +1,4 @@
 import { Hono } from "hono";
-import type { AppVariables, Bindings, User } from "./types";
 import { SESSION_KV_PREFIX } from "./lib";
 import { registerAdminRoutes } from "./routes/admin";
 import { registerAuthRoutes } from "./routes/auth";
@@ -7,6 +6,7 @@ import { registerFriendRoutes } from "./routes/friends";
 import { registerOyRoutes } from "./routes/oys";
 import { registerPushRoutes } from "./routes/push";
 import { registerUserRoutes } from "./routes/users";
+import type { AppVariables, Bindings, User } from "./types";
 
 const app = new Hono<{
 	Bindings: Bindings;

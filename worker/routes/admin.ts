@@ -1,5 +1,5 @@
-import type { App } from "../types";
 import { getPhoneAuthEnabled, requireAdmin, setPhoneAuthEnabled } from "../lib";
+import type { App } from "../types";
 
 export function registerAdminRoutes(app: App) {
 	app.get("/api/admin/stats", async (c) => {

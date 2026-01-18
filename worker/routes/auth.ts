@@ -1,4 +1,3 @@
-import type { App } from "../types";
 import {
 	authUserPayload,
 	createSession,
@@ -12,6 +11,7 @@ import {
 	validateUsername,
 	verifyOtp,
 } from "../lib";
+import type { App } from "../types";
 
 export function registerAuthRoutes(app: App) {
 	app.post("/api/auth/start", async (c) => {

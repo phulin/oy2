@@ -1,5 +1,5 @@
-import type { App } from "../types";
 import { invalidatePushSubscriptionsCache } from "../lib";
+import type { App } from "../types";
 
 export function registerPushRoutes(app: App) {
 	app.post("/api/push/subscribe", async (c) => {

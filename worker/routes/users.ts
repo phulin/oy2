@@ -1,10 +1,10 @@
-import type { App, FriendUser } from "../types";
 import {
 	createUser,
 	fetchUserByUsername,
 	normalizeUsername,
 	validateUsername,
 } from "../lib";
+import type { App, FriendUser } from "../types";
 
 export function registerUserRoutes(app: App) {
 	app.post("/api/users", async (c) => {

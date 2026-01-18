@@ -1,5 +1,5 @@
-import type { App, OysCursor, PushPayload, YoRow } from "../types";
 import { createYoAndNotification, sendPushNotifications } from "../lib";
+import type { App, OysCursor, PushPayload, YoRow } from "../types";
 
 export function registerOyRoutes(app: App) {
 	app.post("/api/oy", async (c) => {
