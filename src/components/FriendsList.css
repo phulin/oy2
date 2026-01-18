@@ -10,6 +10,13 @@
 
 .friends-list-item-content {
 	flex: 1;
+	min-width: 0;
+}
+
+.friends-list-item-title {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
 .friends-list-item-actions {
