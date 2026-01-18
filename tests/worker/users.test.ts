@@ -104,7 +104,10 @@ describe("users", () => {
 			mutuals: Record<number, string[]>;
 		};
 		assert.equal(res.status, 200);
-		assert.deepEqual(body.mutuals[candidateOne.id], ["FriendA"]);
-		assert.deepEqual(body.mutuals[candidateTwo.id], ["FriendA", "FriendB"]);
+		assert.deepEqual(body.mutuals[String(candidateOne.id)], ["FriendA"]);
+		assert.deepEqual(body.mutuals[String(candidateTwo.id)], [
+			"FriendA",
+			"FriendB",
+		]);
 	});
 });

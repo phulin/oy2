@@ -419,6 +419,51 @@ class FakeD1PreparedStatement implements D1PreparedStatement {
 				.map((user) => ({ id: user.id, username: user.username }));
 			return { results };
 		}
+		if (
+			sql.startsWith("WITH current_friends AS") &&
+			sql.includes("ranked_mutuals")
+		) {
+			const [userId, ...candidateIds] = this.params as number[];
+			const friendIds = new Set(
+				this.db.friendships
+					.filter((row) => row.user_id === userId)
+					.map((row) => row.friend_id),
+			);
+			const candidateSet = new Set(candidateIds);
+			const mutualsMap = new Map<number, string[]>();
+			for (const row of this.db.friendships) {
+				if (!candidateSet.has(row.user_id)) {
+					continue;
+				}
+				if (!friendIds.has(row.friend_id)) {
+					continue;
+				}
+				const mutualUser = this.db.users.find((u) => u.id === row.friend_id);
+				if (!mutualUser) {
+					continue;
+				}
+				const list = mutualsMap.get(row.user_id) ?? [];
+				list.push(mutualUser.username);
+				mutualsMap.set(row.user_id, list);
+			}
+			const results = Array.from(mutualsMap.entries())
+				.flatMap(([candidateId, usernames]) =>
+					usernames
+						.sort((a, b) => a.localeCompare(b))
+						.slice(0, 5)
+						.map((mutual_username) => ({
+							candidate_id: candidateId,
+							mutual_username,
+						})),
+				)
+				.sort((a, b) => {
+					if (a.candidate_id !== b.candidate_id) {
+						return a.candidate_id - b.candidate_id;
+					}
+					return a.mutual_username.localeCompare(b.mutual_username);
+				});
+			return { results };
+		}
 		if (sql.startsWith("WITH current_friends AS")) {
 			const [userId] = this.params as [number];
 			const friendIds = new Set(
