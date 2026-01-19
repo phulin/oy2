@@ -33,6 +33,8 @@ const initialTab =
 		: "friends";
 const isAdminRoute = window.location.pathname === "/admin";
 const isPrivacyRoute = window.location.pathname === "/privacy";
+const cachedUserStorageKey = "cachedUser";
+const cachedFriendsStorageKey = "cachedFriends";
 
 type AuthStep = "login" | "phone" | "verify";
 
@@ -41,13 +43,31 @@ export default function App() {
 		return <PrivacyPolicyScreen />;
 	}
 
+	const cachedUserRaw = localStorage.getItem(cachedUserStorageKey);
+	const cachedFriendsRaw = localStorage.getItem(cachedFriendsStorageKey);
+	const initialSessionToken = localStorage.getItem("sessionToken");
+	const initialCachedUser =
+		initialSessionToken && cachedUserRaw
+			? (JSON.parse(cachedUserRaw) as User)
+			: null;
+	const initialCachedFriends = cachedFriendsRaw
+		? (JSON.parse(cachedFriendsRaw) as FriendWithLastYo[])
+		: [];
+
 	const [booting, setBooting] = createSignal(true);
-	const [currentUser, setCurrentUser] = createSignal<User | null>(null);
-	const [cachedUser, setCachedUser] = createSignal<User | null>(null);
-	const [sessionToken, setSessionToken] = createSignal<string | null>(null);
+	const [currentUser, setCurrentUser] = createSignal<User | null>(
+		initialCachedUser,
+	);
+	const [sessionToken, setSessionToken] = createSignal<string | null>(
+		initialSessionToken,
+	);
 	const [authStep, setAuthStep] = createSignal<AuthStep>("login");
 	const [pendingUsername, setPendingUsername] = createSignal<string>("");
-	const [friends, setFriends] = createSignal<FriendWithLastYo[]>([]);
+	const [friends, setFriends] =
+		createSignal<FriendWithLastYo[]>(initialCachedFriends);
+	const [hasCachedFriends, setHasCachedFriends] = createSignal(
+		cachedFriendsRaw !== null,
+	);
 	const [oys, setOys] = createSignal<Oy[]>([]);
 	const [tab, setTab] = createSignal(initialTab);
 	const [openLocations, setOpenLocations] = createSignal<Set<number>>(
@@ -61,7 +81,6 @@ export default function App() {
 	const [loadingFriends, setLoadingFriends] = createSignal(false);
 	const [hasMoreOys, setHasMoreOys] = createSignal(true);
 	const [oysCursor, setOysCursor] = createSignal<OysCursor | null>(null);
-	const [restoringSession, setRestoringSession] = createSignal(false);
 	let pendingExpandOyId: number | null =
 		parsedOyId !== null && Number.isFinite(parsedOyId) ? parsedOyId : null;
 	let pendingExpandType: string | null = requestedExpand;
@@ -173,7 +192,13 @@ export default function App() {
 			const { friends: data } = await api<{ friends: FriendWithLastYo[] }>(
 				"/api/friends",
 			);
-			setFriends(data || []);
+			const nextFriends = data || [];
+			setFriends(nextFriends);
+			localStorage.setItem(
+				cachedFriendsStorageKey,
+				JSON.stringify(nextFriends),
+			);
+			setHasCachedFriends(true);
 		} catch (err) {
 			console.error("Failed to load friends:", err);
 		} finally {
@@ -231,7 +256,7 @@ export default function App() {
 	async function applyAuthSession(user: User, token: string) {
 		setSessionToken(token);
 		localStorage.setItem("sessionToken", token);
-		localStorage.setItem("username", user.username);
+		localStorage.setItem(cachedUserStorageKey, JSON.stringify(user));
 		setCurrentUser(user);
 		await loadData();
 	}
@@ -316,13 +341,17 @@ export default function App() {
 			setSessionToken(token);
 			const { user } = await api<{ user: User }>("/api/auth/session");
 			setCurrentUser(user);
+			localStorage.setItem(cachedUserStorageKey, JSON.stringify(user));
 			await loadData();
 		} catch (_err) {
 			setSessionToken(null);
+			setCurrentUser(null);
 			localStorage.removeItem("sessionToken");
-			localStorage.removeItem("username");
+			localStorage.removeItem(cachedUserStorageKey);
+			localStorage.removeItem(cachedFriendsStorageKey);
 			setAuthStep("login");
 			setPendingUsername("");
+			setHasCachedFriends(false);
 		}
 	}
 
@@ -331,11 +360,14 @@ export default function App() {
 			console.error("Logout failed:", err);
 		});
 		setCurrentUser(null);
-		localStorage.removeItem("username");
 		localStorage.removeItem("sessionToken");
+		localStorage.removeItem(cachedUserStorageKey);
+		localStorage.removeItem(cachedFriendsStorageKey);
 		setSessionToken(null);
 		setAuthStep("login");
 		setPendingUsername("");
+		setFriends([]);
+		setHasCachedFriends(false);
 
 		const registration = swRegistration();
 		if (registration) {
@@ -377,8 +409,8 @@ export default function App() {
 			});
 			const user = currentUser() as User;
 			const now = Date.now();
-			setFriends((prev) =>
-				prev.map((friend) =>
+			setFriends((prev) => {
+				const nextFriends = prev.map((friend) =>
 					friend.id === toUserId
 						? {
 								...friend,
@@ -388,8 +420,14 @@ export default function App() {
 								streak,
 							}
 						: friend,
-				),
-			);
+				);
+				localStorage.setItem(
+					cachedFriendsStorageKey,
+					JSON.stringify(nextFriends),
+				);
+				setHasCachedFriends(true);
+				return nextFriends;
+			});
 		} catch (err) {
 			alert((err as Error).message);
 		}
@@ -425,8 +463,8 @@ export default function App() {
 			});
 			const user = currentUser() as User;
 			const now = Date.now();
-			setFriends((prev) =>
-				prev.map((friend) =>
+			setFriends((prev) => {
+				const nextFriends = prev.map((friend) =>
 					friend.id === toUserId
 						? {
 								...friend,
@@ -436,8 +474,14 @@ export default function App() {
 								streak,
 							}
 						: friend,
-				),
-			);
+				);
+				localStorage.setItem(
+					cachedFriendsStorageKey,
+					JSON.stringify(nextFriends),
+				);
+				setHasCachedFriends(true);
+				return nextFriends;
+			});
 		} catch (err) {
 			alert((err as Error).message);
 		}
@@ -457,17 +501,10 @@ export default function App() {
 
 	onMount(async () => {
 		await registerServiceWorker();
-		const savedToken = localStorage.getItem("sessionToken");
-		if (savedToken) {
-			setCachedUser({
-				id: -1,
-				username: localStorage.getItem("username") as string,
-			});
-			setRestoringSession(true);
+		if (initialSessionToken) {
 			setLoadingFriends(true);
 			setBooting(false);
-			await restoreSession(savedToken);
-			setRestoringSession(false);
+			await restoreSession(initialSessionToken);
 			if (!currentUser()) {
 				setLoadingFriends(false);
 			}
@@ -667,7 +704,7 @@ export default function App() {
 							<FriendsList
 								friends={friends()}
 								currentUserId={user.id}
-								loading={loadingFriends}
+								loading={() => loadingFriends() && !hasCachedFriends()}
 								onSendOy={sendOy}
 								onSendLo={sendLo}
 							/>
@@ -705,21 +742,17 @@ export default function App() {
 				<Show
 					when={currentUser()}
 					fallback={
-						restoringSession() && cachedUser() ? (
-							renderApp(cachedUser() as User)
-						) : (
-							<>
-								<Show when={authStep() === "login"}>
-									<LoginScreen onSubmit={handleLogin} />
-								</Show>
-								<Show when={authStep() === "phone"}>
-									<PhoneVerificationScreen onSubmit={handlePhoneSubmit} />
-								</Show>
-								<Show when={authStep() === "verify"}>
-									<VerifyCodeScreen onSubmit={handleVerifySubmit} />
-								</Show>
-							</>
-						)
+						<>
+							<Show when={authStep() === "login"}>
+								<LoginScreen onSubmit={handleLogin} />
+							</Show>
+							<Show when={authStep() === "phone"}>
+								<PhoneVerificationScreen onSubmit={handlePhoneSubmit} />
+							</Show>
+							<Show when={authStep() === "verify"}>
+								<VerifyCodeScreen onSubmit={handleVerifySubmit} />
+							</Show>
+						</>
 					}
 				>
 					{(user) => renderApp(user())}
