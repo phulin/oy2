@@ -3,8 +3,15 @@ import {
 	createYoAndNotification,
 	getStreakDateBoundaries,
 	sendPushNotifications,
+	updateLastSeen,
 } from "../lib";
-import type { App, AppContext, OysCursor, PushPayload, YoRow } from "../types";
+import type {
+	App,
+	AppContext,
+	YoRow as OyRow,
+	OysCursor,
+	PushPayload,
+} from "../types";
 
 export function registerOyRoutes(app: App) {
 	app.post("/api/oy", async (c: AppContext) => {
@@ -19,11 +26,13 @@ export function registerOyRoutes(app: App) {
 			return c.json({ error: "Missing toUserId" }, 400);
 		}
 
-		const areFriends = await c.env.DB.prepare(
-			"SELECT 1 FROM friendships WHERE user_id = ? AND friend_id = ? LIMIT 1",
-		)
-			.bind(user.id, toUserId)
-			.first();
+		const areFriendsResult = await c
+			.get("db")
+			.query(
+				"SELECT 1 FROM friendships WHERE user_id = $1 AND friend_id = $2 LIMIT 1",
+				[user.id, toUserId],
+			);
+		const areFriends = areFriendsResult.rows[0] ?? null;
 
 		if (!areFriends) {
 			return c.json({ error: "You can only send Oys to friends" }, 403);
@@ -41,19 +50,22 @@ export function registerOyRoutes(app: App) {
 				...notificationPayload,
 			}));
 
-		const streakRow = (await c.env.DB.prepare(
-			"SELECT last_yo_created_at, streak_start_date FROM friendships WHERE user_id = ? AND friend_id = ? LIMIT 1",
-		)
-			.bind(user.id, toUserId)
-			.first()) as {
+		const streakResult = await c.get("db").query<{
 			last_yo_created_at: number | null;
 			streak_start_date: number | null;
-		};
+		}>(
+			"SELECT last_yo_created_at, streak_start_date FROM last_yo_info WHERE user_id = $1 AND friend_id = $2 LIMIT 1",
+			[user.id, toUserId],
+		);
+		const streakRow = (streakResult.rows[0] ?? null) as {
+			last_yo_created_at: number | null;
+			streak_start_date: number | null;
+		} | null;
 
 		const { startOfTodayNY, startOfYesterdayNY } = getStreakDateBoundaries();
 		const streak = computeStreakLength({
-			lastYoCreatedAt: streakRow.last_yo_created_at,
-			streakStartDate: streakRow.streak_start_date,
+			lastYoCreatedAt: streakRow?.last_yo_created_at ?? null,
+			streakStartDate: streakRow?.streak_start_date ?? null,
 			startOfTodayNY,
 			startOfYesterdayNY,
 		});
@@ -68,6 +80,7 @@ export function registerOyRoutes(app: App) {
 			),
 		);
 
+		updateLastSeen(c, user.id);
 		return c.json({ success: true, yoId, streak });
 	});
 
@@ -84,7 +97,16 @@ export function registerOyRoutes(app: App) {
 		const hasCursor = Number.isFinite(before) && Number.isFinite(beforeId);
 		const pageSize = 30;
 
-		const yos = await c.env.DB.prepare(
+		const oys = await c.get("db").query<{
+			id: number;
+			from_user_id: number;
+			to_user_id: number;
+			type: string | null;
+			payload: string | null;
+			created_at: number;
+			from_username: string;
+			to_username: string;
+		}>(
 			`
     WITH inbound AS (
       SELECT y.id, y.from_user_id, y.to_user_id, y.type, y.payload, y.created_at,
@@ -93,14 +115,14 @@ export function registerOyRoutes(app: App) {
       FROM yos y
       INNER JOIN users u_from ON y.from_user_id = u_from.id
       INNER JOIN users u_to ON y.to_user_id = u_to.id
-      WHERE y.to_user_id = ?
+      WHERE y.to_user_id = $1
         AND (
-          ? = 0
-          OR y.created_at < ?
-          OR (y.created_at = ? AND y.id < ?)
+          $2 = 0
+          OR y.created_at < $3
+          OR (y.created_at = $4 AND y.id < $5)
         )
       ORDER BY y.created_at DESC, y.id DESC
-      LIMIT ?
+      LIMIT $6
     ),
     outbound AS (
       SELECT y.id, y.from_user_id, y.to_user_id, y.type, y.payload, y.created_at,
@@ -109,15 +131,15 @@ export function registerOyRoutes(app: App) {
       FROM yos y
       INNER JOIN users u_from ON y.from_user_id = u_from.id
       INNER JOIN users u_to ON y.to_user_id = u_to.id
-      WHERE y.from_user_id = ?
-        AND y.to_user_id != ?
+      WHERE y.from_user_id = $7
+        AND y.to_user_id != $8
         AND (
-          ? = 0
-          OR y.created_at < ?
-          OR (y.created_at = ? AND y.id < ?)
+          $9 = 0
+          OR y.created_at < $10
+          OR (y.created_at = $11 AND y.id < $12)
         )
       ORDER BY y.created_at DESC, y.id DESC
-      LIMIT ?
+      LIMIT $13
     )
     SELECT *
     FROM (
@@ -126,10 +148,9 @@ export function registerOyRoutes(app: App) {
       SELECT * FROM outbound
     )
     ORDER BY created_at DESC, id DESC
-    LIMIT ?
+    LIMIT $14
   `,
-		)
-			.bind(
+			[
 				user.id,
 				hasCursor ? 1 : 0,
 				hasCursor ? before : 0,
@@ -144,14 +165,13 @@ export function registerOyRoutes(app: App) {
 				hasCursor ? beforeId : 0,
 				pageSize,
 				pageSize,
-			)
-			.all();
+			],
+		);
 
-		const yoRows = (yos.results || []) as YoRow[];
-		const results = yoRows.map((yo) => ({
-			...yo,
-			payload: yo.payload ? JSON.parse(yo.payload) : null,
-			type: yo.type || "oy",
+		const results = (oys.rows as OyRow[]).map((oy) => ({
+			...oy,
+			payload: oy.payload ? JSON.parse(oy.payload) : null,
+			type: oy.type || "oy",
 		}));
 
 		const hasMore = results.length === pageSize;
@@ -176,11 +196,13 @@ export function registerOyRoutes(app: App) {
 			return c.json({ error: "Missing location" }, 400);
 		}
 
-		const areFriends = await c.env.DB.prepare(
-			"SELECT 1 FROM friendships WHERE user_id = ? AND friend_id = ? LIMIT 1",
-		)
-			.bind(user.id, toUserId)
-			.first();
+		const areFriendsResult = await c
+			.get("db")
+			.query(
+				"SELECT 1 FROM friendships WHERE user_id = $1 AND friend_id = $2 LIMIT 1",
+				[user.id, toUserId],
+			);
+		const areFriends = areFriendsResult.rows[0] ?? null;
 
 		if (!areFriends) {
 			return c.json({ error: "You can only send Los to friends" }, 403);
@@ -212,19 +234,22 @@ export function registerOyRoutes(app: App) {
 				}),
 			);
 
-		const streakRow = (await c.env.DB.prepare(
-			"SELECT last_yo_created_at, streak_start_date FROM friendships WHERE user_id = ? AND friend_id = ? LIMIT 1",
-		)
-			.bind(user.id, toUserId)
-			.first()) as {
+		const streakResult = await c.get("db").query<{
 			last_yo_created_at: number | null;
 			streak_start_date: number | null;
-		};
+		}>(
+			"SELECT last_yo_created_at, streak_start_date FROM last_yo_info WHERE user_id = $1 AND friend_id = $2 LIMIT 1",
+			[user.id, toUserId],
+		);
+		const streakRow = (streakResult.rows[0] ?? null) as {
+			last_yo_created_at: number | null;
+			streak_start_date: number | null;
+		} | null;
 
 		const { startOfTodayNY, startOfYesterdayNY } = getStreakDateBoundaries();
 		const streak = computeStreakLength({
-			lastYoCreatedAt: streakRow.last_yo_created_at,
-			streakStartDate: streakRow.streak_start_date,
+			lastYoCreatedAt: streakRow?.last_yo_created_at ?? null,
+			streakStartDate: streakRow?.streak_start_date ?? null,
 			startOfTodayNY,
 			startOfYesterdayNY,
 		});
@@ -239,6 +264,7 @@ export function registerOyRoutes(app: App) {
 			),
 		);
 
+		updateLastSeen(c, user.id);
 		return c.json({ success: true, yoId, streak });
 	});
 }

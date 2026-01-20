@@ -14,19 +14,18 @@ export function registerPushRoutes(app: App) {
 			return c.json({ error: "Invalid subscription" }, 400);
 		}
 
-		await c.env.DB.prepare("DELETE FROM push_subscriptions WHERE endpoint = ?")
-			.bind(endpoint)
-			.run();
+		await c
+			.get("db")
+			.query("DELETE FROM push_subscriptions WHERE endpoint = $1", [endpoint]);
 
-		await c.env.DB.prepare(
+		await c.get("db").query(
 			`
-      INSERT OR REPLACE INTO push_subscriptions
+      INSERT INTO push_subscriptions
         (user_id, endpoint, keys_p256dh, keys_auth)
-      VALUES (?, ?, ?, ?)
+      VALUES ($1, $2, $3, $4)
     `,
-		)
-			.bind(user.id, endpoint, keys.p256dh, keys.auth)
-			.run();
+			[user.id, endpoint, keys.p256dh, keys.auth],
+		);
 		await invalidatePushSubscriptionsCache(c, user.id);
 
 		return c.json({ success: true });
@@ -44,11 +43,12 @@ export function registerPushRoutes(app: App) {
 			return c.json({ error: "Missing endpoint" }, 400);
 		}
 
-		await c.env.DB.prepare(
-			"DELETE FROM push_subscriptions WHERE user_id = ? AND endpoint = ?",
-		)
-			.bind(user.id, endpoint)
-			.run();
+		await c
+			.get("db")
+			.query(
+				"DELETE FROM push_subscriptions WHERE user_id = $1 AND endpoint = $2",
+				[user.id, endpoint],
+			);
 		await invalidatePushSubscriptionsCache(c, user.id);
 
 		return c.json({ success: true });

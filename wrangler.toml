@@ -2,20 +2,42 @@ name = "oy2"
 main = "./worker/index.ts"
 compatibility_date = "2024-09-23"
 compatibility_flags = ["nodejs_compat"]
-assets = { not_found_handling = "single-page-application", run_worker_first = ["/api/*"] }
+preview_urls = true
 
 [placement]
 mode = "smart"
 
-# D1 Database binding
-[[d1_databases]]
-binding = "DB"
-database_name = "oy2-db"
-database_id = "bf90ad59-1e3c-40e7-b144-bba66eb17287"
+[assets]
+run_worker_first = ["/api/*"]
+not_found_handling = "single-page-application"
+
+[[routes]]
+pattern = "oyme.site"
+custom_domain = true
+
+# Hyperdrive - main DB.
+[[hyperdrive]]
+binding = "HYPERDRIVE"
+id = "f9cd31eff0a444f0b02cca63f470a151"
 
 [[kv_namespaces]]
 binding = "OY2"
 id = "3dff6009997c423ead2cea611dc58cb3"
+
+[env.dev]
+name = "oy2-dev"
+
+[[env.dev.routes]]
+pattern = "dev.oyme.site"
+custom_domain = true
+
+[[env.dev.hyperdrive]]
+binding = "HYPERDRIVE"
+id = "f9cd31eff0a444f0b02cca63f470a151"
+
+[[env.dev.kv_namespaces]]
+binding = "OY2"
+id = "baa178298c3b4f84bfa9f66c5a9807a9"
 
 [observability]
 enabled = true
@@ -30,12 +52,3 @@ invocation_logs = true
 [observability.traces]
 enabled = true
 head_sampling_rate = 1
-
-# Development settings
-[dev]
-port = 8787
-
-# Deployment settings
-[[routes]]
-pattern = "oyme.site"
-custom_domain = true

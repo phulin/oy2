@@ -1,7 +1,16 @@
 import type { Context, Hono } from "hono";
 
+export type DbClient = {
+	query: <T = unknown>(
+		sql: string,
+		params?: unknown[],
+	) => Promise<{ rows: T[]; rowCount: number }>;
+	end: () => Promise<void> | void;
+};
+
 export type Bindings = {
-	DB: D1Database;
+	HYPERDRIVE: Hyperdrive;
+	TEST_DB?: DbClient;
 	VAPID_PUBLIC_KEY: string;
 	VAPID_PRIVATE_KEY: string;
 	VAPID_SUBJECT?: string;
@@ -16,7 +25,6 @@ export type User = {
 	phone?: string | null;
 	phone_verified?: number | null;
 	admin?: number | null;
-	last_seen?: number | null;
 };
 
 export type FriendUser = {
@@ -28,6 +36,10 @@ export type FriendUser = {
 export type FriendListRow = {
 	id: number;
 	username: string;
+};
+
+export type LastYoInfoRow = {
+	friend_id: number;
 	last_yo_type: string | null;
 	last_yo_created_at: number | null;
 	last_yo_from_user_id: number | null;
@@ -70,7 +82,7 @@ export type OysCursor = {
 export type AppVariables = {
 	user: User | null;
 	sessionToken: string | null;
-	bootMs: number;
+	db: DbClient;
 };
 
 export type App = Hono<{

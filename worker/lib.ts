@@ -164,27 +164,28 @@ export async function sendPushNotifications(
 		);
 
 		let didMutateSubscriptions = false;
-		const statements: D1PreparedStatement[] = [];
+		const queries: Array<Promise<unknown>> = [];
 
 		for (let i = 0; i < results.length; i += 1) {
 			const result = results[i];
 			const sub = subscriptions[i];
 
 			for (const attempt of result.attempts) {
-				statements.push(
-					env.DB.prepare(
+				queries.push(
+					c.get("db").query(
 						`
             INSERT INTO notification_deliveries
               (notification_id, endpoint, attempt, success, status_code, error_message)
-            VALUES (?, ?, ?, ?, ?, ?)
+            VALUES ($1, $2, $3, $4, $5, $6)
           `,
-					).bind(
-						notificationId,
-						attempt.endpoint,
-						attempt.attempt,
-						attempt.success ? 1 : 0,
-						attempt.statusCode ?? null,
-						attempt.errorMessage ?? null,
+						[
+							notificationId,
+							attempt.endpoint,
+							attempt.attempt,
+							attempt.success ? 1 : 0,
+							attempt.statusCode ?? null,
+							attempt.errorMessage ?? null,
+						],
 					),
 				);
 			}
@@ -192,18 +193,21 @@ export async function sendPushNotifications(
 			if (!result.delivered) {
 				console.error("Failed to send push:", result.statusCode);
 				if (result.statusCode === 410) {
-					statements.push(
-						env.DB.prepare(
-							"DELETE FROM push_subscriptions WHERE user_id = ? AND endpoint = ?",
-						).bind(toUserId, sub.endpoint),
+					queries.push(
+						c
+							.get("db")
+							.query(
+								"DELETE FROM push_subscriptions WHERE user_id = $1 AND endpoint = $2",
+								[toUserId, sub.endpoint],
+							),
 					);
 					didMutateSubscriptions = true;
 				}
 			}
 		}
 
-		if (statements.length > 0) {
-			await env.DB.batch(statements);
+		if (queries.length > 0) {
+			await Promise.all(queries);
 		}
 		if (didMutateSubscriptions) {
 			await invalidatePushSubscriptionsCache(c, toUserId);
@@ -221,59 +225,87 @@ export async function createYoAndNotification(
 	yoPayload: string | null,
 	makeNotificationPayload: (yoId: number) => PushPayload,
 ) {
-	const { env } = c;
 	const createdAt = Math.floor(Date.now() / 1000);
 	const { startOfTodayNY, startOfYesterdayNY } = getStreakDateBoundaries();
-	const batchResults = await env.DB.batch([
-		env.DB.prepare(
-			`
+	const yoResult = await c.get("db").query<{ id: number }>(
+		`
       INSERT INTO yos (from_user_id, to_user_id, type, payload, created_at)
-      VALUES (?, ?, ?, ?, ?)
+      VALUES ($1, $2, $3, $4, $5)
+      RETURNING id
     `,
-		).bind(fromUserId, toUserId, type, yoPayload, createdAt),
-		env.DB.prepare(
-			`
-      UPDATE friendships
-      SET last_yo_id = last_insert_rowid(),
-          last_yo_type = ?,
-          last_yo_created_at = ?,
-          last_yo_from_user_id = ?,
-          streak_start_date = CASE
-            WHEN last_yo_created_at >= ? THEN streak_start_date
-            ELSE ?
-          END
-      WHERE (user_id = ? AND friend_id = ?)
-         OR (user_id = ? AND friend_id = ?)
+		[fromUserId, toUserId, type, yoPayload, createdAt],
+	);
+
+	const yoId = Number(yoResult.rows[0]?.id);
+
+	// Update last_yo_info for both directions of the friendship
+	await c.get("db").query(
+		`
+      INSERT INTO last_yo_info (user_id, friend_id, last_yo_id, last_yo_type, last_yo_created_at, last_yo_from_user_id, streak, streak_start_date)
+      VALUES ($1, $2, $3, $4, $5, $6, 1, $7)
+      ON CONFLICT (user_id, friend_id) DO UPDATE SET
+        last_yo_id = EXCLUDED.last_yo_id,
+        last_yo_type = EXCLUDED.last_yo_type,
+        last_yo_created_at = EXCLUDED.last_yo_created_at,
+        last_yo_from_user_id = EXCLUDED.last_yo_from_user_id,
+        streak_start_date = CASE
+          WHEN last_yo_info.last_yo_created_at >= $8 THEN last_yo_info.streak_start_date
+          ELSE EXCLUDED.streak_start_date
+        END
     `,
-		).bind(
+		[
+			fromUserId,
+			toUserId,
+			yoId,
 			type,
 			createdAt,
 			fromUserId,
-			startOfYesterdayNY,
 			startOfTodayNY,
-			fromUserId,
-			toUserId,
-			toUserId,
-			fromUserId,
-		),
-	]);
+			startOfYesterdayNY,
+		],
+	);
 
-	const yoId = Number(batchResults[0].meta.last_row_id);
+	await c.get("db").query(
+		`
+      INSERT INTO last_yo_info (user_id, friend_id, last_yo_id, last_yo_type, last_yo_created_at, last_yo_from_user_id, streak, streak_start_date)
+      VALUES ($1, $2, $3, $4, $5, $6, 1, $7)
+      ON CONFLICT (user_id, friend_id) DO UPDATE SET
+        last_yo_id = EXCLUDED.last_yo_id,
+        last_yo_type = EXCLUDED.last_yo_type,
+        last_yo_created_at = EXCLUDED.last_yo_created_at,
+        last_yo_from_user_id = EXCLUDED.last_yo_from_user_id,
+        streak_start_date = CASE
+          WHEN last_yo_info.last_yo_created_at >= $8 THEN last_yo_info.streak_start_date
+          ELSE EXCLUDED.streak_start_date
+        END
+    `,
+		[
+			toUserId,
+			fromUserId,
+			yoId,
+			type,
+			createdAt,
+			fromUserId,
+			startOfTodayNY,
+			startOfYesterdayNY,
+		],
+	);
+
 	const notificationPayload = makeNotificationPayload(yoId);
 	const subscriptionsPromise = fetchPushSubscriptions(c, toUserId);
-	const notificationInsertPromise = env.DB.prepare(
+	const notificationInsertPromise = c.get("db").query<{ id: number }>(
 		`
       INSERT INTO notifications (to_user_id, from_user_id, type, payload)
-      VALUES (?, ?, ?, ?)
+      VALUES ($1, $2, $3, $4)
+      RETURNING id
     `,
-	)
-		.bind(toUserId, fromUserId, type, JSON.stringify(notificationPayload))
-		.run();
+		[toUserId, fromUserId, type, JSON.stringify(notificationPayload)],
+	);
 	const [notificationInsert, subscriptions] = await Promise.all([
 		notificationInsertPromise,
 		subscriptionsPromise,
 	]);
-	const notificationId = Number(notificationInsert.meta.last_row_id);
+	const notificationId = Number(notificationInsert.rows[0]?.id);
 
 	const deliveryPayload: PushPayload = {
 		...notificationPayload,
@@ -300,18 +332,16 @@ async function fetchPushSubscriptions(c: AppContext, userId: number) {
 		return cached as PushSubscriptionRow[];
 	}
 
-	const subscriptionResults = await c.env.DB.prepare(
+	const subscriptionResults = await c.get("db").query<PushSubscriptionRow>(
 		`
       SELECT endpoint, keys_p256dh, keys_auth
       FROM push_subscriptions
-      WHERE user_id = ?
+      WHERE user_id = $1
     `,
-	)
-		.bind(userId)
-		.all();
+		[userId],
+	);
 
-	const subscriptions = (subscriptionResults.results ||
-		[]) as PushSubscriptionRow[];
+	const subscriptions = subscriptionResults.rows;
 	const cacheWrite = c.env.OY2.put(cacheKey, JSON.stringify(subscriptions));
 	c.executionCtx.waitUntil(cacheWrite);
 	return subscriptions;
@@ -380,9 +410,12 @@ export function validateUsername(username: string) {
 
 export async function createSession(c: AppContext, user: User) {
 	const sessionToken = crypto.randomUUID();
-	await c.env.DB.prepare("INSERT INTO sessions (token, user_id) VALUES (?, ?)")
-		.bind(sessionToken, user.id)
-		.run();
+	await c
+		.get("db")
+		.query("INSERT INTO sessions (token, user_id) VALUES ($1, $2)", [
+			sessionToken,
+			user.id,
+		]);
 	await c.env.OY2.put(
 		`${SESSION_KV_PREFIX}${sessionToken}`,
 		JSON.stringify(user),
@@ -390,65 +423,22 @@ export async function createSession(c: AppContext, user: User) {
 	return sessionToken;
 }
 
+export function updateLastSeen(c: AppContext, userId: number) {
+	const now = Math.floor(Date.now() / 1000);
+	c.executionCtx.waitUntil(
+		c.get("db").query(
+			`INSERT INTO user_last_seen (user_id, last_seen) VALUES ($1, $2)
+				ON CONFLICT (user_id) DO UPDATE SET last_seen = EXCLUDED.last_seen`,
+			[userId, now],
+		),
+	);
+}
+
 export async function fetchUserByUsername(c: AppContext, username: string) {
-	return (await c.env.DB.prepare(
-		"SELECT * FROM users WHERE username COLLATE NOCASE = ?",
-	)
-		.bind(username)
-		.first()) as User | null;
-}
-
-export async function fetchUserById(c: AppContext, userId: number) {
-	return (await c.env.DB.prepare("SELECT * FROM users WHERE id = ?")
-		.bind(userId)
-		.first()) as User | null;
-}
-
-export async function createUser(
-	c: AppContext,
-	{
-		username,
-		phone,
-		phoneVerified,
-	}: { username: string; phone?: string | null; phoneVerified?: number | null },
-) {
-	let result: D1Result;
-	if (phone !== undefined || phoneVerified !== undefined) {
-		result = await c.env.DB.prepare(
-			"INSERT INTO users (username, phone, phone_verified) VALUES (?, ?, ?)",
-		)
-			.bind(username, phone ?? null, phoneVerified ?? null)
-			.run();
-	} else {
-		result = await c.env.DB.prepare("INSERT INTO users (username) VALUES (?)")
-			.bind(username)
-			.run();
-	}
-
-	const user = await fetchUserById(c, result.meta.last_row_id);
-	return { user, result };
-}
-
-export async function ensureUserPhoneForOtp(
-	c: AppContext,
-	user: User | null,
-	{ username, phone }: { username: string; phone: string },
-) {
-	if (!user) {
-		const { user: createdUser } = await createUser(c, {
-			username,
-			phone,
-			phoneVerified: 0,
-		});
-		return createdUser;
-	}
-
-	await c.env.DB.prepare(
-		"UPDATE users SET phone = ?, phone_verified = 0 WHERE id = ?",
-	)
-		.bind(phone, user.id)
-		.run();
-	return user;
+	const result = await c
+		.get("db")
+		.query<User>("SELECT * FROM users WHERE username ILIKE $1", [username]);
+	return result.rows[0] ?? null;
 }
 
 export async function sendOtpResponse(

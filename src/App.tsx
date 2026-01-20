@@ -1,6 +1,13 @@
 import { registerSW } from "virtual:pwa-register";
 import { Tabs } from "@kobalte/core";
-import { createEffect, createSignal, onCleanup, onMount, Show } from "solid-js";
+import {
+	createEffect,
+	createMemo,
+	createSignal,
+	onCleanup,
+	onMount,
+	Show,
+} from "solid-js";
 import { AddFriendForm } from "./components/AddFriendForm";
 import { AdminDashboard } from "./components/AdminDashboard";
 import { AppHeader } from "./components/AppHeader";
@@ -13,7 +20,14 @@ import { PrivacyPolicyScreen } from "./components/PrivacyPolicyScreen";
 import { Screen } from "./components/Screen";
 import { SwipeableTabs } from "./components/SwipeableTabs";
 import { VerifyCodeScreen } from "./components/VerifyCodeScreen";
-import type { FriendWithLastYo, Oy, OysCursor, User } from "./types";
+import type {
+	Friend,
+	FriendWithLastYo,
+	LastYoInfo,
+	Oy,
+	OysCursor,
+	User,
+} from "./types";
 import { urlBase64ToUint8Array } from "./utils";
 import "./App.css";
 
@@ -35,6 +49,7 @@ const isAdminRoute = window.location.pathname === "/admin";
 const isPrivacyRoute = window.location.pathname === "/privacy";
 const cachedUserStorageKey = "cachedUser";
 const cachedFriendsStorageKey = "cachedFriends";
+const cachedLastYoInfoStorageKey = "cachedLastYoInfo";
 
 type AuthStep = "login" | "phone" | "verify";
 
@@ -45,13 +60,17 @@ export default function App() {
 
 	const cachedUserRaw = localStorage.getItem(cachedUserStorageKey);
 	const cachedFriendsRaw = localStorage.getItem(cachedFriendsStorageKey);
+	const cachedLastYoInfoRaw = localStorage.getItem(cachedLastYoInfoStorageKey);
 	const initialSessionToken = localStorage.getItem("sessionToken");
 	const initialCachedUser =
 		initialSessionToken && cachedUserRaw
 			? (JSON.parse(cachedUserRaw) as User)
 			: null;
 	const initialCachedFriends = cachedFriendsRaw
-		? (JSON.parse(cachedFriendsRaw) as FriendWithLastYo[])
+		? (JSON.parse(cachedFriendsRaw) as Friend[])
+		: [];
+	const initialCachedLastYoInfo = cachedLastYoInfoRaw
+		? (JSON.parse(cachedLastYoInfoRaw) as LastYoInfo[])
 		: [];
 
 	const [booting, setBooting] = createSignal(true);
@@ -63,10 +82,15 @@ export default function App() {
 	);
 	const [authStep, setAuthStep] = createSignal<AuthStep>("login");
 	const [pendingUsername, setPendingUsername] = createSignal<string>("");
-	const [friends, setFriends] =
-		createSignal<FriendWithLastYo[]>(initialCachedFriends);
+	const [friends, setFriends] = createSignal<Friend[]>(initialCachedFriends);
+	const [lastYoInfo, setLastYoInfo] = createSignal<LastYoInfo[]>(
+		initialCachedLastYoInfo,
+	);
 	const [hasCachedFriends, setHasCachedFriends] = createSignal(
 		cachedFriendsRaw !== null,
+	);
+	const [hasCachedLastYoInfo, setHasCachedLastYoInfo] = createSignal(
+		cachedLastYoInfoRaw !== null,
 	);
 	const [oys, setOys] = createSignal<Oy[]>([]);
 	const [tab, setTab] = createSignal(initialTab);
@@ -79,6 +103,7 @@ export default function App() {
 	const [loadingOys, setLoadingOys] = createSignal(false);
 	const [loadingMoreOys, setLoadingMoreOys] = createSignal(false);
 	const [loadingFriends, setLoadingFriends] = createSignal(false);
+	const [loadingLastYoInfo, setLoadingLastYoInfo] = createSignal(false);
 	const [hasMoreOys, setHasMoreOys] = createSignal(true);
 	const [oysCursor, setOysCursor] = createSignal<OysCursor | null>(null);
 	let pendingExpandOyId: number | null =
@@ -87,6 +112,22 @@ export default function App() {
 	let hasUpdatedHash = false;
 	const tabOrder = ["friends", "oys", "add"] as const;
 	const seenNotificationLimit = 100;
+
+	const friendsWithLastYo = createMemo<FriendWithLastYo[]>(() => {
+		const infoByFriendId = new Map(
+			lastYoInfo().map((info) => [info.friend_id, info]),
+		);
+		return friends().map((friend) => {
+			const info = infoByFriendId.get(friend.id);
+			return {
+				...friend,
+				last_yo_type: info?.last_yo_type ?? null,
+				last_yo_created_at: info?.last_yo_created_at ?? null,
+				last_yo_from_user_id: info?.last_yo_from_user_id ?? null,
+				streak: info?.streak ?? 0,
+			};
+		});
+	});
 
 	async function api<T>(
 		endpoint: string,
@@ -146,11 +187,6 @@ export default function App() {
 			method: "POST",
 			body: JSON.stringify(subscription.toJSON()),
 		});
-		const user = currentUser() as User;
-		console.log("Push subscription saved", {
-			endpoint: subscription.endpoint,
-			userId: user.id,
-		});
 	}
 
 	async function registerServiceWorker() {
@@ -189,7 +225,7 @@ export default function App() {
 	async function loadFriends() {
 		setLoadingFriends(true);
 		try {
-			const { friends: data } = await api<{ friends: FriendWithLastYo[] }>(
+			const { friends: data } = await api<{ friends: Friend[] }>(
 				"/api/friends",
 			);
 			const nextFriends = data || [];
@@ -203,6 +239,26 @@ export default function App() {
 			console.error("Failed to load friends:", err);
 		} finally {
 			setLoadingFriends(false);
+		}
+	}
+
+	async function loadLastYoInfo() {
+		setLoadingLastYoInfo(true);
+		try {
+			const { lastYoInfo: data } = await api<{ lastYoInfo: LastYoInfo[] }>(
+				"/api/last-yo-info",
+			);
+			const nextLastYoInfo = data || [];
+			setLastYoInfo(nextLastYoInfo);
+			localStorage.setItem(
+				cachedLastYoInfoStorageKey,
+				JSON.stringify(nextLastYoInfo),
+			);
+			setHasCachedLastYoInfo(true);
+		} catch (err) {
+			console.error("Failed to load last yo info:", err);
+		} finally {
+			setLoadingLastYoInfo(false);
 		}
 	}
 
@@ -297,18 +353,11 @@ export default function App() {
 			return;
 		}
 		try {
-			const response = await api<
-				| { status: "needs_phone" | "code_sent" }
-				| { status: "authenticated"; user: User; token: string }
-			>("/api/auth/start", {
+			const response = await api<{ status: "code_sent" }>("/api/auth/phone", {
 				method: "POST",
 				body: JSON.stringify({ username: pendingUsername(), phone }),
 			});
-			if (response.status === "authenticated") {
-				await applyAuthSession(response.user, response.token);
-				return;
-			}
-			setAuthStep(response.status === "needs_phone" ? "phone" : "verify");
+			setAuthStep(response.status === "code_sent" ? "verify" : "phone");
 		} catch (err) {
 			alert((err as Error).message);
 		}
@@ -349,29 +398,41 @@ export default function App() {
 			localStorage.removeItem("sessionToken");
 			localStorage.removeItem(cachedUserStorageKey);
 			localStorage.removeItem(cachedFriendsStorageKey);
+			localStorage.removeItem(cachedLastYoInfoStorageKey);
 			setAuthStep("login");
 			setPendingUsername("");
 			setHasCachedFriends(false);
+			setLastYoInfo([]);
+			setHasCachedLastYoInfo(false);
 		}
 	}
 
 	function logout() {
-		api("/api/auth/logout", { method: "POST" }).catch((err) => {
-			console.error("Logout failed:", err);
-		});
+		const token = sessionToken();
+		if (token) {
+			api("/api/auth/logout", {
+				method: "POST",
+				headers: { "X-Session-Token": token },
+			}).catch((err) => {
+				console.error("Logout failed:", err);
+			});
+		}
 		setCurrentUser(null);
 		localStorage.removeItem("sessionToken");
 		localStorage.removeItem(cachedUserStorageKey);
 		localStorage.removeItem(cachedFriendsStorageKey);
+		localStorage.removeItem(cachedLastYoInfoStorageKey);
 		setSessionToken(null);
 		setAuthStep("login");
 		setPendingUsername("");
 		setFriends([]);
+		setLastYoInfo([]);
 		setHasCachedFriends(false);
+		setHasCachedLastYoInfo(false);
 
 		const registration = swRegistration();
-		if (registration) {
-			unsubscribePush(registration).catch((err) => {
+		if (registration && token) {
+			unsubscribePush(registration, token).catch((err) => {
 				console.error("Push unsubscribe failed:", err);
 			});
 		}
@@ -389,7 +450,10 @@ export default function App() {
 		}
 	}
 
-	async function unsubscribePush(registration: ServiceWorkerRegistration) {
+	async function unsubscribePush(
+		registration: ServiceWorkerRegistration,
+		token?: string,
+	) {
 		const subscription = await registration.pushManager.getSubscription();
 		if (!subscription) {
 			return;
@@ -397,6 +461,7 @@ export default function App() {
 
 		await api("/api/push/unsubscribe", {
 			method: "POST",
+			headers: token ? { "X-Session-Token": token } : undefined,
 			body: JSON.stringify({ endpoint: subscription.endpoint }),
 		});
 	}
@@ -409,24 +474,36 @@ export default function App() {
 			});
 			const user = currentUser() as User;
 			const now = Date.now();
-			setFriends((prev) => {
-				const nextFriends = prev.map((friend) =>
-					friend.id === toUserId
-						? {
-								...friend,
+			setLastYoInfo((prev) => {
+				const existing = prev.find((info) => info.friend_id === toUserId);
+				const nextInfo = existing
+					? prev.map((info) =>
+							info.friend_id === toUserId
+								? {
+										...info,
+										last_yo_type: "oy",
+										last_yo_created_at: now,
+										last_yo_from_user_id: user.id,
+										streak,
+									}
+								: info,
+						)
+					: [
+							...prev,
+							{
+								friend_id: toUserId,
 								last_yo_type: "oy",
 								last_yo_created_at: now,
 								last_yo_from_user_id: user.id,
 								streak,
-							}
-						: friend,
-				);
+							},
+						];
 				localStorage.setItem(
-					cachedFriendsStorageKey,
-					JSON.stringify(nextFriends),
+					cachedLastYoInfoStorageKey,
+					JSON.stringify(nextInfo),
 				);
-				setHasCachedFriends(true);
-				return nextFriends;
+				setHasCachedLastYoInfo(true);
+				return nextInfo;
 			});
 		} catch (err) {
 			alert((err as Error).message);
@@ -463,24 +540,36 @@ export default function App() {
 			});
 			const user = currentUser() as User;
 			const now = Date.now();
-			setFriends((prev) => {
-				const nextFriends = prev.map((friend) =>
-					friend.id === toUserId
-						? {
-								...friend,
+			setLastYoInfo((prev) => {
+				const existing = prev.find((info) => info.friend_id === toUserId);
+				const nextInfo = existing
+					? prev.map((info) =>
+							info.friend_id === toUserId
+								? {
+										...info,
+										last_yo_type: "lo",
+										last_yo_created_at: now,
+										last_yo_from_user_id: user.id,
+										streak,
+									}
+								: info,
+						)
+					: [
+							...prev,
+							{
+								friend_id: toUserId,
 								last_yo_type: "lo",
 								last_yo_created_at: now,
 								last_yo_from_user_id: user.id,
 								streak,
-							}
-						: friend,
-				);
+							},
+						];
 				localStorage.setItem(
-					cachedFriendsStorageKey,
-					JSON.stringify(nextFriends),
+					cachedLastYoInfoStorageKey,
+					JSON.stringify(nextInfo),
 				);
-				setHasCachedFriends(true);
-				return nextFriends;
+				setHasCachedLastYoInfo(true);
+				return nextInfo;
 			});
 		} catch (err) {
 			alert((err as Error).message);
@@ -600,6 +689,7 @@ export default function App() {
 			}
 			if (currentUser()) {
 				void loadFriends();
+				void loadLastYoInfo();
 			}
 			void oyAudio.play().catch(() => {
 				ensureAudioUnlocked();
@@ -646,6 +736,7 @@ export default function App() {
 	createEffect(() => {
 		if (tab() === "friends" && currentUser()) {
 			loadFriends();
+			loadLastYoInfo();
 		}
 	});
 
@@ -702,9 +793,12 @@ export default function App() {
 					<SwipeableTabs order={tabOrder} value={tab} onChange={setTab}>
 						<Tabs.Content value="friends">
 							<FriendsList
-								friends={friends()}
+								friends={friendsWithLastYo()}
 								currentUserId={user.id}
 								loading={() => loadingFriends() && !hasCachedFriends()}
+								loadingLastYo={() =>
+									loadingLastYoInfo() && !hasCachedLastYoInfo()
+								}
 								onSendOy={sendOy}
 								onSendLo={sendLo}
 							/>

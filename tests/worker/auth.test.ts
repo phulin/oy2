@@ -45,6 +45,42 @@ describe("auth", () => {
 		assert.equal(db.users.length, 0);
 	});
 
+	it("rejects phone submissions when phone already set", async () => {
+		const { env, db } = createTestEnv();
+		seedUser(db, { username: "Rae", phone: "+14155550101" });
+		const { res, json } = await jsonRequest(env, "/api/auth/phone", {
+			method: "POST",
+			body: { username: "Rae", phone: "+14155550102" },
+		});
+		assert.equal(res.status, 400);
+		assert.equal(json.error, "Phone number already set");
+	});
+
+	it("rejects phone submissions for missing users", async () => {
+		const { env } = createTestEnv();
+		const { res, json } = await jsonRequest(env, "/api/auth/phone", {
+			method: "POST",
+			body: { username: "Rae", phone: "+14155550101" },
+		});
+		assert.equal(res.status, 404);
+		assert.equal(json.error, "User not found");
+	});
+
+	it("accepts phone submissions and sends OTP", async (t) => {
+		const { env, db } = createTestEnv();
+		seedUser(db, { username: "Rae" });
+		setOtpFetchMock(t);
+		const { res, json } = await jsonRequest(env, "/api/auth/phone", {
+			method: "POST",
+			body: { username: "Rae", phone: "+14155550101" },
+		});
+		assert.equal(res.status, 200);
+		assert.equal(json.status, "code_sent");
+		assert.equal(db.users.length, 1);
+		assert.equal(db.users[0].phone, "+14155550101");
+		assert.equal(db.users[0].phone_verified, 0);
+	});
+
 	it("sends OTP when phone auth enabled and user has a phone", async (t) => {
 		const { env, db } = createTestEnv();
 		seedUser(db, { username: "Mira", phone: "+14155552671" });

@@ -9,16 +9,16 @@
 		"build": "vite build",
 		"preview": "vite preview",
 		"deploy": "vite build && wrangler deploy",
+		"deploy:preview": "vite build && wrangler deploy --env preview",
 		"test": "tsx --test tests/worker/*.test.ts",
 		"lint": "biome check .",
 		"lint:fix": "biome check --write .",
 		"format": "biome format .",
 		"format:fix": "biome format --write .",
 		"check": "tsc -b",
-		"generate-vapid": "node scripts/generate-vapid-keys.js",
-		"db:create": "wrangler d1 create oy2-db",
-		"db:migrate": "wrangler d1 migrations apply oy2-db --remote",
-		"db:migrate:local": "wrangler d1 migrations apply oy2-db --local"
+		"db:migrate:local": "wrangler d1 migrations apply oy2-db --local",
+		"db:migrate:pg": "tsx scripts/migrate.ts",
+		"db:migrate:remote": "tsx scripts/migrate-remote.ts"
 	},
 	"keywords": [
 		"oy",
@@ -33,6 +33,7 @@
 		"@kobalte/core": "^0.13.11",
 		"hono": "^4.11.4",
 		"leaflet": "^1.9.4",
+		"pg": "^8.17.1",
 		"solid-js": "^1.9.10"
 	},
 	"devDependencies": {
@@ -41,6 +42,7 @@
 		"@cloudflare/workers-types": "^4.20260113.0",
 		"@types/leaflet": "^1.9.12",
 		"@types/node": "^20.14.9",
+		"@types/pg": "^8",
 		"tsx": "^4.19.2",
 		"typescript": "^5.6.3",
 		"vite": "^7.3.1",

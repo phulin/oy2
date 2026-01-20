@@ -1,6 +1,4 @@
--- Production schema snapshot for PostgreSQL (generated from migrations-pg).
-
-CREATE EXTENSION IF NOT EXISTS pg_trgm;
+-- PostgreSQL initial schema (converted from D1/SQLite)
 
 CREATE TABLE IF NOT EXISTS users (
   id SERIAL PRIMARY KEY,
@@ -8,38 +6,17 @@ CREATE TABLE IF NOT EXISTS users (
   created_at INTEGER DEFAULT EXTRACT(EPOCH FROM NOW())::INTEGER,
   phone TEXT,
   phone_verified INTEGER DEFAULT 0,
-  admin INTEGER DEFAULT 0
+  admin INTEGER DEFAULT 0,
+  last_seen INTEGER
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username_lower
-  ON users (LOWER(username));
-
-CREATE INDEX IF NOT EXISTS idx_users_username_trgm
-  ON users USING GIN (username gin_trgm_ops);
-
-CREATE TABLE IF NOT EXISTS user_last_seen (
-  user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
-  last_seen INTEGER NOT NULL
-);
+CREATE INDEX IF NOT EXISTS idx_users_last_seen
+  ON users(last_seen DESC);
 
 CREATE TABLE IF NOT EXISTS friendships (
   user_id INTEGER NOT NULL,
   friend_id INTEGER NOT NULL,
   created_at INTEGER DEFAULT EXTRACT(EPOCH FROM NOW())::INTEGER,
-  PRIMARY KEY (user_id, friend_id),
-  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-  FOREIGN KEY (friend_id) REFERENCES users(id) ON DELETE CASCADE
-);
-
-CREATE INDEX IF NOT EXISTS idx_friendships_user
-  ON friendships(user_id);
-
-CREATE INDEX IF NOT EXISTS idx_friendships_friend_id
-  ON friendships(friend_id);
-
-CREATE TABLE IF NOT EXISTS last_yo_info (
-  user_id INTEGER NOT NULL,
-  friend_id INTEGER NOT NULL,
   last_yo_id INTEGER,
   last_yo_type TEXT,
   last_yo_created_at INTEGER,
@@ -51,8 +28,11 @@ CREATE TABLE IF NOT EXISTS last_yo_info (
   FOREIGN KEY (friend_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
-CREATE INDEX IF NOT EXISTS idx_last_yo_info_user
-  ON last_yo_info(user_id);
+CREATE INDEX IF NOT EXISTS idx_friendships_user
+  ON friendships(user_id);
+
+CREATE INDEX IF NOT EXISTS idx_friendships_friend_id
+  ON friendships(friend_id);
 
 CREATE TABLE IF NOT EXISTS yos (
   id SERIAL PRIMARY KEY,

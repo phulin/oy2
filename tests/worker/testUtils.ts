@@ -7,13 +7,28 @@ type UserRow = {
 	phone: string | null;
 	phone_verified: number | null;
 	admin: number | null;
-	last_seen: number | null;
+};
+
+type UserLastSeenRow = {
+	user_id: number;
+	last_seen: number;
 };
 
 type FriendshipRow = {
 	user_id: number;
 	friend_id: number;
 	created_at: number;
+	last_yo_id: number | null;
+	last_yo_type: string | null;
+	last_yo_created_at: number | null;
+	last_yo_from_user_id: number | null;
+	streak: number;
+	streak_start_date: number | null;
+};
+
+type LastYoInfoRow = {
+	user_id: number;
+	friend_id: number;
 	last_yo_id: number | null;
 	last_yo_type: string | null;
 	last_yo_created_at: number | null;
@@ -78,7 +93,8 @@ type D1PreparedStatement = {
 	first: () => Promise<unknown | null>;
 };
 
-const normalizeSql = (sql: string) => sql.replace(/\s+/g, " ").trim();
+const normalizeSql = (sql: string) =>
+	sql.replace(/\s+/g, " ").trim().replace(/\$\d+/g, "?");
 
 export class FakeKV {
 	private store = new Map<string, string>();
@@ -105,7 +121,9 @@ export class FakeKV {
 
 export class FakeD1Database {
 	users: UserRow[] = [];
+	userLastSeen: UserLastSeenRow[] = [];
 	friendships: FriendshipRow[] = [];
+	lastYoInfo: LastYoInfoRow[] = [];
 	yos: YoRow[] = [];
 	pushSubscriptions: PushSubscriptionRow[] = [];
 	notifications: NotificationRow[] = [];
@@ -140,6 +158,28 @@ export class FakeD1Database {
 		}
 		return results;
 	}
+}
+
+export class FakePgClient {
+	constructor(private db: FakeD1Database) {}
+
+	async query(sql: string, params: unknown[] = []) {
+		const statement = new FakeD1PreparedStatement(this.db, sql);
+		statement.bind(...params);
+		const normalized = normalizeSql(sql);
+		if (normalized.startsWith("SELECT") || normalized.startsWith("WITH")) {
+			const { results } = await statement.all();
+			return { rows: results, rowCount: results.length };
+		}
+		if (normalized.includes("RETURNING")) {
+			const row = await statement.first();
+			return { rows: row ? [row] : [], rowCount: row ? 1 : 0 };
+		}
+		const result = await statement.run();
+		return { rows: result.results ?? [], rowCount: result.meta.changes };
+	}
+
+	async end() {}
 }
 
 class FakeD1PreparedStatement implements D1PreparedStatement {
@@ -215,14 +255,17 @@ class FakeD1PreparedStatement implements D1PreparedStatement {
 			}
 			return { success: true, meta: { last_row_id: 0, changes: 0 } };
 		}
-		if (sql.startsWith("UPDATE users SET last_seen = ?")) {
-			const [lastSeen, userId] = this.params as [number, number];
-			const user = this.db.users.find((row) => row.id === userId);
-			if (user) {
-				user.last_seen = lastSeen;
-				return { success: true, meta: { last_row_id: 0, changes: 1 } };
+		if (sql.startsWith("INSERT INTO user_last_seen")) {
+			const [userId, lastSeen] = this.params as [number, number];
+			const existing = this.db.userLastSeen.find(
+				(row) => row.user_id === userId,
+			);
+			if (existing) {
+				existing.last_seen = lastSeen;
+			} else {
+				this.db.userLastSeen.push({ user_id: userId, last_seen: lastSeen });
 			}
-			return { success: true, meta: { last_row_id: 0, changes: 0 } };
+			return { success: true, meta: { last_row_id: 0, changes: 1 } };
 		}
 		if (sql.startsWith("INSERT INTO sessions (token, user_id)")) {
 			const [token, userId] = this.params as [string, number];
@@ -242,7 +285,7 @@ class FakeD1PreparedStatement implements D1PreparedStatement {
 			const changes = before - this.db.sessions.length;
 			return { success: true, meta: { last_row_id: 0, changes } };
 		}
-		if (sql.startsWith("INSERT OR IGNORE INTO friendships")) {
+		if (sql.startsWith("INSERT INTO friendships")) {
 			const [userId, friendId] = this.params as [number, number];
 			const existing = this.db.friendships.find(
 				(row) => row.user_id === userId && row.friend_id === friendId,
@@ -260,6 +303,55 @@ class FakeD1PreparedStatement implements D1PreparedStatement {
 				last_yo_from_user_id: null,
 				streak: 1,
 				streak_start_date: null,
+			});
+			return { success: true, meta: { last_row_id: 0, changes: 1 } };
+		}
+		if (sql.startsWith("INSERT INTO last_yo_info")) {
+			const [
+				userId,
+				friendId,
+				lastYoId,
+				lastYoType,
+				lastYoCreatedAt,
+				lastYoFromUserId,
+				streakStartDate,
+				startOfYesterdayNY,
+			] = this.params as [
+				number,
+				number,
+				number,
+				string | null,
+				number,
+				number,
+				number,
+				number,
+			];
+			const existing = this.db.lastYoInfo.find(
+				(row) => row.user_id === userId && row.friend_id === friendId,
+			);
+			if (existing) {
+				const previousLastYoCreatedAt = existing.last_yo_created_at;
+				existing.last_yo_id = lastYoId;
+				existing.last_yo_type = lastYoType;
+				existing.last_yo_created_at = lastYoCreatedAt;
+				existing.last_yo_from_user_id = lastYoFromUserId;
+				if (
+					previousLastYoCreatedAt === null ||
+					previousLastYoCreatedAt < startOfYesterdayNY
+				) {
+					existing.streak_start_date = streakStartDate;
+				}
+				return { success: true, meta: { last_row_id: 0, changes: 1 } };
+			}
+			this.db.lastYoInfo.push({
+				user_id: userId,
+				friend_id: friendId,
+				last_yo_id: lastYoId,
+				last_yo_type: lastYoType,
+				last_yo_created_at: lastYoCreatedAt,
+				last_yo_from_user_id: lastYoFromUserId,
+				streak: 1,
+				streak_start_date: streakStartDate,
 			});
 			return { success: true, meta: { last_row_id: 0, changes: 1 } };
 		}
@@ -392,7 +484,7 @@ class FakeD1PreparedStatement implements D1PreparedStatement {
 				},
 			};
 		}
-		if (sql.startsWith("INSERT OR REPLACE INTO push_subscriptions")) {
+		if (sql.startsWith("INSERT INTO push_subscriptions")) {
 			const [userId, endpoint, p256dh, auth] = this.params as [
 				number,
 				string,
@@ -416,10 +508,83 @@ class FakeD1PreparedStatement implements D1PreparedStatement {
 
 	async all() {
 		const sql = normalizeSql(this.sql);
+		if (sql.startsWith("SELECT users.* FROM sessions JOIN users")) {
+			const [token] = this.params as [string];
+			const session = this.db.sessions.find((row) => row.token === token);
+			if (!session) {
+				return { results: [] };
+			}
+			const user = this.db.users.find((row) => row.id === session.user_id);
+			return { results: user ? [user] : [] };
+		}
+		if (
+			sql.startsWith("SELECT * FROM users WHERE username COLLATE NOCASE") ||
+			sql.startsWith("SELECT * FROM users WHERE username ILIKE")
+		) {
+			const [username] = this.params as [string];
+			const user =
+				this.db.users.find(
+					(row) => row.username.toLowerCase() === username.toLowerCase(),
+				) ?? null;
+			return { results: user ? [user] : [] };
+		}
+		if (sql.startsWith("SELECT * FROM users WHERE id = ?")) {
+			const [userId] = this.params as [number];
+			const user = this.db.users.find((row) => row.id === userId) ?? null;
+			return { results: user ? [user] : [] };
+		}
+		if (sql.startsWith("SELECT 1 FROM friendships WHERE user_id")) {
+			const [userId, friendId] = this.params as [number, number];
+			const exists = this.db.friendships.some(
+				(row) => row.user_id === userId && row.friend_id === friendId,
+			);
+			return { results: exists ? [{ ok: 1 }] : [] };
+		}
+		if (
+			sql.startsWith(
+				"SELECT last_yo_created_at, streak_start_date FROM friendships WHERE user_id",
+			)
+		) {
+			const [userId, friendId] = this.params as [number, number];
+			const friendship = this.db.friendships.find(
+				(row) => row.user_id === userId && row.friend_id === friendId,
+			);
+			return {
+				results: friendship
+					? [
+							{
+								last_yo_created_at: friendship.last_yo_created_at,
+								streak_start_date: friendship.streak_start_date,
+							},
+						]
+					: [],
+			};
+		}
+		if (
+			sql.startsWith(
+				"SELECT last_yo_created_at, streak_start_date FROM last_yo_info WHERE user_id",
+			)
+		) {
+			const [userId, friendId] = this.params as [number, number];
+			const info = this.db.lastYoInfo.find(
+				(row) => row.user_id === userId && row.friend_id === friendId,
+			);
+			return {
+				results: info
+					? [
+							{
+								last_yo_created_at: info.last_yo_created_at,
+								streak_start_date: info.streak_start_date,
+							},
+						]
+					: [],
+			};
+		}
 		if (
 			sql.startsWith(
 				"SELECT id, username FROM users WHERE username COLLATE NOCASE LIKE ?",
-			)
+			) ||
+			sql.startsWith("SELECT id, username FROM users WHERE username ILIKE ?")
 		) {
 			const [pattern] = this.params as [string];
 			const needle = pattern.replace(/%/g, "").toLowerCase();
@@ -513,6 +678,42 @@ class FakeD1PreparedStatement implements D1PreparedStatement {
 				.slice(0, 8);
 			return { results };
 		}
+		if (
+			sql.startsWith("SELECT u.id, u.username FROM friendships f") &&
+			sql.includes("INNER JOIN users u")
+		) {
+			const [userId] = this.params as [number];
+			const results = this.db.friendships
+				.filter((row) => row.user_id === userId)
+				.map((row) => {
+					const user = this.db.users.find((u) => u.id === row.friend_id);
+					if (!user) {
+						return null;
+					}
+					return {
+						id: user.id,
+						username: user.username,
+					};
+				})
+				.filter(
+					(row): row is { id: number; username: string } => Boolean(row),
+				)
+				.sort((a, b) => a.username.localeCompare(b.username));
+			return { results };
+		}
+		if (sql.startsWith("SELECT friend_id, last_yo_type")) {
+			const [userId] = this.params as [number];
+			const results = this.db.lastYoInfo
+				.filter((row) => row.user_id === userId)
+				.map((row) => ({
+					friend_id: row.friend_id,
+					last_yo_type: row.last_yo_type,
+					last_yo_created_at: row.last_yo_created_at,
+					last_yo_from_user_id: row.last_yo_from_user_id,
+					streak_start_date: row.streak_start_date,
+				}));
+			return { results };
+		}
 		if (sql.startsWith("SELECT u.id, u.username, f.last_yo_type")) {
 			const [userId] = this.params as [number];
 			const results = this.db.friendships
@@ -557,28 +758,24 @@ class FakeD1PreparedStatement implements D1PreparedStatement {
 				}));
 			return { results };
 		}
-		if (
-			sql.startsWith(
-				"SELECT id, username, last_seen FROM users WHERE last_seen",
-			)
-		) {
+		if (sql.startsWith("SELECT users.id, users.username, uls.last_seen")) {
 			const [since] = this.params as [number];
 			const sessionUserIds = new Set(
 				this.db.sessions.map((session) => session.user_id),
 			);
-			const results = this.db.users
+			const results = this.db.userLastSeen
 				.filter(
-					(user) =>
-						user.last_seen !== null &&
-						user.last_seen >= since &&
-						sessionUserIds.has(user.id),
+					(uls) => uls.last_seen >= since && sessionUserIds.has(uls.user_id),
 				)
-				.sort((a, b) => (b.last_seen ?? 0) - (a.last_seen ?? 0))
-				.map((user) => ({
-					id: user.id,
-					username: user.username,
-					last_seen: user.last_seen ?? 0,
-				}));
+				.sort((a, b) => b.last_seen - a.last_seen)
+				.map((uls) => {
+					const user = this.db.users.find((u) => u.id === uls.user_id);
+					return {
+						id: uls.user_id,
+						username: user?.username ?? "",
+						last_seen: uls.last_seen,
+					};
+				});
 			return { results };
 		}
 		if (sql.startsWith("SELECT COUNT(*) as count FROM notifications")) {
@@ -766,6 +963,211 @@ class FakeD1PreparedStatement implements D1PreparedStatement {
 
 	async first() {
 		const sql = normalizeSql(this.sql);
+		// Handle INSERT ... RETURNING * for PostgreSQL
+		if (
+			sql.startsWith(
+				"INSERT INTO users (username, phone, phone_verified) VALUES",
+			) &&
+			sql.includes("RETURNING *")
+		) {
+			const [username, phone, phoneVerified] = this.params as [
+				string,
+				string | null,
+				number | null,
+			];
+			const existing = this.db.users.find(
+				(user) => user.username.toLowerCase() === username.toLowerCase(),
+			);
+			if (existing) {
+				return null;
+			}
+			return seedUser(this.db, {
+				username,
+				phone: phone ?? null,
+				phoneVerified: phoneVerified ?? 0,
+			});
+		}
+		if (
+			sql.startsWith("INSERT INTO users (username) VALUES") &&
+			sql.includes("RETURNING *")
+		) {
+			const [username] = this.params as [string];
+			const existing = this.db.users.find(
+				(user) => user.username.toLowerCase() === username.toLowerCase(),
+			);
+			if (existing) {
+				return null;
+			}
+			return seedUser(this.db, { username });
+		}
+		if (
+			sql.startsWith("UPDATE users SET phone = ?, phone_verified = ?") &&
+			sql.includes("RETURNING *")
+		) {
+			const [phone, phoneVerified, userId] = this.params as [
+				string,
+				number,
+				number,
+			];
+			const user = this.db.users.find((row) => row.id === userId);
+			if (!user) {
+				return null;
+			}
+			user.phone = phone;
+			user.phone_verified = phoneVerified;
+			return user;
+		}
+		// Handle INSERT ... RETURNING id for PostgreSQL
+		if (
+			sql.startsWith(
+				"INSERT INTO users (username, phone, phone_verified) VALUES",
+			) &&
+			sql.includes("RETURNING id")
+		) {
+			const [username, phone, phoneVerified] = this.params as [
+				string,
+				string | null,
+				number | null,
+			];
+			const existing = this.db.users.find(
+				(user) => user.username.toLowerCase() === username.toLowerCase(),
+			);
+			if (existing) {
+				return null;
+			}
+			const user = seedUser(this.db, {
+				username,
+				phone: phone ?? null,
+				phoneVerified: phoneVerified ?? 0,
+			});
+			return { id: user.id };
+		}
+		if (
+			sql.startsWith(
+				"INSERT INTO yos (from_user_id, to_user_id, type, payload, created_at)",
+			) &&
+			sql.includes("RETURNING id")
+		) {
+			const [fromUserId, toUserId, type, payload, createdAt] = this.params as [
+				number,
+				number,
+				string,
+				string | null,
+				number,
+			];
+			const yo: YoRow = {
+				id: this.db.nextYoId++,
+				from_user_id: fromUserId,
+				to_user_id: toUserId,
+				type,
+				payload,
+				created_at: createdAt,
+			};
+			this.db.yos.push(yo);
+			this.db.lastInsertId = yo.id;
+			return { id: yo.id };
+		}
+		if (
+			sql.startsWith("INSERT INTO users (username) VALUES") &&
+			sql.includes("RETURNING id")
+		) {
+			const [username] = this.params as [string];
+			const existing = this.db.users.find(
+				(user) => user.username.toLowerCase() === username.toLowerCase(),
+			);
+			if (existing) {
+				return null;
+			}
+			const user = seedUser(this.db, { username });
+			return { id: user.id };
+		}
+		// Handle complex CTE for yos insertion
+		if (sql.startsWith("WITH inserted AS ( INSERT INTO yos")) {
+			const [
+				fromUserId,
+				toUserId,
+				type,
+				payload,
+				createdAt,
+				_type2,
+				_createdAt2,
+				_fromUserId2,
+				startOfYesterdayNY,
+				startOfTodayNY,
+				userA,
+				friendA,
+				userB,
+				friendB,
+			] = this.params as [
+				number,
+				number,
+				string,
+				string | null,
+				number,
+				string,
+				number,
+				number,
+				number,
+				number,
+				number,
+				number,
+				number,
+				number,
+			];
+			// Insert the yo
+			const yo: YoRow = {
+				id: this.db.nextYoId++,
+				from_user_id: fromUserId,
+				to_user_id: toUserId,
+				type,
+				payload,
+				created_at: createdAt,
+			};
+			this.db.yos.push(yo);
+			this.db.lastInsertId = yo.id;
+			// Update friendships
+			for (const friendship of this.db.friendships) {
+				const match =
+					(friendship.user_id === userA && friendship.friend_id === friendA) ||
+					(friendship.user_id === userB && friendship.friend_id === friendB);
+				if (match) {
+					friendship.last_yo_id = yo.id;
+					friendship.last_yo_type = type;
+					const prevCreatedAt = friendship.last_yo_created_at;
+					friendship.last_yo_created_at = createdAt;
+					friendship.last_yo_from_user_id = fromUserId;
+					// Update streak_start_date based on whether last yo was recent
+					if (prevCreatedAt !== null && prevCreatedAt >= startOfYesterdayNY) {
+						// Keep existing streak_start_date
+					} else {
+						friendship.streak_start_date = startOfTodayNY;
+					}
+				}
+			}
+			return { id: yo.id };
+		}
+		// Handle INSERT INTO notifications ... RETURNING id
+		if (
+			sql.startsWith("INSERT INTO notifications") &&
+			sql.includes("RETURNING id")
+		) {
+			const [toUserId, fromUserId, type, payload] = this.params as [
+				number,
+				number,
+				string,
+				string,
+			];
+			const notification: NotificationRow = {
+				id: this.db.nextNotificationId++,
+				to_user_id: toUserId,
+				from_user_id: fromUserId,
+				type,
+				payload,
+				created_at: nowSeconds(),
+			};
+			this.db.notifications.push(notification);
+			return { id: notification.id };
+		}
 		if (sql.startsWith("SELECT users.* FROM sessions JOIN users")) {
 			const [token] = this.params as [string];
 			const session = this.db.sessions.find((row) => row.token === token);
@@ -774,7 +1176,10 @@ class FakeD1PreparedStatement implements D1PreparedStatement {
 			}
 			return this.db.users.find((user) => user.id === session.user_id) ?? null;
 		}
-		if (sql.startsWith("SELECT * FROM users WHERE username COLLATE NOCASE")) {
+		if (
+			sql.startsWith("SELECT * FROM users WHERE username COLLATE NOCASE") ||
+			sql.startsWith("SELECT * FROM users WHERE username ILIKE")
+		) {
 			const [username] = this.params as [string];
 			return (
 				this.db.users.find(
@@ -809,6 +1214,22 @@ class FakeD1PreparedStatement implements D1PreparedStatement {
 					}
 				: null;
 		}
+		if (
+			sql.startsWith(
+				"SELECT last_yo_created_at, streak_start_date FROM last_yo_info WHERE user_id",
+			)
+		) {
+			const [userId, friendId] = this.params as [number, number];
+			const info = this.db.lastYoInfo.find(
+				(row) => row.user_id === userId && row.friend_id === friendId,
+			);
+			return info
+				? {
+						last_yo_created_at: info.last_yo_created_at,
+						streak_start_date: info.streak_start_date,
+					}
+				: null;
+		}
 		throw new Error(`Unhandled SQL first: ${sql}`);
 	}
 }
@@ -830,7 +1251,7 @@ export function createTestEnv() {
 	const db = new FakeD1Database();
 	const kv = new FakeKV();
 	const env = {
-		DB: db,
+		TEST_DB: new FakePgClient(db),
 		OY2: kv,
 		VAPID_PUBLIC_KEY: "test-public",
 		VAPID_PRIVATE_KEY: "test-private",
@@ -863,10 +1284,12 @@ export function seedUser(
 		phone,
 		phone_verified: phoneVerified,
 		admin,
-		last_seen: lastSeen,
 	};
 	db.users.push(user);
 	db.lastInsertId = user.id;
+	if (lastSeen !== null) {
+		db.userLastSeen.push({ user_id: user.id, last_seen: lastSeen });
+	}
 	return user;
 }
 
@@ -896,6 +1319,40 @@ export function seedFriendship(
 		last_yo_created_at: lastYoCreatedAt,
 		last_yo_from_user_id: null,
 		streak: 1,
+		streak_start_date: streakStartDate,
+	});
+}
+
+export function seedLastYoInfo(
+	db: FakeD1Database,
+	{
+		userId,
+		friendId,
+		lastYoId = null,
+		lastYoType = null,
+		lastYoCreatedAt = null,
+		lastYoFromUserId = null,
+		streak = 1,
+		streakStartDate = null,
+	}: {
+		userId: number;
+		friendId: number;
+		lastYoId?: number | null;
+		lastYoType?: string | null;
+		lastYoCreatedAt?: number | null;
+		lastYoFromUserId?: number | null;
+		streak?: number;
+		streakStartDate?: number | null;
+	},
+) {
+	db.lastYoInfo.push({
+		user_id: userId,
+		friend_id: friendId,
+		last_yo_id: lastYoId,
+		last_yo_type: lastYoType,
+		last_yo_created_at: lastYoCreatedAt,
+		last_yo_from_user_id: lastYoFromUserId,
+		streak,
 		streak_start_date: streakStartDate,
 	});
 }

@@ -17,44 +17,50 @@ export function registerAdminRoutes(app: App) {
 			deliveriesQuery,
 			usersCountQuery,
 			subscriptionsCountQuery,
-		] = await c.env.DB.batch([
-			c.env.DB.prepare(
+		] = await Promise.all([
+			c.get("db").query(
 				`
-      SELECT id, username, last_seen
+      SELECT users.id, users.username, uls.last_seen
       FROM users
-      WHERE last_seen >= ?
+      JOIN user_last_seen uls ON uls.user_id = users.id
+      WHERE uls.last_seen >= $1
         AND EXISTS (
           SELECT 1 FROM sessions WHERE sessions.user_id = users.id
         )
-      ORDER BY last_seen DESC
+      ORDER BY uls.last_seen DESC
     `,
-			).bind(since),
-			c.env.DB.prepare(
-				"SELECT COUNT(*) as count FROM notifications WHERE created_at >= ?",
-			).bind(since),
-			c.env.DB.prepare(
+				[since],
+			),
+			c
+				.get("db")
+				.query(
+					"SELECT COUNT(*) as count FROM notifications WHERE created_at >= $1",
+					[since],
+				),
+			c.get("db").query(
 				`
       SELECT
         SUM(CASE WHEN success = 1 THEN 1 ELSE 0 END) as success_count,
         COUNT(*) as total_count
       FROM notification_deliveries
-      WHERE created_at >= ?
+      WHERE created_at >= $1
     `,
-			).bind(since),
-			c.env.DB.prepare("SELECT COUNT(*) as count FROM users"),
-			c.env.DB.prepare("SELECT COUNT(*) as count FROM push_subscriptions"),
+				[since],
+			),
+			c.get("db").query("SELECT COUNT(*) as count FROM users"),
+			c.get("db").query("SELECT COUNT(*) as count FROM push_subscriptions"),
 		]);
 
-		const notificationsRow = notificationsQuery.results?.[0] as
+		const notificationsRow = notificationsQuery.rows[0] as
 			| { count?: number | null }
 			| undefined;
-		const deliveriesRow = deliveriesQuery.results?.[0] as
+		const deliveriesRow = deliveriesQuery.rows[0] as
 			| { total_count?: number | null; success_count?: number | null }
 			| undefined;
-		const usersCountRow = usersCountQuery.results?.[0] as
+		const usersCountRow = usersCountQuery.rows[0] as
 			| { count?: number | null }
 			| undefined;
-		const subscriptionsCountRow = subscriptionsCountQuery.results?.[0] as
+		const subscriptionsCountRow = subscriptionsCountQuery.rows[0] as
 			| { count?: number | null }
 			| undefined;
 
@@ -63,7 +69,7 @@ export function registerAdminRoutes(app: App) {
 		const successDeliveries = Number(deliveriesRow?.success_count ?? 0);
 
 		const stats = {
-			activeUsersCount: (activeUsersQuery.results || []).length,
+			activeUsersCount: activeUsersQuery.rows.length,
 			notificationsSent,
 			deliveryAttempts: totalDeliveries,
 			deliverySuccessCount: successDeliveries,
@@ -77,7 +83,7 @@ export function registerAdminRoutes(app: App) {
 
 		return c.json({
 			stats,
-			activeUsers: (activeUsersQuery.results || []) as Array<{
+			activeUsers: activeUsersQuery.rows as Array<{
 				id: number;
 				username: string;
 				last_seen: number;

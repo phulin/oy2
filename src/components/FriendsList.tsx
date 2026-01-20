@@ -10,6 +10,7 @@ type FriendsListProps = {
 	friends: FriendWithLastYo[];
 	currentUserId: number;
 	loading: () => boolean;
+	loadingLastYo: () => boolean;
 	onSendOy: (friendId: number) => Promise<void>;
 	onSendLo: (friendId: number) => Promise<void>;
 };
@@ -66,7 +67,16 @@ export function FriendsList(props: FriendsListProps) {
 									<div class="friends-list-item-title item-title">
 										{friend.username}
 									</div>
-									<Show when={lastYoCreatedAt !== null}>
+									<Show
+										when={lastYoCreatedAt !== null}
+										fallback={
+											<Show when={props.loadingLastYo()}>
+												<div class="friends-list-item-subtitle item-subtitle">
+													Loading...
+												</div>
+											</Show>
+										}
+									>
 										<div class="friends-list-item-subtitle item-subtitle">
 											{lastYoDirection}{" "}
 											{formatRelativeTime(lastYoCreatedAt as number)}

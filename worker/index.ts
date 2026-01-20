@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { Client } from "pg";
 import { SESSION_KV_PREFIX } from "./lib";
 import { registerAdminRoutes } from "./routes/admin";
 import { registerAuthRoutes } from "./routes/auth";
@@ -6,28 +7,29 @@ import { registerFriendRoutes } from "./routes/friends";
 import { registerOyRoutes } from "./routes/oys";
 import { registerPushRoutes } from "./routes/push";
 import { registerUserRoutes } from "./routes/users";
-import type { AppVariables, Bindings, User } from "./types";
+import type { AppContext, AppVariables, Bindings, User } from "./types";
 
 const app = new Hono<{
 	Bindings: Bindings;
 	Variables: AppVariables;
 }>();
 
-const bootTime = performance.now();
-
-app.use("*", async (c, next) => {
-	const bootMs = performance.now() - bootTime;
-	const handlerStart = performance.now();
-	c.set("bootMs", bootMs);
+app.use("*", async (c: AppContext, next) => {
+	if (!c.get("db")) {
+		if (c.env.TEST_DB) {
+			c.set("db", c.env.TEST_DB);
+		} else {
+			const client = new Client({
+				connectionString: c.env.HYPERDRIVE.connectionString,
+			});
+			c.set("db", client);
+			await client.connect();
+		}
+	}
 	await next();
-	const handlerMs = performance.now() - handlerStart;
-	c.header(
-		"Server-Timing",
-		`boot;dur=${bootMs.toFixed(1)}, handler;dur=${handlerMs.toFixed(1)}`,
-	);
 });
 
-app.use("*", async (c, next) => {
+app.use("*", async (c: AppContext, next) => {
 	c.set("user", null);
 	c.set("sessionToken", null);
 	const sessionToken = c.req.header("x-session-token");
@@ -35,38 +37,31 @@ app.use("*", async (c, next) => {
 		try {
 			const sessionKey = `${SESSION_KV_PREFIX}${sessionToken}`;
 			const cachedUser = await c.env.OY2.get(sessionKey, "json");
-			const user =
-				(cachedUser as User | null) ??
-				((await c.env.DB.prepare(
-					`SELECT users.*
-        FROM sessions
-        JOIN users ON users.id = sessions.user_id
-        WHERE sessions.token = ?`,
-				)
-					.bind(sessionToken)
-					.first()) as User | null);
-			c.set("user", user ?? null);
-			if (user) {
-				c.set("sessionToken", sessionToken);
-				const now = Math.floor(Date.now() / 1000);
-				const updatePromise = c.env.DB.prepare(
-					"UPDATE users SET last_seen = ? WHERE id = ?",
-				)
-					.bind(now, user.id)
-					.run();
-				let cachePromise: Promise<void> | null = null;
-				if (!cachedUser) {
-					const cachedUserValue = { ...user, last_seen: null };
-					cachePromise = c.env.OY2.put(
-						sessionKey,
-						JSON.stringify(cachedUserValue),
+			let user = cachedUser as User | null;
+			if (!user) {
+				const userResult = await c
+					.get("db")
+					.query<User>(
+						`SELECT users.*
+						FROM sessions
+						JOIN users ON users.id = sessions.user_id
+						WHERE sessions.token = $1`,
+						[sessionToken],
+					)
+					.catch((err) => {
+						console.error("Error fetching user from DB:", err);
+						return { rows: [] };
+					});
+				user = userResult.rows[0] ?? null;
+				if (user) {
+					c.executionCtx.waitUntil(
+						c.env.OY2.put(sessionKey, JSON.stringify(user)),
 					);
 				}
-				c.executionCtx.waitUntil(
-					cachePromise
-						? Promise.all([updatePromise, cachePromise])
-						: updatePromise,
-				);
+			}
+			c.set("user", user);
+			if (user) {
+				c.set("sessionToken", sessionToken);
 			}
 		} catch (err) {
 			console.error("Error fetching user:", err);

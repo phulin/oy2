@@ -5,6 +5,7 @@ import {
 	createTestEnv,
 	getStreakDateBoundaries,
 	seedFriendship,
+	seedLastYoInfo,
 	seedSession,
 	seedUser,
 	seedYo,
@@ -25,7 +26,7 @@ describe("oys and los", () => {
 		assert.equal(json.error, "You can only send Oys to friends");
 	});
 
-	it("creates yo, notifications, and friendship updates", async () => {
+	it("creates yo, notifications, and last yo info updates", async () => {
 		const { env, db } = createTestEnv();
 		const sender = seedUser(db, { username: "Sender" });
 		const receiver = seedUser(db, { username: "Receiver" });
@@ -41,10 +42,11 @@ describe("oys and los", () => {
 		assert.equal(json.success, true);
 		assert.equal(db.yos.length, 1);
 		assert.equal(db.notifications.length, 1);
-		const friendship = db.friendships.find(
+		assert.equal(db.lastYoInfo.length, 2);
+		const lastYoInfo = db.lastYoInfo.find(
 			(row) => row.user_id === sender.id && row.friend_id === receiver.id,
 		);
-		assert.equal(friendship?.last_yo_type, "oy");
+		assert.equal(lastYoInfo?.last_yo_type, "oy");
 	});
 
 	it("increments streak when sending yo day after last yo", async () => {
@@ -55,11 +57,11 @@ describe("oys and los", () => {
 		const { startOfTodayNY, startOfYesterdayNY } = getStreakDateBoundaries();
 		const streakStartDate = startOfYesterdayNY - 2 * 24 * 60 * 60;
 		const lastYoCreatedAt = startOfYesterdayNY + 60;
-		seedFriendship(db, sender.id, receiver.id, {
-			lastYoCreatedAt,
-			streakStartDate,
-		});
-		seedFriendship(db, receiver.id, sender.id, {
+		seedFriendship(db, sender.id, receiver.id);
+		seedFriendship(db, receiver.id, sender.id);
+		seedLastYoInfo(db, {
+			userId: sender.id,
+			friendId: receiver.id,
 			lastYoCreatedAt,
 			streakStartDate,
 		});
@@ -70,11 +72,11 @@ describe("oys and los", () => {
 		});
 		assert.equal(res.status, 200);
 		assert.equal(json.success, true);
-		const friendship = db.friendships.find(
+		const lastYoInfo = db.lastYoInfo.find(
 			(row) => row.user_id === sender.id && row.friend_id === receiver.id,
 		);
 		assert.equal(json.streak, 4);
-		assert.equal(friendship?.streak_start_date, streakStartDate);
+		assert.equal(lastYoInfo?.streak_start_date, streakStartDate);
 	});
 
 	it("keeps streak same when sending yo on same day", async () => {
@@ -85,11 +87,11 @@ describe("oys and los", () => {
 		const { startOfTodayNY } = getStreakDateBoundaries();
 		const streakStartDate = startOfTodayNY - 4 * 24 * 60 * 60;
 		const lastYoCreatedAt = startOfTodayNY + 60;
-		seedFriendship(db, sender.id, receiver.id, {
-			lastYoCreatedAt,
-			streakStartDate,
-		});
-		seedFriendship(db, receiver.id, sender.id, {
+		seedFriendship(db, sender.id, receiver.id);
+		seedFriendship(db, receiver.id, sender.id);
+		seedLastYoInfo(db, {
+			userId: sender.id,
+			friendId: receiver.id,
 			lastYoCreatedAt,
 			streakStartDate,
 		});
@@ -100,11 +102,11 @@ describe("oys and los", () => {
 		});
 		assert.equal(res.status, 200);
 		assert.equal(json.success, true);
-		const friendship = db.friendships.find(
+		const lastYoInfo = db.lastYoInfo.find(
 			(row) => row.user_id === sender.id && row.friend_id === receiver.id,
 		);
 		assert.equal(json.streak, 5);
-		assert.equal(friendship?.streak_start_date, streakStartDate);
+		assert.equal(lastYoInfo?.streak_start_date, streakStartDate);
 	});
 
 	it("resets streak to 1 when sending yo after gap", async () => {
@@ -115,11 +117,11 @@ describe("oys and los", () => {
 		const { startOfTodayNY } = getStreakDateBoundaries();
 		const lastYoCreatedAt = startOfTodayNY - 3 * 24 * 60 * 60;
 		const streakStartDate = startOfTodayNY - 10 * 24 * 60 * 60;
-		seedFriendship(db, sender.id, receiver.id, {
-			lastYoCreatedAt,
-			streakStartDate,
-		});
-		seedFriendship(db, receiver.id, sender.id, {
+		seedFriendship(db, sender.id, receiver.id);
+		seedFriendship(db, receiver.id, sender.id);
+		seedLastYoInfo(db, {
+			userId: sender.id,
+			friendId: receiver.id,
 			lastYoCreatedAt,
 			streakStartDate,
 		});
@@ -130,11 +132,11 @@ describe("oys and los", () => {
 		});
 		assert.equal(res.status, 200);
 		assert.equal(json.success, true);
-		const friendship = db.friendships.find(
+		const lastYoInfo = db.lastYoInfo.find(
 			(row) => row.user_id === sender.id && row.friend_id === receiver.id,
 		);
 		assert.equal(json.streak, 1);
-		assert.equal(friendship?.streak_start_date, startOfTodayNY);
+		assert.equal(lastYoInfo?.streak_start_date, startOfTodayNY);
 	});
 
 	it("creates location payloads and notification URLs for los", async () => {

@@ -4,31 +4,6 @@ import { jsonRequest } from "./testHelpers";
 import { createTestEnv, seedFriendship, seedSession, seedUser } from "./testUtils";
 
 describe("users", () => {
-	it("creates a user if missing", async () => {
-		const { env, db } = createTestEnv();
-		const { res, json } = await jsonRequest(env, "/api/users", {
-			method: "POST",
-			body: { username: "Nova" },
-		});
-		const body = json as { user: { username: string } };
-		assert.equal(res.status, 200);
-		assert.equal(body.user.username, "Nova");
-		assert.equal(db.users.length, 1);
-	});
-
-	it("returns existing user for duplicate usernames", async () => {
-		const { env, db } = createTestEnv();
-		seedUser(db, { username: "Nova" });
-		const { res, json } = await jsonRequest(env, "/api/users", {
-			method: "POST",
-			body: { username: "Nova" },
-		});
-		const body = json as { user: { username: string } };
-		assert.equal(res.status, 200);
-		assert.equal(body.user.username, "Nova");
-		assert.equal(db.users.length, 1);
-	});
-
 	it("searches users case-insensitively", async () => {
 		const { env, db } = createTestEnv();
 		const user = seedUser(db, { username: "Ada" });

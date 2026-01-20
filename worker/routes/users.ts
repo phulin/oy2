@@ -1,40 +1,6 @@
-import {
-	createUser,
-	fetchUserByUsername,
-	normalizeUsername,
-	validateUsername,
-} from "../lib";
 import type { App, AppContext, FriendUser } from "../types";
 
 export function registerUserRoutes(app: App) {
-	app.post("/api/users", async (c: AppContext) => {
-		const { username } = await c.req.json();
-		const trimmedUsername = normalizeUsername(username);
-
-		const usernameError = validateUsername(trimmedUsername);
-		if (usernameError) {
-			return c.json({ error: usernameError }, 400);
-		}
-
-		let user = await fetchUserByUsername(c, trimmedUsername);
-
-		if (!user) {
-			try {
-				const { user: createdUser, result } = await createUser(c, {
-					username: trimmedUsername,
-				});
-				if (!result.success) {
-					return c.json({ error: "Username already taken" }, 400);
-				}
-				user = createdUser;
-			} catch (_err) {
-				return c.json({ error: "Username already taken" }, 400);
-			}
-		}
-
-		return c.json({ user });
-	});
-
 	app.get("/api/users/search", async (c: AppContext) => {
 		const user = c.get("user");
 		if (!user) {
@@ -47,13 +13,14 @@ export function registerUserRoutes(app: App) {
 			return c.json({ users: [] });
 		}
 
-		const users = await c.env.DB.prepare(
-			"SELECT id, username FROM users WHERE username COLLATE NOCASE LIKE ? LIMIT 20",
-		)
-			.bind(`%${trimmedQuery}%`)
-			.all();
+		const users = await c
+			.get("db")
+			.query<FriendUser>(
+				"SELECT id, username FROM users WHERE username ILIKE $1 LIMIT 20",
+				[`%${trimmedQuery}%`],
+			);
 
-		const userResults = (users.results || []) as FriendUser[];
+		const userResults = users.rows;
 		return c.json({ users: userResults });
 	});
 
@@ -63,18 +30,18 @@ export function registerUserRoutes(app: App) {
 			return c.json({ error: "Not authenticated" }, 401);
 		}
 
-		const suggestions = await c.env.DB.prepare(
+		const suggestions = await c.get("db").query<FriendUser>(
 			`
     WITH current_friends AS (
       SELECT friend_id
       FROM friendships
-      WHERE user_id = ?
+      WHERE user_id = $1
     ),
     mutual_counts AS (
       SELECT f.user_id AS candidate_id, COUNT(*) AS mutuals
       FROM friendships f
       INNER JOIN current_friends cf ON cf.friend_id = f.friend_id
-      WHERE f.user_id != ?
+      WHERE f.user_id != $2
       GROUP BY f.user_id
     )
     SELECT u.id, u.username, mutual_counts.mutuals
@@ -82,15 +49,14 @@ export function registerUserRoutes(app: App) {
     INNER JOIN users u ON u.id = mutual_counts.candidate_id
     WHERE mutual_counts.mutuals > 0
       AND u.id NOT IN (SELECT friend_id FROM current_friends)
-      AND u.id != ?
+      AND u.id != $3
     ORDER BY mutual_counts.mutuals DESC, u.username
     LIMIT 8
   `,
-		)
-			.bind(user.id, user.id, user.id)
-			.all();
+			[user.id, user.id, user.id],
+		);
 
-		const suggestionResults = (suggestions.results || []) as FriendUser[];
+		const suggestionResults = suggestions.rows;
 		return c.json({ users: suggestionResults });
 	});
 
@@ -105,13 +71,16 @@ export function registerUserRoutes(app: App) {
 			return c.json({ mutuals: {} });
 		}
 
-		const placeholders = userIds.map(() => "?").join(", ");
-		const mutualsResult = await c.env.DB.prepare(
+		const placeholders = userIds.map((_, index) => `$${index + 2}`).join(", ");
+		const mutualsResult = await c.get("db").query<{
+			candidate_id: number;
+			mutual_username: string;
+		}>(
 			`
     WITH current_friends AS (
       SELECT friend_id
       FROM friendships
-      WHERE user_id = ?
+      WHERE user_id = $1
     ),
     ranked_mutuals AS (
       SELECT f.user_id AS candidate_id,
@@ -127,14 +96,10 @@ export function registerUserRoutes(app: App) {
     WHERE rn <= 5
     ORDER BY candidate_id, mutual_username
   `,
-		)
-			.bind(user.id, ...userIds)
-			.all();
+			[user.id, ...userIds],
+		);
 
-		const rows = (mutualsResult.results || []) as Array<{
-			candidate_id: number;
-			mutual_username: string;
-		}>;
+		const rows = mutualsResult.rows;
 		const mutuals: Record<number, string[]> = {};
 		for (const row of rows) {
 			const list = mutuals[row.candidate_id] ?? [];

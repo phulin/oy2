@@ -1,0 +1,8 @@
+name = "oy2-migrate"
+main = "migrate-worker.ts"
+compatibility_date = "2024-09-23"
+compatibility_flags = ["nodejs_compat"]
+
+[[hyperdrive]]
+binding = "HYPERDRIVE"
+id = "f9cd31eff0a444f0b02cca63f470a151"

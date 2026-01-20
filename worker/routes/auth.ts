@@ -1,23 +1,46 @@
 import {
 	authUserPayload,
 	createSession,
-	createUser,
-	ensureUserPhoneForOtp,
 	fetchUserByUsername,
 	getPhoneAuthEnabled,
 	normalizeUsername,
 	SESSION_KV_PREFIX,
 	sendOtpResponse,
+	updateLastSeen,
 	validateUsername,
 	verifyOtp,
 } from "../lib";
-import type { App, AppContext } from "../types";
+import type { App, AppContext, User } from "../types";
 
 export function registerAuthRoutes(app: App) {
+	const createUserIfMissing = async (c: AppContext, nextUsername: string) => {
+		const result = await c.get("db").query<User>(
+			`INSERT INTO users (username)
+			 VALUES ($1)
+			 ON CONFLICT (username) DO NOTHING
+			 RETURNING *`,
+			[nextUsername],
+		);
+		return result.rows[0] ?? null;
+	};
+	const updateUserPhone = async (
+		c: AppContext,
+		userId: number,
+		nextPhone: string,
+		phoneVerified: number,
+	) => {
+		const result = await c
+			.get("db")
+			.query<User>(
+				"UPDATE users SET phone = $1, phone_verified = $2 WHERE id = $3 RETURNING *",
+				[nextPhone, phoneVerified, userId],
+			);
+		return result.rows[0] as User;
+	};
+
 	app.post("/api/auth/start", async (c: AppContext) => {
-		const { username, phone } = await c.req.json();
+		const { username } = await c.req.json();
 		const trimmedUsername = normalizeUsername(username);
-		const trimmedPhone = String(phone || "").trim();
 
 		const usernameError = validateUsername(trimmedUsername);
 		if (usernameError) {
@@ -27,47 +50,56 @@ export function registerAuthRoutes(app: App) {
 		let user = await fetchUserByUsername(c, trimmedUsername);
 
 		const phoneAuthEnabled = await getPhoneAuthEnabled(c);
-		if (!phoneAuthEnabled) {
-			if (!user) {
-				const { user: createdUser } = await createUser(c, {
-					username: trimmedUsername,
-					phone: trimmedPhone || null,
-					phoneVerified: 0,
-				});
-				user = createdUser;
-			} else if (trimmedPhone && trimmedPhone !== user.phone) {
-				await c.env.DB.prepare("UPDATE users SET phone = ? WHERE id = ?")
-					.bind(trimmedPhone, user.id)
-					.run();
+		if (phoneAuthEnabled) {
+			if (!user?.phone) {
+				return c.json({ status: "needs_phone" });
 			}
 
-			if (!user) {
-				return c.json({ error: "User not found" }, 404);
-			}
-
-			const sessionToken = await createSession(c, user);
-			return c.json({
-				status: "authenticated",
-				user: authUserPayload(user),
-				token: sessionToken,
-			});
-		}
-
-		if (user?.phone) {
 			return sendOtpResponse(c, {
 				phone: user.phone,
 				username: trimmedUsername,
 			});
 		}
 
-		if (!trimmedPhone) {
-			return c.json({ status: "needs_phone" });
+		if (!user) {
+			user = await createUserIfMissing(c, trimmedUsername);
 		}
 
-		user = await ensureUserPhoneForOtp(c, user, {
-			username: trimmedUsername,
-			phone: trimmedPhone,
+		const sessionToken = await createSession(c, user);
+		updateLastSeen(c, user.id);
+		return c.json({
+			status: "authenticated",
+			user: authUserPayload(user),
+			token: sessionToken,
 		});
+	});
+
+	app.post("/api/auth/phone", async (c: AppContext) => {
+		const { username, phone } = await c.req.json();
+		const trimmedUsername = normalizeUsername(username);
+		const trimmedPhone = String(phone || "").trim();
+
+		const usernameError = validateUsername(trimmedUsername);
+		if (usernameError) {
+			return c.json({ error: usernameError }, 400);
+		}
+		if (!trimmedPhone) {
+			return c.json({ error: "Missing phone number" }, 400);
+		}
+
+		const phoneAuthEnabled = await getPhoneAuthEnabled(c);
+		if (!phoneAuthEnabled) {
+			return c.json({ error: "Phone authentication is disabled" }, 400);
+		}
+
+		const user = await fetchUserByUsername(c, trimmedUsername);
+		if (!user) {
+			return c.json({ error: "User not found" }, 404);
+		}
+		if (user?.phone) {
+			return c.json({ error: "Phone number already set" }, 400);
+		}
+		await updateUserPhone(c, user.id, trimmedPhone, 0);
 
 		return sendOtpResponse(c, {
 			phone: trimmedPhone,
@@ -91,31 +123,31 @@ export function registerAuthRoutes(app: App) {
 		}
 
 		const phoneAuthEnabled = await getPhoneAuthEnabled(c);
-		if (!phoneAuthEnabled) {
-			const sessionToken = await createSession(c, user);
-			return c.json({
-				user: authUserPayload(user),
-				token: sessionToken,
+		if (phoneAuthEnabled) {
+			const result = await verifyOtp(c, {
+				otp: trimmedOtp,
+				username: trimmedUsername,
 			});
+
+			if (!result.success) {
+				return c.json({ error: "Verification failed" }, 400);
+			}
+
+			if (!result.isValidOtp) {
+				return c.json({ error: "Invalid verification code" }, 400);
+			}
+
+			if (!user.phone_verified) {
+				await c
+					.get("db")
+					.query("UPDATE users SET phone_verified = 1 WHERE id = $1", [
+						user.id,
+					]);
+			}
 		}
 
-		const result = await verifyOtp(c, {
-			otp: trimmedOtp,
-			username: trimmedUsername,
-		});
-
-		if (!result.success) {
-			return c.json({ error: "Verification failed" }, 400);
-		}
-
-		if (!result.isValidOtp) {
-			return c.json({ error: "Invalid verification code" }, 400);
-		}
-
-		await c.env.DB.prepare("UPDATE users SET phone_verified = 1 WHERE id = ?")
-			.bind(user.id)
-			.run();
 		const sessionToken = await createSession(c, user);
+		updateLastSeen(c, user.id);
 
 		return c.json({
 			user: authUserPayload(user),
@@ -141,9 +173,9 @@ export function registerAuthRoutes(app: App) {
 			return c.json({ error: "Not authenticated" }, 401);
 		}
 
-		await c.env.DB.prepare("DELETE FROM sessions WHERE token = ?")
-			.bind(sessionToken)
-			.run();
+		await c
+			.get("db")
+			.query("DELETE FROM sessions WHERE token = $1", [sessionToken]);
 		await c.env.OY2.delete(`${SESSION_KV_PREFIX}${sessionToken}`);
 
 		return c.json({ success: true });
