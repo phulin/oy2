@@ -38,7 +38,12 @@ export function registerFriendRoutes(app: App) {
 				),
 		]);
 
-		return c.json({ success: true });
+		return c.json({
+			friend: {
+				id: friend.id,
+				username: friend.username,
+			},
+		});
 	});
 
 	app.get("/api/friends", async (c) => {

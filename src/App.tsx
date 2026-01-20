@@ -86,12 +86,6 @@ export default function App() {
 	const [lastOyInfo, setLastOyInfo] = createSignal<LastOyInfo[]>(
 		initialCachedLastOyInfo,
 	);
-	const [hasCachedFriends, setHasCachedFriends] = createSignal(
-		cachedFriendsRaw !== null,
-	);
-	const [hasCachedLastOyInfo, setHasCachedLastOyInfo] = createSignal(
-		cachedLastOyInfoRaw !== null,
-	);
 	const [oys, setOys] = createSignal<Oy[]>([]);
 	const [tab, setTab] = createSignal(initialTab);
 	const [openLocations, setOpenLocations] = createSignal<Set<number>>(
@@ -234,12 +228,27 @@ export default function App() {
 				cachedFriendsStorageKey,
 				JSON.stringify(nextFriends),
 			);
-			setHasCachedFriends(true);
 		} catch (err) {
 			console.error("Failed to load friends:", err);
 		} finally {
 			setLoadingFriends(false);
 		}
+	}
+
+	function handleFriendAdded(friend: Friend) {
+		setFriends((prev) => {
+			if (prev.some((existing) => existing.id === friend.id)) {
+				return prev;
+			}
+			const nextFriends = [...prev, friend].sort((a, b) =>
+				a.username.localeCompare(b.username),
+			);
+			localStorage.setItem(
+				cachedFriendsStorageKey,
+				JSON.stringify(nextFriends),
+			);
+			return nextFriends;
+		});
 	}
 
 	async function loadLastOyInfo() {
@@ -254,7 +263,6 @@ export default function App() {
 				cachedLastOyInfoStorageKey,
 				JSON.stringify(nextLastOyInfo),
 			);
-			setHasCachedLastOyInfo(true);
 		} catch (err) {
 			console.error("Failed to load last oy info:", err);
 		} finally {
@@ -306,7 +314,11 @@ export default function App() {
 	}
 
 	async function loadData() {
-		await Promise.all([loadFriends(), loadOysPage({ reset: true })]);
+		await Promise.all([
+			loadFriends(),
+			loadLastOyInfo(),
+			loadOysPage({ reset: true }),
+		]);
 	}
 
 	async function applyAuthSession(user: User, token: string) {
@@ -401,9 +413,8 @@ export default function App() {
 			localStorage.removeItem(cachedLastOyInfoStorageKey);
 			setAuthStep("login");
 			setPendingUsername("");
-			setHasCachedFriends(false);
+			setFriends([]);
 			setLastOyInfo([]);
-			setHasCachedLastOyInfo(false);
 		}
 	}
 
@@ -427,8 +438,6 @@ export default function App() {
 		setPendingUsername("");
 		setFriends([]);
 		setLastOyInfo([]);
-		setHasCachedFriends(false);
-		setHasCachedLastOyInfo(false);
 
 		const registration = swRegistration();
 		if (registration && token) {
@@ -502,7 +511,6 @@ export default function App() {
 					cachedLastOyInfoStorageKey,
 					JSON.stringify(nextInfo),
 				);
-				setHasCachedLastOyInfo(true);
 				return nextInfo;
 			});
 		} catch (err) {
@@ -568,7 +576,6 @@ export default function App() {
 					cachedLastOyInfoStorageKey,
 					JSON.stringify(nextInfo),
 				);
-				setHasCachedLastOyInfo(true);
 				return nextInfo;
 			});
 		} catch (err) {
@@ -688,7 +695,6 @@ export default function App() {
 				return;
 			}
 			if (currentUser()) {
-				void loadFriends();
 				void loadLastOyInfo();
 			}
 			void oyAudio.play().catch(() => {
@@ -730,13 +736,6 @@ export default function App() {
 	createEffect(() => {
 		if (tab() === "oys" && currentUser()) {
 			loadOysPage({ reset: true });
-		}
-	});
-
-	createEffect(() => {
-		if (tab() === "friends" && currentUser()) {
-			loadFriends();
-			loadLastOyInfo();
 		}
 	});
 
@@ -795,9 +794,9 @@ export default function App() {
 							<FriendsList
 								friends={friendsWithLastOy()}
 								currentUserId={user.id}
-								loading={() => loadingFriends() && !hasCachedFriends()}
+								loading={() => loadingFriends() && friends().length === 0}
 								loadingLastOy={() =>
-									loadingLastOyInfo() && !hasCachedLastOyInfo()
+									loadingLastOyInfo() && lastOyInfo().length === 0
 								}
 								onSendOy={sendOy}
 								onSendLo={sendLo}
@@ -822,6 +821,7 @@ export default function App() {
 								api={api}
 								currentUser={currentUser}
 								friends={friends}
+								onFriendAdded={handleFriendAdded}
 							/>
 						</Tabs.Content>
 					</SwipeableTabs>

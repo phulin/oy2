@@ -10,6 +10,7 @@ type AddFriendFormProps = {
 	api: <T>(endpoint: string, options?: RequestInit) => Promise<T>;
 	currentUser: () => User | null;
 	friends: () => Friend[];
+	onFriendAdded?: (friend: Friend) => void;
 };
 
 export function AddFriendForm(props: AddFriendFormProps) {
@@ -82,7 +83,7 @@ export function AddFriendForm(props: AddFriendFormProps) {
 
 	async function addFriend(friendId: number) {
 		try {
-			await props.api("/api/friends", {
+			const { friend } = await props.api<{ friend: Friend }>("/api/friends", {
 				method: "POST",
 				body: JSON.stringify({ friendId }),
 			});
@@ -91,6 +92,7 @@ export function AddFriendForm(props: AddFriendFormProps) {
 					user.id === friendId ? { ...user, added: true } : user,
 				),
 			);
+			props.onFriendAdded?.(friend);
 		} catch (err) {
 			alert((err as Error).message);
 		}
