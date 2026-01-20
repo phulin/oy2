@@ -189,6 +189,11 @@ export default function App() {
 			},
 		});
 
+		// Reload page when new SW takes control to ensure code consistency
+		navigator.serviceWorker.addEventListener("controllerchange", () => {
+			window.location.reload();
+		});
+
 		navigator.serviceWorker.ready
 			.then((registration) => {
 				setSwRegistration(registration);
