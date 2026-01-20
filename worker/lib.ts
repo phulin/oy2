@@ -239,17 +239,19 @@ export async function createOyAndNotification(
 	const oyId = Number(oyResult.rows[0]?.id);
 
 	// Update last_oy_info for both directions of the friendship
-	await c.get("db").query(
+	const lastOyInfoPromise = c.get("db").query(
 		`
       INSERT INTO last_oy_info (user_id, friend_id, last_oy_id, last_oy_type, last_oy_created_at, last_oy_from_user_id, streak_start_date)
-      VALUES ($1, $2, $3, $4, $5, $6, $7)
+      VALUES
+        ($1, $2, $3, $4, $5, $1, $6),
+        ($2, $1, $3, $4, $5, $1, $6)
       ON CONFLICT (user_id, friend_id) DO UPDATE SET
         last_oy_id = EXCLUDED.last_oy_id,
         last_oy_type = EXCLUDED.last_oy_type,
         last_oy_created_at = EXCLUDED.last_oy_created_at,
         last_oy_from_user_id = EXCLUDED.last_oy_from_user_id,
         streak_start_date = CASE
-          WHEN last_oy_info.last_oy_created_at >= $8 THEN last_oy_info.streak_start_date
+          WHEN last_oy_info.last_oy_created_at >= $7 THEN last_oy_info.streak_start_date
           ELSE EXCLUDED.streak_start_date
         END
     `,
@@ -259,33 +261,6 @@ export async function createOyAndNotification(
 			oyId,
 			type,
 			createdAt,
-			fromUserId,
-			startOfTodayNY,
-			startOfYesterdayNY,
-		],
-	);
-
-	await c.get("db").query(
-		`
-      INSERT INTO last_oy_info (user_id, friend_id, last_oy_id, last_oy_type, last_oy_created_at, last_oy_from_user_id, streak_start_date)
-      VALUES ($1, $2, $3, $4, $5, $6, $7)
-      ON CONFLICT (user_id, friend_id) DO UPDATE SET
-        last_oy_id = EXCLUDED.last_oy_id,
-        last_oy_type = EXCLUDED.last_oy_type,
-        last_oy_created_at = EXCLUDED.last_oy_created_at,
-        last_oy_from_user_id = EXCLUDED.last_oy_from_user_id,
-        streak_start_date = CASE
-          WHEN last_oy_info.last_oy_created_at >= $8 THEN last_oy_info.streak_start_date
-          ELSE EXCLUDED.streak_start_date
-        END
-    `,
-		[
-			toUserId,
-			fromUserId,
-			oyId,
-			type,
-			createdAt,
-			fromUserId,
 			startOfTodayNY,
 			startOfYesterdayNY,
 		],
@@ -305,7 +280,8 @@ export async function createOyAndNotification(
     `,
 		[toUserId, fromUserId, type, JSON.stringify(notificationPayload)],
 	);
-	const [notificationInsert, subscriptions] = await Promise.all([
+	const [, notificationInsert, subscriptions] = await Promise.all([
+		lastOyInfoPromise,
 		notificationInsertPromise,
 		subscriptionsPromise,
 	]);
