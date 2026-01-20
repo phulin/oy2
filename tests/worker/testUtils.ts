@@ -307,13 +307,14 @@ class FakeD1PreparedStatement implements D1PreparedStatement {
 			return { success: true, meta: { last_row_id: 0, changes: 1 } };
 		}
 		if (sql.startsWith("INSERT INTO last_oy_info")) {
+			// SQL inserts two rows: ($1, $2, $3, $4, $5, $1, $6), ($2, $1, $3, $4, $5, $1, $6)
+			// Params: fromUserId($1), toUserId($2), oyId($3), type($4), createdAt($5), startOfTodayNY($6), startOfYesterdayNY($7)
 			const [
-				userId,
-				friendId,
+				fromUserId,
+				toUserId,
 				lastOyId,
 				lastOyType,
 				lastOyCreatedAt,
-				lastOyFromUserId,
 				streakStartDate,
 				startOfYesterdayNY,
 			] = this.params as [
@@ -324,36 +325,46 @@ class FakeD1PreparedStatement implements D1PreparedStatement {
 				number,
 				number,
 				number,
-				number,
 			];
-			const existing = this.db.lastOyInfo.find(
-				(row) => row.user_id === userId && row.friend_id === friendId,
-			);
-			if (existing) {
-				const previousLastOyCreatedAt = existing.last_oy_created_at;
-				existing.last_oy_id = lastOyId;
-				existing.last_oy_type = lastOyType;
-				existing.last_oy_created_at = lastOyCreatedAt;
-				existing.last_oy_from_user_id = lastOyFromUserId;
-				if (
-					previousLastOyCreatedAt === null ||
-					previousLastOyCreatedAt < startOfYesterdayNY
-				) {
-					existing.streak_start_date = streakStartDate;
+
+			// Process both rows: (fromUserId, toUserId) and (toUserId, fromUserId)
+			const rowsToInsert = [
+				{ userId: fromUserId, friendId: toUserId },
+				{ userId: toUserId, friendId: fromUserId },
+			];
+			let changes = 0;
+
+			for (const { userId, friendId } of rowsToInsert) {
+				const existing = this.db.lastOyInfo.find(
+					(row) => row.user_id === userId && row.friend_id === friendId,
+				);
+				if (existing) {
+					const previousLastOyCreatedAt = existing.last_oy_created_at;
+					existing.last_oy_id = lastOyId;
+					existing.last_oy_type = lastOyType;
+					existing.last_oy_created_at = lastOyCreatedAt;
+					existing.last_oy_from_user_id = fromUserId;
+					if (
+						previousLastOyCreatedAt === null ||
+						previousLastOyCreatedAt < startOfYesterdayNY
+					) {
+						existing.streak_start_date = streakStartDate;
+					}
+				} else {
+					this.db.lastOyInfo.push({
+						user_id: userId,
+						friend_id: friendId,
+						last_oy_id: lastOyId,
+						last_oy_type: lastOyType,
+						last_oy_created_at: lastOyCreatedAt,
+						last_oy_from_user_id: fromUserId,
+						streak: 1,
+						streak_start_date: streakStartDate,
+					});
 				}
-				return { success: true, meta: { last_row_id: 0, changes: 1 } };
+				changes += 1;
 			}
-			this.db.lastOyInfo.push({
-				user_id: userId,
-				friend_id: friendId,
-				last_oy_id: lastOyId,
-				last_oy_type: lastOyType,
-				last_oy_created_at: lastOyCreatedAt,
-				last_oy_from_user_id: lastOyFromUserId,
-				streak: 1,
-				streak_start_date: streakStartDate,
-			});
-			return { success: true, meta: { last_row_id: 0, changes: 1 } };
+			return { success: true, meta: { last_row_id: 0, changes } };
 		}
 		if (sql.startsWith("INSERT INTO oys")) {
 			const [fromUserId, toUserId, type, payload, createdAt] = this.params as [
