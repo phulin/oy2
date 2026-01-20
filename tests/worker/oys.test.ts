@@ -155,6 +155,8 @@ describe("oys and los", () => {
 		assert.equal(json.success, true);
 		const notificationPayload = JSON.parse(db.notifications[0].payload);
 		assert.ok(notificationPayload.url.includes("expand=location"));
+		assert.equal(notificationPayload.fromUserId, sender.id);
+		assert.ok(Number.isFinite(notificationPayload.createdAt));
 	});
 
 	it("returns recent oys ordered and supports cursors", async () => {

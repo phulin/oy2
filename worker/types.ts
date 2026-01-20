@@ -61,6 +61,8 @@ export type PushPayload = {
 	tag?: string;
 	url?: string;
 	notificationId?: number;
+	createdAt?: number;
+	fromUserId?: number;
 };
 
 export type OyRow = {

@@ -291,7 +291,11 @@ export async function createOyAndNotification(
 		],
 	);
 
-	const notificationPayload = makeNotificationPayload(oyId);
+	const notificationPayload: PushPayload = {
+		...makeNotificationPayload(oyId),
+		createdAt,
+		fromUserId,
+	};
 	const subscriptionsPromise = fetchPushSubscriptions(c, toUserId);
 	const notificationInsertPromise = c.get("db").query<{ id: number }>(
 		`

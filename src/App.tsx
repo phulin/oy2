@@ -653,6 +653,8 @@ export default function App() {
 						notificationId?: number;
 						title?: string;
 						body?: string;
+						createdAt?: number;
+						fromUserId?: number;
 				  }
 				| undefined;
 			if (payload?.type !== "oy" && payload?.type !== "lo") {
@@ -664,8 +666,50 @@ export default function App() {
 			) {
 				return;
 			}
-			if (currentUser()) {
-				void loadLastOyInfo();
+			const createdAt = payload.createdAt;
+			const fromUserId = payload.fromUserId;
+			if (
+				currentUser() &&
+				typeof fromUserId === "number" &&
+				typeof createdAt === "number" &&
+				Number.isFinite(createdAt)
+			) {
+				setLastOyInfo((prev) => {
+					const next = prev.map((info) =>
+						info.friend_id === fromUserId
+							? {
+									...info,
+									last_oy_type: payload.type ?? null,
+									last_oy_created_at: createdAt,
+									last_oy_from_user_id: fromUserId,
+								}
+							: info,
+					);
+					const hasExisting = next.some(
+						(info) => info.friend_id === fromUserId,
+					);
+					const nextList = hasExisting
+						? next
+						: [
+								...next,
+								{
+									friend_id: fromUserId,
+									last_oy_type: payload.type ?? null,
+									last_oy_created_at: createdAt,
+									last_oy_from_user_id: fromUserId,
+									streak: 0,
+								},
+							];
+					const sorted = [...nextList].sort(
+						(a, b) =>
+							(b.last_oy_created_at ?? -1) - (a.last_oy_created_at ?? -1),
+					);
+					localStorage.setItem(
+						cachedLastOyInfoStorageKey,
+						JSON.stringify(sorted),
+					);
+					return sorted;
+				});
 			}
 			void oyAudio.play().catch(() => {
 				ensureAudioUnlocked();
