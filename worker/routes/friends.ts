@@ -1,5 +1,5 @@
 import { computeStreakLength, getStreakDateBoundaries } from "../lib";
-import type { App, FriendListRow, LastYoInfoRow, User } from "../types";
+import type { App, FriendListRow, LastOyInfoRow, User } from "../types";
 
 export function registerFriendRoutes(app: App) {
 	app.post("/api/friends", async (c) => {
@@ -67,42 +67,42 @@ export function registerFriendRoutes(app: App) {
 		return c.json({ friends: friendResults });
 	});
 
-	app.get("/api/last-yo-info", async (c) => {
+	app.get("/api/last-oy-info", async (c) => {
 		const user = c.get("user");
 		if (!user) {
 			return c.json({ error: "Not authenticated" }, 401);
 		}
 
-		const lastYoInfo = await c.get("db").query<LastYoInfoRow>(
+		const lastOyInfo = await c.get("db").query<LastOyInfoRow>(
 			`
     SELECT
       friend_id,
-      last_yo_type,
-      last_yo_created_at,
-      last_yo_from_user_id,
+      last_oy_type,
+      last_oy_created_at,
+      last_oy_from_user_id,
       streak_start_date
-    FROM last_yo_info
+    FROM last_oy_info
     WHERE user_id = $1
   `,
 			[user.id],
 		);
 
 		const { startOfTodayNY, startOfYesterdayNY } = getStreakDateBoundaries();
-		const results = lastYoInfo.rows.map((info) => {
+		const results = lastOyInfo.rows.map((info) => {
 			const streak = computeStreakLength({
-				lastYoCreatedAt: info.last_yo_created_at,
+				lastOyCreatedAt: info.last_oy_created_at,
 				streakStartDate: info.streak_start_date,
 				startOfTodayNY,
 				startOfYesterdayNY,
 			});
 			return {
 				friend_id: info.friend_id,
-				last_yo_type: info.last_yo_type,
-				last_yo_created_at: info.last_yo_created_at,
-				last_yo_from_user_id: info.last_yo_from_user_id,
+				last_oy_type: info.last_oy_type,
+				last_oy_created_at: info.last_oy_created_at,
+				last_oy_from_user_id: info.last_oy_from_user_id,
 				streak,
 			};
 		});
-		return c.json({ lastYoInfo: results });
+		return c.json({ lastOyInfo: results });
 	});
 }

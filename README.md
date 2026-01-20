@@ -221,7 +221,7 @@ oy2/
 - `friend_id` - Friend's user ID
 - `created_at` - Timestamp
 
-### yos
+### oys
 - `id` - Auto-increment primary key
 - `from_user_id` - Sender's user ID
 - `to_user_id` - Recipient's user ID

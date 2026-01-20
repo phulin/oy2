@@ -1,5 +1,5 @@
 import { createMemo, createSignal, For, onCleanup, Show } from "solid-js";
-import type { FriendWithLastYo } from "../types";
+import type { FriendWithLastOy } from "../types";
 import { formatTime } from "../utils";
 import { AsyncButton } from "./AsyncButton";
 import "./ButtonStyles.css";
@@ -7,10 +7,10 @@ import "./FriendsList.css";
 import { TouchTooltip } from "./TouchTooltip";
 
 type FriendsListProps = {
-	friends: FriendWithLastYo[];
+	friends: FriendWithLastOy[];
 	currentUserId: number;
 	loading: () => boolean;
-	loadingLastYo: () => boolean;
+	loadingLastOy: () => boolean;
 	onSendOy: (friendId: number) => Promise<void>;
 	onSendLo: (friendId: number) => Promise<void>;
 };
@@ -25,7 +25,7 @@ export function FriendsList(props: FriendsListProps) {
 	const skeletonItems = () => Array.from({ length: 4 });
 	const sortedFriends = createMemo(() =>
 		[...props.friends].sort(
-			(a, b) => (b.last_yo_created_at ?? -1) - (a.last_yo_created_at ?? -1),
+			(a, b) => (b.last_oy_created_at ?? -1) - (a.last_oy_created_at ?? -1),
 		),
 	);
 	const formatRelativeTime = (timestamp: number) => {
@@ -57,9 +57,9 @@ export function FriendsList(props: FriendsListProps) {
 			>
 				<For each={sortedFriends()}>
 					{(friend) => {
-						const lastYoCreatedAt = friend.last_yo_created_at;
-						const lastYoDirection =
-							friend.last_yo_from_user_id === props.currentUserId ? "↗" : "↙";
+						const lastOyCreatedAt = friend.last_oy_created_at;
+						const lastOyDirection =
+							friend.last_oy_from_user_id === props.currentUserId ? "↗" : "↙";
 
 						return (
 							<div class="friends-list-item card">
@@ -68,9 +68,9 @@ export function FriendsList(props: FriendsListProps) {
 										{friend.username}
 									</div>
 									<Show
-										when={lastYoCreatedAt !== null}
+										when={lastOyCreatedAt !== null}
 										fallback={
-											<Show when={props.loadingLastYo()}>
+											<Show when={props.loadingLastOy()}>
 												<div class="friends-list-item-subtitle item-subtitle">
 													Loading...
 												</div>
@@ -78,8 +78,8 @@ export function FriendsList(props: FriendsListProps) {
 										}
 									>
 										<div class="friends-list-item-subtitle item-subtitle">
-											{lastYoDirection}{" "}
-											{formatRelativeTime(lastYoCreatedAt as number)}
+											{lastOyDirection}{" "}
+											{formatRelativeTime(lastOyCreatedAt as number)}
 											<Show when={friend.streak >= 2}>
 												<TouchTooltip
 													triggerClass="streak-trigger"

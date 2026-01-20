@@ -1,6 +1,6 @@
 #!/usr/bin/env npx tsx
 /**
- * One-time script to compute initial streak start dates from the yos table.
+ * One-time script to compute initial streak start dates from the oys table.
  *
  * For each friendship, walks backwards in days from today/yesterday to find the
  * start date for the current streak (NY time).
@@ -77,7 +77,7 @@ type Friendship = {
 	friend_id: number;
 };
 
-type Yo = {
+type Oy = {
 	from_user_id: number;
 	to_user_id: number;
 	created_at: number;
@@ -96,25 +96,25 @@ async function main() {
 	const friendships = parseD1Result(friendshipsOutput) as Friendship[];
 	console.log(`Found ${friendships.length} friendships`);
 
-	// Get all yos in one query
-	console.log("Fetching all yos...");
-	const yosOutput = runD1Query(
+	// Get all oys in one query
+	console.log("Fetching all oys...");
+	const oysOutput = runD1Query(
 		"SELECT from_user_id, to_user_id, created_at FROM yos",
 	);
-	const allYos = parseD1Result(yosOutput) as Yo[];
-	console.log(`Found ${allYos.length} yos`);
+	const allOys = parseD1Result(oysOutput) as Oy[];
+	console.log(`Found ${allOys.length} oys`);
 
 	// Build a map of user pair -> set of dates
 	console.log("Building date maps...");
 	const pairDates = new Map<string, Set<string>>();
-	for (const yo of allYos) {
-		const key = pairKey(yo.from_user_id, yo.to_user_id);
+	for (const oy of allOys) {
+		const key = pairKey(oy.from_user_id, oy.to_user_id);
 		let dates = pairDates.get(key);
 		if (!dates) {
 			dates = new Set();
 			pairDates.set(key, dates);
 		}
-		const dateStr = getNYDateString(yo.created_at);
+		const dateStr = getNYDateString(oy.created_at);
 		dates.add(dateStr);
 	}
 
@@ -144,17 +144,17 @@ async function main() {
 			continue;
 		}
 
-		// Check if there's a yo today or yesterday
-		const hasYoToday = dates.has(todayStr);
+		// Check if there's an oy today or yesterday
+		const hasOyToday = dates.has(todayStr);
 		const yesterdayStr = getNYDateString(startOfYesterdayNY);
-		const hasYoYesterday = dates.has(yesterdayStr);
+		const hasOyYesterday = dates.has(yesterdayStr);
 
-		if (!hasYoToday && !hasYoYesterday) {
+		if (!hasOyToday && !hasOyYesterday) {
 			updates.push({ userId, friendId, streakStartDate: null });
 			continue;
 		}
 
-		const startDateSeed = hasYoToday
+		const startDateSeed = hasOyToday
 			? new Date(startOfTodayNY * 1000)
 			: new Date(startOfYesterdayNY * 1000);
 		let streakStartDate = startDateSeed;

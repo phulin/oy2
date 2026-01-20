@@ -41,7 +41,7 @@ self.addEventListener("push", (event) => {
 			data.tag ||
 			(data.notificationId
 				? `notification-${data.notificationId}`
-				: "yo-notification"),
+				: "oy-notification"),
 		vibrate: [200, 100, 200],
 		requireInteraction: false,
 		data: {

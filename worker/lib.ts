@@ -52,27 +52,27 @@ export function getStreakDateBoundaries(): {
 const SECONDS_PER_DAY = 24 * 60 * 60;
 
 export function computeStreakLength({
-	lastYoCreatedAt,
+	lastOyCreatedAt,
 	streakStartDate,
 	startOfTodayNY,
 	startOfYesterdayNY,
 }: {
-	lastYoCreatedAt: number | null;
+	lastOyCreatedAt: number | null;
 	streakStartDate: number | null;
 	startOfTodayNY: number;
 	startOfYesterdayNY: number;
 }): number {
-	if (lastYoCreatedAt === null || streakStartDate === null) {
+	if (lastOyCreatedAt === null || streakStartDate === null) {
 		return 0;
 	}
-	if (lastYoCreatedAt < startOfYesterdayNY) {
+	if (lastOyCreatedAt < startOfYesterdayNY) {
 		return 0;
 	}
 	const daysSinceStart = Math.floor(
 		(startOfTodayNY - streakStartDate) / SECONDS_PER_DAY,
 	);
-	const hasYoToday = lastYoCreatedAt >= startOfTodayNY;
-	return daysSinceStart + (hasYoToday ? 1 : 0);
+	const hasOyToday = lastOyCreatedAt >= startOfTodayNY;
+	return daysSinceStart + (hasOyToday ? 1 : 0);
 }
 
 export async function getPhoneAuthEnabled(c: AppContext) {
@@ -217,46 +217,46 @@ export async function sendPushNotifications(
 	}
 }
 
-export async function createYoAndNotification(
+export async function createOyAndNotification(
 	c: AppContext,
 	fromUserId: number,
 	toUserId: number,
 	type: "oy" | "lo",
-	yoPayload: string | null,
-	makeNotificationPayload: (yoId: number) => PushPayload,
+	oyPayload: string | null,
+	makeNotificationPayload: (oyId: number) => PushPayload,
 ) {
 	const createdAt = Math.floor(Date.now() / 1000);
 	const { startOfTodayNY, startOfYesterdayNY } = getStreakDateBoundaries();
-	const yoResult = await c.get("db").query<{ id: number }>(
+	const oyResult = await c.get("db").query<{ id: number }>(
 		`
-      INSERT INTO yos (from_user_id, to_user_id, type, payload, created_at)
+      INSERT INTO oys (from_user_id, to_user_id, type, payload, created_at)
       VALUES ($1, $2, $3, $4, $5)
       RETURNING id
     `,
-		[fromUserId, toUserId, type, yoPayload, createdAt],
+		[fromUserId, toUserId, type, oyPayload, createdAt],
 	);
 
-	const yoId = Number(yoResult.rows[0]?.id);
+	const oyId = Number(oyResult.rows[0]?.id);
 
-	// Update last_yo_info for both directions of the friendship
+	// Update last_oy_info for both directions of the friendship
 	await c.get("db").query(
 		`
-      INSERT INTO last_yo_info (user_id, friend_id, last_yo_id, last_yo_type, last_yo_created_at, last_yo_from_user_id, streak, streak_start_date)
+      INSERT INTO last_oy_info (user_id, friend_id, last_oy_id, last_oy_type, last_oy_created_at, last_oy_from_user_id, streak, streak_start_date)
       VALUES ($1, $2, $3, $4, $5, $6, 1, $7)
       ON CONFLICT (user_id, friend_id) DO UPDATE SET
-        last_yo_id = EXCLUDED.last_yo_id,
-        last_yo_type = EXCLUDED.last_yo_type,
-        last_yo_created_at = EXCLUDED.last_yo_created_at,
-        last_yo_from_user_id = EXCLUDED.last_yo_from_user_id,
+        last_oy_id = EXCLUDED.last_oy_id,
+        last_oy_type = EXCLUDED.last_oy_type,
+        last_oy_created_at = EXCLUDED.last_oy_created_at,
+        last_oy_from_user_id = EXCLUDED.last_oy_from_user_id,
         streak_start_date = CASE
-          WHEN last_yo_info.last_yo_created_at >= $8 THEN last_yo_info.streak_start_date
+          WHEN last_oy_info.last_oy_created_at >= $8 THEN last_oy_info.streak_start_date
           ELSE EXCLUDED.streak_start_date
         END
     `,
 		[
 			fromUserId,
 			toUserId,
-			yoId,
+			oyId,
 			type,
 			createdAt,
 			fromUserId,
@@ -267,22 +267,22 @@ export async function createYoAndNotification(
 
 	await c.get("db").query(
 		`
-      INSERT INTO last_yo_info (user_id, friend_id, last_yo_id, last_yo_type, last_yo_created_at, last_yo_from_user_id, streak, streak_start_date)
+      INSERT INTO last_oy_info (user_id, friend_id, last_oy_id, last_oy_type, last_oy_created_at, last_oy_from_user_id, streak, streak_start_date)
       VALUES ($1, $2, $3, $4, $5, $6, 1, $7)
       ON CONFLICT (user_id, friend_id) DO UPDATE SET
-        last_yo_id = EXCLUDED.last_yo_id,
-        last_yo_type = EXCLUDED.last_yo_type,
-        last_yo_created_at = EXCLUDED.last_yo_created_at,
-        last_yo_from_user_id = EXCLUDED.last_yo_from_user_id,
+        last_oy_id = EXCLUDED.last_oy_id,
+        last_oy_type = EXCLUDED.last_oy_type,
+        last_oy_created_at = EXCLUDED.last_oy_created_at,
+        last_oy_from_user_id = EXCLUDED.last_oy_from_user_id,
         streak_start_date = CASE
-          WHEN last_yo_info.last_yo_created_at >= $8 THEN last_yo_info.streak_start_date
+          WHEN last_oy_info.last_oy_created_at >= $8 THEN last_oy_info.streak_start_date
           ELSE EXCLUDED.streak_start_date
         END
     `,
 		[
 			toUserId,
 			fromUserId,
-			yoId,
+			oyId,
 			type,
 			createdAt,
 			fromUserId,
@@ -291,7 +291,7 @@ export async function createYoAndNotification(
 		],
 	);
 
-	const notificationPayload = makeNotificationPayload(yoId);
+	const notificationPayload = makeNotificationPayload(oyId);
 	const subscriptionsPromise = fetchPushSubscriptions(c, toUserId);
 	const notificationInsertPromise = c.get("db").query<{ id: number }>(
 		`
@@ -314,7 +314,7 @@ export async function createYoAndNotification(
 	};
 
 	return {
-		yoId,
+		oyId,
 		notificationId,
 		deliveryPayload,
 		subscriptions,

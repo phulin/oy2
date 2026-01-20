@@ -9,15 +9,15 @@ export type Friend = {
 	username: string;
 };
 
-export type LastYoInfo = {
+export type LastOyInfo = {
 	friend_id: number;
-	last_yo_type: string | null;
-	last_yo_created_at: number | null;
-	last_yo_from_user_id: number | null;
+	last_oy_type: string | null;
+	last_oy_created_at: number | null;
+	last_oy_from_user_id: number | null;
 	streak: number;
 };
 
-export type FriendWithLastYo = Friend & Omit<LastYoInfo, "friend_id">;
+export type FriendWithLastOy = Friend & Omit<LastOyInfo, "friend_id">;
 
 export type OyPayload = {
 	lat: number;

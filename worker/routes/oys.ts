@@ -1,17 +1,11 @@
 import {
 	computeStreakLength,
-	createYoAndNotification,
+	createOyAndNotification,
 	getStreakDateBoundaries,
 	sendPushNotifications,
 	updateLastSeen,
 } from "../lib";
-import type {
-	App,
-	AppContext,
-	YoRow as OyRow,
-	OysCursor,
-	PushPayload,
-} from "../types";
+import type { App, AppContext, OyRow, OysCursor, PushPayload } from "../types";
 
 export function registerOyRoutes(app: App) {
 	app.post("/api/oy", async (c: AppContext) => {
@@ -45,26 +39,26 @@ export function registerOyRoutes(app: App) {
 			badge: "/icon-192.png",
 			type: "oy",
 		};
-		const { yoId, notificationId, deliveryPayload, subscriptions } =
-			await createYoAndNotification(c, user.id, toUserId, "oy", null, () => ({
+		const { oyId, notificationId, deliveryPayload, subscriptions } =
+			await createOyAndNotification(c, user.id, toUserId, "oy", null, () => ({
 				...notificationPayload,
 			}));
 
 		const streakResult = await c.get("db").query<{
-			last_yo_created_at: number | null;
+			last_oy_created_at: number | null;
 			streak_start_date: number | null;
 		}>(
-			"SELECT last_yo_created_at, streak_start_date FROM last_yo_info WHERE user_id = $1 AND friend_id = $2 LIMIT 1",
+			"SELECT last_oy_created_at, streak_start_date FROM last_oy_info WHERE user_id = $1 AND friend_id = $2 LIMIT 1",
 			[user.id, toUserId],
 		);
 		const streakRow = (streakResult.rows[0] ?? null) as {
-			last_yo_created_at: number | null;
+			last_oy_created_at: number | null;
 			streak_start_date: number | null;
 		} | null;
 
 		const { startOfTodayNY, startOfYesterdayNY } = getStreakDateBoundaries();
 		const streak = computeStreakLength({
-			lastYoCreatedAt: streakRow?.last_yo_created_at ?? null,
+			lastOyCreatedAt: streakRow?.last_oy_created_at ?? null,
 			streakStartDate: streakRow?.streak_start_date ?? null,
 			startOfTodayNY,
 			startOfYesterdayNY,
@@ -81,7 +75,7 @@ export function registerOyRoutes(app: App) {
 		);
 
 		updateLastSeen(c, user.id);
-		return c.json({ success: true, yoId, streak });
+		return c.json({ success: true, yoId: oyId, streak });
 	});
 
 	app.get("/api/oys", async (c: AppContext) => {
@@ -112,7 +106,7 @@ export function registerOyRoutes(app: App) {
       SELECT y.id, y.from_user_id, y.to_user_id, y.type, y.payload, y.created_at,
              u_from.username as from_username,
              u_to.username as to_username
-      FROM yos y
+      FROM oys y
       INNER JOIN users u_from ON y.from_user_id = u_from.id
       INNER JOIN users u_to ON y.to_user_id = u_to.id
       WHERE y.to_user_id = $1
@@ -128,7 +122,7 @@ export function registerOyRoutes(app: App) {
       SELECT y.id, y.from_user_id, y.to_user_id, y.type, y.payload, y.created_at,
              u_from.username as from_username,
              u_to.username as to_username
-      FROM yos y
+      FROM oys y
       INNER JOIN users u_from ON y.from_user_id = u_from.id
       INNER JOIN users u_to ON y.to_user_id = u_to.id
       WHERE y.from_user_id = $7
@@ -221,34 +215,34 @@ export function registerOyRoutes(app: App) {
 			badge: "/icon-192.png",
 			type: "lo",
 		};
-		const { yoId, notificationId, deliveryPayload, subscriptions } =
-			await createYoAndNotification(
+		const { oyId, notificationId, deliveryPayload, subscriptions } =
+			await createOyAndNotification(
 				c,
 				user.id,
 				toUserId,
 				"lo",
 				payload,
-				(yoIdValue) => ({
+				(oyIdValue) => ({
 					...notificationPayload,
-					url: `/?tab=oys&yo=${yoIdValue}&expand=location`,
+					url: `/?tab=oys&oy=${oyIdValue}&expand=location`,
 				}),
 			);
 
 		const streakResult = await c.get("db").query<{
-			last_yo_created_at: number | null;
+			last_oy_created_at: number | null;
 			streak_start_date: number | null;
 		}>(
-			"SELECT last_yo_created_at, streak_start_date FROM last_yo_info WHERE user_id = $1 AND friend_id = $2 LIMIT 1",
+			"SELECT last_oy_created_at, streak_start_date FROM last_oy_info WHERE user_id = $1 AND friend_id = $2 LIMIT 1",
 			[user.id, toUserId],
 		);
 		const streakRow = (streakResult.rows[0] ?? null) as {
-			last_yo_created_at: number | null;
+			last_oy_created_at: number | null;
 			streak_start_date: number | null;
 		} | null;
 
 		const { startOfTodayNY, startOfYesterdayNY } = getStreakDateBoundaries();
 		const streak = computeStreakLength({
-			lastYoCreatedAt: streakRow?.last_yo_created_at ?? null,
+			lastOyCreatedAt: streakRow?.last_oy_created_at ?? null,
 			streakStartDate: streakRow?.streak_start_date ?? null,
 			startOfTodayNY,
 			startOfYesterdayNY,
@@ -265,6 +259,6 @@ export function registerOyRoutes(app: App) {
 		);
 
 		updateLastSeen(c, user.id);
-		return c.json({ success: true, yoId, streak });
+		return c.json({ success: true, yoId: oyId, streak });
 	});
 }

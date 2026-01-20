@@ -7,7 +7,7 @@ environment to avoid external dependencies while keeping the route logic intact.
 ## Coverage
 - Auth flows (start, verify, session, logout) with phone-auth toggles and OTP mocks.
 - Users (create, search, suggested mutuals).
-- Friends (add, list, last-yo metadata).
+- Friends (add, list, last-oy metadata).
 - Oys/Los (friend gating, notification payloads, cursor pagination).
 - Push subscriptions (subscribe/unsubscribe validation).
 - Admin endpoints (stats, phone-auth toggles).

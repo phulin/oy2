@@ -5,10 +5,10 @@ import {
 	createTestEnv,
 	getStreakDateBoundaries,
 	seedFriendship,
-	seedLastYoInfo,
+	seedLastOyInfo,
 	seedSession,
 	seedUser,
-	seedYo,
+	seedOy,
 } from "./testUtils";
 
 describe("oys and los", () => {
@@ -26,7 +26,7 @@ describe("oys and los", () => {
 		assert.equal(json.error, "You can only send Oys to friends");
 	});
 
-	it("creates yo, notifications, and last yo info updates", async () => {
+	it("creates oy, notifications, and last oy info updates", async () => {
 		const { env, db } = createTestEnv();
 		const sender = seedUser(db, { username: "Sender" });
 		const receiver = seedUser(db, { username: "Receiver" });
@@ -40,29 +40,29 @@ describe("oys and los", () => {
 		});
 		assert.equal(res.status, 200);
 		assert.equal(json.success, true);
-		assert.equal(db.yos.length, 1);
+		assert.equal(db.oys.length, 1);
 		assert.equal(db.notifications.length, 1);
-		assert.equal(db.lastYoInfo.length, 2);
-		const lastYoInfo = db.lastYoInfo.find(
+		assert.equal(db.lastOyInfo.length, 2);
+		const lastOyInfo = db.lastOyInfo.find(
 			(row) => row.user_id === sender.id && row.friend_id === receiver.id,
 		);
-		assert.equal(lastYoInfo?.last_yo_type, "oy");
+		assert.equal(lastOyInfo?.last_oy_type, "oy");
 	});
 
-	it("increments streak when sending yo day after last yo", async () => {
+	it("increments streak when sending oy day after last oy", async () => {
 		const { env, db } = createTestEnv();
 		const sender = seedUser(db, { username: "Sender" });
 		const receiver = seedUser(db, { username: "Receiver" });
 		seedSession(db, sender.id, "streak-inc-token");
 		const { startOfTodayNY, startOfYesterdayNY } = getStreakDateBoundaries();
 		const streakStartDate = startOfYesterdayNY - 2 * 24 * 60 * 60;
-		const lastYoCreatedAt = startOfYesterdayNY + 60;
+		const lastOyCreatedAt = startOfYesterdayNY + 60;
 		seedFriendship(db, sender.id, receiver.id);
 		seedFriendship(db, receiver.id, sender.id);
-		seedLastYoInfo(db, {
+		seedLastOyInfo(db, {
 			userId: sender.id,
 			friendId: receiver.id,
-			lastYoCreatedAt,
+			lastOyCreatedAt,
 			streakStartDate,
 		});
 		const { res, json } = await jsonRequest(env, "/api/oy", {
@@ -72,27 +72,27 @@ describe("oys and los", () => {
 		});
 		assert.equal(res.status, 200);
 		assert.equal(json.success, true);
-		const lastYoInfo = db.lastYoInfo.find(
+		const lastOyInfo = db.lastOyInfo.find(
 			(row) => row.user_id === sender.id && row.friend_id === receiver.id,
 		);
 		assert.equal(json.streak, 4);
-		assert.equal(lastYoInfo?.streak_start_date, streakStartDate);
+		assert.equal(lastOyInfo?.streak_start_date, streakStartDate);
 	});
 
-	it("keeps streak same when sending yo on same day", async () => {
+	it("keeps streak same when sending oy on same day", async () => {
 		const { env, db } = createTestEnv();
 		const sender = seedUser(db, { username: "Sender" });
 		const receiver = seedUser(db, { username: "Receiver" });
 		seedSession(db, sender.id, "streak-same-token");
 		const { startOfTodayNY } = getStreakDateBoundaries();
 		const streakStartDate = startOfTodayNY - 4 * 24 * 60 * 60;
-		const lastYoCreatedAt = startOfTodayNY + 60;
+		const lastOyCreatedAt = startOfTodayNY + 60;
 		seedFriendship(db, sender.id, receiver.id);
 		seedFriendship(db, receiver.id, sender.id);
-		seedLastYoInfo(db, {
+		seedLastOyInfo(db, {
 			userId: sender.id,
 			friendId: receiver.id,
-			lastYoCreatedAt,
+			lastOyCreatedAt,
 			streakStartDate,
 		});
 		const { res, json } = await jsonRequest(env, "/api/oy", {
@@ -102,27 +102,27 @@ describe("oys and los", () => {
 		});
 		assert.equal(res.status, 200);
 		assert.equal(json.success, true);
-		const lastYoInfo = db.lastYoInfo.find(
+		const lastOyInfo = db.lastOyInfo.find(
 			(row) => row.user_id === sender.id && row.friend_id === receiver.id,
 		);
 		assert.equal(json.streak, 5);
-		assert.equal(lastYoInfo?.streak_start_date, streakStartDate);
+		assert.equal(lastOyInfo?.streak_start_date, streakStartDate);
 	});
 
-	it("resets streak to 1 when sending yo after gap", async () => {
+	it("resets streak to 1 when sending oy after gap", async () => {
 		const { env, db } = createTestEnv();
 		const sender = seedUser(db, { username: "Sender" });
 		const receiver = seedUser(db, { username: "Receiver" });
 		seedSession(db, sender.id, "streak-reset-token");
 		const { startOfTodayNY } = getStreakDateBoundaries();
-		const lastYoCreatedAt = startOfTodayNY - 3 * 24 * 60 * 60;
+		const lastOyCreatedAt = startOfTodayNY - 3 * 24 * 60 * 60;
 		const streakStartDate = startOfTodayNY - 10 * 24 * 60 * 60;
 		seedFriendship(db, sender.id, receiver.id);
 		seedFriendship(db, receiver.id, sender.id);
-		seedLastYoInfo(db, {
+		seedLastOyInfo(db, {
 			userId: sender.id,
 			friendId: receiver.id,
-			lastYoCreatedAt,
+			lastOyCreatedAt,
 			streakStartDate,
 		});
 		const { res, json } = await jsonRequest(env, "/api/oy", {
@@ -132,11 +132,11 @@ describe("oys and los", () => {
 		});
 		assert.equal(res.status, 200);
 		assert.equal(json.success, true);
-		const lastYoInfo = db.lastYoInfo.find(
+		const lastOyInfo = db.lastOyInfo.find(
 			(row) => row.user_id === sender.id && row.friend_id === receiver.id,
 		);
 		assert.equal(json.streak, 1);
-		assert.equal(lastYoInfo?.streak_start_date, startOfTodayNY);
+		assert.equal(lastOyInfo?.streak_start_date, startOfTodayNY);
 	});
 
 	it("creates location payloads and notification URLs for los", async () => {
@@ -162,19 +162,19 @@ describe("oys and los", () => {
 		const user = seedUser(db, { username: "Viewer" });
 		const other = seedUser(db, { username: "Other" });
 		seedSession(db, user.id, "oys-token");
-		seedYo(db, {
+		seedOy(db, {
 			fromUserId: other.id,
 			toUserId: user.id,
 			type: "oy",
 			createdAt: 100,
 		});
-		seedYo(db, {
+		seedOy(db, {
 			fromUserId: user.id,
 			toUserId: other.id,
 			type: "oy",
 			createdAt: 120,
 		});
-		seedYo(db, {
+		seedOy(db, {
 			fromUserId: other.id,
 			toUserId: user.id,
 			type: "oy",
@@ -193,7 +193,7 @@ describe("oys and los", () => {
 		assert.equal(body.nextCursor, null);
 
 		for (let i = 0; i < 31; i += 1) {
-			seedYo(db, {
+			seedOy(db, {
 				fromUserId: other.id,
 				toUserId: user.id,
 				type: "oy",

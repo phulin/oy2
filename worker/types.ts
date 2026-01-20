@@ -38,11 +38,11 @@ export type FriendListRow = {
 	username: string;
 };
 
-export type LastYoInfoRow = {
+export type LastOyInfoRow = {
 	friend_id: number;
-	last_yo_type: string | null;
-	last_yo_created_at: number | null;
-	last_yo_from_user_id: number | null;
+	last_oy_type: string | null;
+	last_oy_created_at: number | null;
+	last_oy_from_user_id: number | null;
 	streak_start_date: number | null;
 };
 
@@ -63,7 +63,7 @@ export type PushPayload = {
 	notificationId?: number;
 };
 
-export type YoRow = {
+export type OyRow = {
 	id: number;
 	from_user_id: number;
 	to_user_id: number;
