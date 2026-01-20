@@ -241,8 +241,8 @@ export async function createOyAndNotification(
 	// Update last_oy_info for both directions of the friendship
 	await c.get("db").query(
 		`
-      INSERT INTO last_oy_info (user_id, friend_id, last_oy_id, last_oy_type, last_oy_created_at, last_oy_from_user_id, streak, streak_start_date)
-      VALUES ($1, $2, $3, $4, $5, $6, 1, $7)
+      INSERT INTO last_oy_info (user_id, friend_id, last_oy_id, last_oy_type, last_oy_created_at, last_oy_from_user_id, streak_start_date)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
       ON CONFLICT (user_id, friend_id) DO UPDATE SET
         last_oy_id = EXCLUDED.last_oy_id,
         last_oy_type = EXCLUDED.last_oy_type,
@@ -267,8 +267,8 @@ export async function createOyAndNotification(
 
 	await c.get("db").query(
 		`
-      INSERT INTO last_oy_info (user_id, friend_id, last_oy_id, last_oy_type, last_oy_created_at, last_oy_from_user_id, streak, streak_start_date)
-      VALUES ($1, $2, $3, $4, $5, $6, 1, $7)
+      INSERT INTO last_oy_info (user_id, friend_id, last_oy_id, last_oy_type, last_oy_created_at, last_oy_from_user_id, streak_start_date)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
       ON CONFLICT (user_id, friend_id) DO UPDATE SET
         last_oy_id = EXCLUDED.last_oy_id,
         last_oy_type = EXCLUDED.last_oy_type,

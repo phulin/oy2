@@ -44,7 +44,6 @@ CREATE TABLE IF NOT EXISTS last_yo_info (
   last_yo_type TEXT,
   last_yo_created_at INTEGER,
   last_yo_from_user_id INTEGER,
-  streak INTEGER DEFAULT 1 NOT NULL,
   streak_start_date INTEGER,
   PRIMARY KEY (user_id, friend_id),
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
