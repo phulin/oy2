@@ -1,3 +1,4 @@
+import { deleteCookie, setCookie } from "hono/cookie";
 import {
 	authUserPayload,
 	createSession,
@@ -11,6 +12,20 @@ import {
 	verifyOtp,
 } from "../lib";
 import type { App, AppContext, User } from "../types";
+
+function setSessionCookie(c: AppContext, token: string) {
+	setCookie(c, "session", token, {
+		httpOnly: true,
+		secure: true,
+		sameSite: "Strict",
+		path: "/",
+		maxAge: 60 * 60 * 24 * 365, // 1 year
+	});
+}
+
+function clearSessionCookie(c: AppContext) {
+	deleteCookie(c, "session", { path: "/" });
+}
 
 export function registerAuthRoutes(app: App) {
 	const createUserIfMissing = async (c: AppContext, nextUsername: string) => {
@@ -66,11 +81,11 @@ export function registerAuthRoutes(app: App) {
 		}
 
 		const sessionToken = await createSession(c, user);
+		setSessionCookie(c, sessionToken);
 		updateLastSeen(c, user.id);
 		return c.json({
 			status: "authenticated",
 			user: authUserPayload(user),
-			token: sessionToken,
 		});
 	});
 
@@ -147,11 +162,11 @@ export function registerAuthRoutes(app: App) {
 		}
 
 		const sessionToken = await createSession(c, user);
+		setSessionCookie(c, sessionToken);
 		updateLastSeen(c, user.id);
 
 		return c.json({
 			user: authUserPayload(user),
-			token: sessionToken,
 		});
 	});
 
@@ -170,6 +185,7 @@ export function registerAuthRoutes(app: App) {
 		const user = c.get("user");
 		const sessionToken = c.get("sessionToken");
 		if (!user || !sessionToken) {
+			clearSessionCookie(c);
 			return c.json({ error: "Not authenticated" }, 401);
 		}
 
@@ -177,6 +193,7 @@ export function registerAuthRoutes(app: App) {
 			.get("db")
 			.query("DELETE FROM sessions WHERE token = $1", [sessionToken]);
 		await c.env.OY2.delete(`${SESSION_KV_PREFIX}${sessionToken}`);
+		clearSessionCookie(c);
 
 		return c.json({ success: true });
 	});

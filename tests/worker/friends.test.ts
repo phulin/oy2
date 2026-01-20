@@ -21,8 +21,10 @@ describe("friends", () => {
 			headers: { "x-session-token": "friend-token" },
 			body: { friendId: friend.id },
 		});
+		const body = json as { friend: { id: number; username: string } };
 		assert.equal(res.status, 200);
-		assert.equal(json.success, true);
+		assert.equal(body.friend.id, friend.id);
+		assert.equal(body.friend.username, "Guest");
 		assert.equal(db.friendships.length, 2);
 	});
 

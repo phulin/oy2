@@ -61,11 +61,9 @@ export default function App() {
 	const cachedUserRaw = localStorage.getItem(cachedUserStorageKey);
 	const cachedFriendsRaw = localStorage.getItem(cachedFriendsStorageKey);
 	const cachedLastOyInfoRaw = localStorage.getItem(cachedLastOyInfoStorageKey);
-	const initialSessionToken = localStorage.getItem("sessionToken");
-	const initialCachedUser =
-		initialSessionToken && cachedUserRaw
-			? (JSON.parse(cachedUserRaw) as User)
-			: null;
+	const initialCachedUser = cachedUserRaw
+		? (JSON.parse(cachedUserRaw) as User)
+		: null;
 	const initialCachedFriends = cachedFriendsRaw
 		? (JSON.parse(cachedFriendsRaw) as Friend[])
 		: [];
@@ -76,9 +74,6 @@ export default function App() {
 	const [booting, setBooting] = createSignal(true);
 	const [currentUser, setCurrentUser] = createSignal<User | null>(
 		initialCachedUser,
-	);
-	const [sessionToken, setSessionToken] = createSignal<string | null>(
-		initialSessionToken,
 	);
 	const [authStep, setAuthStep] = createSignal<AuthStep>("login");
 	const [pendingUsername, setPendingUsername] = createSignal<string>("");
@@ -130,12 +125,11 @@ export default function App() {
 		const headers = new Headers(options.headers || {});
 		headers.set("Content-Type", "application/json");
 
-		const token = sessionToken();
-		if (token) {
-			headers.set("X-Session-Token", token);
-		}
-
-		const response = await fetch(endpoint, { ...options, headers });
+		const response = await fetch(endpoint, {
+			...options,
+			headers,
+			credentials: "include",
+		});
 		if (!response.ok) {
 			const error = await response
 				.json()
@@ -321,9 +315,7 @@ export default function App() {
 		]);
 	}
 
-	async function applyAuthSession(user: User, token: string) {
-		setSessionToken(token);
-		localStorage.setItem("sessionToken", token);
+	async function applyAuthSession(user: User) {
 		localStorage.setItem(cachedUserStorageKey, JSON.stringify(user));
 		setCurrentUser(user);
 		await loadData();
@@ -340,14 +332,14 @@ export default function App() {
 		try {
 			const response = await api<
 				| { status: "needs_phone" | "code_sent" }
-				| { status: "authenticated"; user: User; token: string }
+				| { status: "authenticated"; user: User }
 			>("/api/auth/start", {
 				method: "POST",
 				body: JSON.stringify({ username }),
 			});
 			setPendingUsername(username);
 			if (response.status === "authenticated") {
-				await applyAuthSession(response.user, response.token);
+				await applyAuthSession(response.user);
 				return;
 			}
 			setAuthStep(response.status === "needs_phone" ? "phone" : "verify");
@@ -384,30 +376,24 @@ export default function App() {
 			return;
 		}
 		try {
-			const { user, token } = await api<{ user: User; token: string }>(
-				"/api/auth/verify",
-				{
-					method: "POST",
-					body: JSON.stringify({ username: pendingUsername(), otp }),
-				},
-			);
-			await applyAuthSession(user, token);
+			const { user } = await api<{ user: User }>("/api/auth/verify", {
+				method: "POST",
+				body: JSON.stringify({ username: pendingUsername(), otp }),
+			});
+			await applyAuthSession(user);
 		} catch (err) {
 			alert((err as Error).message);
 		}
 	}
 
-	async function restoreSession(token: string) {
+	async function restoreSession() {
 		try {
-			setSessionToken(token);
 			const { user } = await api<{ user: User }>("/api/auth/session");
 			setCurrentUser(user);
 			localStorage.setItem(cachedUserStorageKey, JSON.stringify(user));
 			await loadData();
 		} catch (_err) {
-			setSessionToken(null);
 			setCurrentUser(null);
-			localStorage.removeItem("sessionToken");
 			localStorage.removeItem(cachedUserStorageKey);
 			localStorage.removeItem(cachedFriendsStorageKey);
 			localStorage.removeItem(cachedLastOyInfoStorageKey);
@@ -419,29 +405,21 @@ export default function App() {
 	}
 
 	function logout() {
-		const token = sessionToken();
-		if (token) {
-			api("/api/auth/logout", {
-				method: "POST",
-				headers: { "X-Session-Token": token },
-			}).catch((err) => {
-				console.error("Logout failed:", err);
-			});
-		}
+		api("/api/auth/logout", { method: "POST" }).catch((err) => {
+			console.error("Logout failed:", err);
+		});
 		setCurrentUser(null);
-		localStorage.removeItem("sessionToken");
 		localStorage.removeItem(cachedUserStorageKey);
 		localStorage.removeItem(cachedFriendsStorageKey);
 		localStorage.removeItem(cachedLastOyInfoStorageKey);
-		setSessionToken(null);
 		setAuthStep("login");
 		setPendingUsername("");
 		setFriends([]);
 		setLastOyInfo([]);
 
 		const registration = swRegistration();
-		if (registration && token) {
-			unsubscribePush(registration, token).catch((err) => {
+		if (registration) {
+			unsubscribePush(registration).catch((err) => {
 				console.error("Push unsubscribe failed:", err);
 			});
 		}
@@ -459,10 +437,7 @@ export default function App() {
 		}
 	}
 
-	async function unsubscribePush(
-		registration: ServiceWorkerRegistration,
-		token?: string,
-	) {
+	async function unsubscribePush(registration: ServiceWorkerRegistration) {
 		const subscription = await registration.pushManager.getSubscription();
 		if (!subscription) {
 			return;
@@ -470,7 +445,6 @@ export default function App() {
 
 		await api("/api/push/unsubscribe", {
 			method: "POST",
-			headers: token ? { "X-Session-Token": token } : undefined,
 			body: JSON.stringify({ endpoint: subscription.endpoint }),
 		});
 	}
@@ -597,16 +571,12 @@ export default function App() {
 
 	onMount(async () => {
 		await registerServiceWorker();
-		if (initialSessionToken) {
-			setLoadingFriends(true);
-			setBooting(false);
-			await restoreSession(initialSessionToken);
-			if (!currentUser()) {
-				setLoadingFriends(false);
-			}
-			return;
-		}
+		setLoadingFriends(true);
 		setBooting(false);
+		await restoreSession();
+		if (!currentUser()) {
+			setLoadingFriends(false);
+		}
 	});
 
 	onMount(() => {

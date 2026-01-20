@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { jsonRequest, setOtpFetchMock } from "./testHelpers";
+import { getSessionToken, jsonRequest, setOtpFetchMock } from "./testHelpers";
 import { createTestEnv, seedSession, seedUser } from "./testUtils";
 
 describe("auth", () => {
@@ -21,15 +21,11 @@ describe("auth", () => {
 			method: "POST",
 			body: { username: "Otto", phone: "+15555555555" },
 		});
-		const body = json as {
-			status: string;
-			user: { username: string };
-			token: string;
-		};
+		const body = json as { status: string; user: { username: string } };
 		assert.equal(res.status, 200);
 		assert.equal(body.status, "authenticated");
 		assert.equal(body.user.username, "Otto");
-		assert.ok(body.token);
+		assert.ok(getSessionToken(res));
 		assert.equal(db.users.length, 1);
 		assert.equal(db.sessions.length, 1);
 	});
@@ -121,10 +117,10 @@ describe("auth", () => {
 			method: "POST",
 			body: { username: "Nina", otp: "1234" },
 		});
-		const body = json as { user: { username: string }; token: string };
+		const body = json as { user: { username: string } };
 		assert.equal(res.status, 200);
 		assert.equal(body.user.username, "Nina");
-		assert.ok(body.token);
+		assert.ok(getSessionToken(res));
 	});
 
 	it("rejects invalid OTPs", async (t) => {
@@ -147,10 +143,10 @@ describe("auth", () => {
 			method: "POST",
 			body: { username: "Tess", otp: "123456" },
 		});
-		const body = json as { user: { username: string }; token: string };
+		const body = json as { user: { username: string } };
 		assert.equal(res.status, 200);
 		assert.equal(body.user.username, "Tess");
-		assert.ok(body.token);
+		assert.ok(getSessionToken(res));
 		const updated = db.users.find((row) => row.id === user.id);
 		assert.equal(updated?.phone_verified, 1);
 		assert.equal(db.sessions.length, 1);

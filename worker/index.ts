@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { getCookie } from "hono/cookie";
 import { Client } from "pg";
 import { SESSION_KV_PREFIX } from "./lib";
 import { registerAdminRoutes } from "./routes/admin";
@@ -32,7 +33,9 @@ app.use("*", async (c: AppContext, next) => {
 app.use("*", async (c: AppContext, next) => {
 	c.set("user", null);
 	c.set("sessionToken", null);
-	const sessionToken = c.req.header("x-session-token");
+	// Prefer cookie, fall back to header for tests
+	const sessionToken =
+		getCookie(c, "session") || c.req.header("x-session-token");
 	if (sessionToken) {
 		try {
 			const sessionKey = `${SESSION_KV_PREFIX}${sessionToken}`;

@@ -37,6 +37,15 @@ export const jsonRequest = async (
 	return { res, json };
 };
 
+export const getSessionToken = (res: Response) => {
+	const setCookie = res.headers.get("set-cookie");
+	if (!setCookie) {
+		return null;
+	}
+	const match = /(?:^|,)\s*session=([^;]+)/.exec(setCookie);
+	return match ? match[1] : null;
+};
+
 export const setOtpFetchMock = (
 	t: TestContext,
 	{
