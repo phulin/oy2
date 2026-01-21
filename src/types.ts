@@ -42,3 +42,15 @@ export type OysCursor = {
 	before: number;
 	beforeId: number;
 };
+
+export type PasskeySummary = {
+	id: number;
+	device_name: string | null;
+	created_at: number;
+	last_used_at?: number | null;
+};
+
+export type PasskeyStatus = {
+	hasPasskey: boolean;
+	passkeys: PasskeySummary[];
+};

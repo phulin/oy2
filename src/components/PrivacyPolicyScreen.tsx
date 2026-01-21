@@ -1,3 +1,4 @@
+import { A } from "@solidjs/router";
 import { createResource } from "solid-js";
 import "./PrivacyPolicyScreen.css";
 
@@ -12,10 +13,11 @@ export function PrivacyPolicyScreen() {
 	return (
 		<div class="privacy-screen">
 			<header class="privacy-header">
-				<a class="privacy-home" href="/">
-					Oy
-				</a>
-				<span class="privacy-title">Privacy Policy</span>
+				<A class="privacy-back" href="/">
+					&lt; Back
+				</A>
+				<span class="privacy-logo">Oy</span>
+				<span class="privacy-spacer" aria-hidden="true" />
 			</header>
 			<pre class="privacy-content">{policy()}</pre>
 		</div>

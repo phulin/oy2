@@ -26,10 +26,6 @@ type AdminStatsResponse = {
 	generatedAt: number;
 };
 
-type AdminPhoneAuthResponse = {
-	enabled: boolean;
-};
-
 type AdminDashboardProps = {
 	user: User;
 	onLogout: () => void;
@@ -40,10 +36,6 @@ export function AdminDashboard(props: AdminDashboardProps) {
 	const [data, setData] = createSignal<AdminStatsResponse | null>(null);
 	const [error, setError] = createSignal<string | null>(null);
 	const [loading, setLoading] = createSignal(true);
-	const [phoneAuthEnabled, setPhoneAuthEnabled] = createSignal(true);
-	const [settingsError, setSettingsError] = createSignal<string | null>(null);
-	const [settingsLoading, setSettingsLoading] = createSignal(true);
-	const [settingsSaving, setSettingsSaving] = createSignal(false);
 
 	const loadStats = async () => {
 		setLoading(true);
@@ -59,40 +51,6 @@ export function AdminDashboard(props: AdminDashboardProps) {
 		}
 	};
 
-	const loadPhoneAuthSetting = async () => {
-		setSettingsLoading(true);
-		setSettingsError(null);
-		try {
-			const response = await props.api<AdminPhoneAuthResponse>(
-				"/api/admin/phone-auth",
-			);
-			setPhoneAuthEnabled(response.enabled);
-		} catch (err) {
-			setSettingsError(err instanceof Error ? err.message : String(err));
-		} finally {
-			setSettingsLoading(false);
-		}
-	};
-
-	const updatePhoneAuthSetting = async (enabled: boolean) => {
-		setSettingsSaving(true);
-		setSettingsError(null);
-		try {
-			const response = await props.api<AdminPhoneAuthResponse>(
-				"/api/admin/phone-auth",
-				{
-					method: "PUT",
-					body: JSON.stringify({ enabled }),
-				},
-			);
-			setPhoneAuthEnabled(response.enabled);
-		} catch (err) {
-			setSettingsError(err instanceof Error ? err.message : String(err));
-		} finally {
-			setSettingsSaving(false);
-		}
-	};
-
 	const formatTimestamp = (timestamp: number) =>
 		new Date(timestamp * 1000).toLocaleString();
 
@@ -100,7 +58,6 @@ export function AdminDashboard(props: AdminDashboardProps) {
 
 	onMount(() => {
 		void loadStats();
-		void loadPhoneAuthSetting();
 		const interval = setInterval(loadStats, 300_000);
 		onCleanup(() => clearInterval(interval));
 	});
@@ -161,45 +118,6 @@ export function AdminDashboard(props: AdminDashboardProps) {
 									{payload().stats.subscriptionsCount} subscriptions ·{" "}
 									{payload().stats.usersCount} users
 								</p>
-							</div>
-						</div>
-
-						<div class="admin-section stack">
-							<div class="admin-section-header">
-								<h2>Authentication</h2>
-								<span class="admin-meta">
-									Phone auth {phoneAuthEnabled() ? "enabled" : "disabled"}
-								</span>
-							</div>
-							<div class="admin-toggle-row stack stack-md">
-								<label class="admin-toggle">
-									<span class="admin-toggle-copy stack stack-sm">
-										<span class="admin-toggle-title item-title">
-											Require phone verification
-										</span>
-										<span class="admin-meta">
-											When disabled, users can sign in without SMS codes.
-										</span>
-									</span>
-									<span class="admin-toggle-control">
-										<input
-											type="checkbox"
-											checked={phoneAuthEnabled()}
-											class="admin-toggle-input"
-											disabled={settingsLoading() || settingsSaving()}
-											onChange={(event) =>
-												void updatePhoneAuthSetting(event.currentTarget.checked)
-											}
-										/>
-										<span class="admin-toggle-slider" />
-									</span>
-								</label>
-								<Show when={settingsLoading()}>
-									<p class="admin-status">Loading settings…</p>
-								</Show>
-								<Show when={settingsError()}>
-									<p class="admin-status admin-error">{settingsError()}</p>
-								</Show>
 							</div>
 						</div>
 

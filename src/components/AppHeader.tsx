@@ -1,4 +1,5 @@
 import { Button } from "@kobalte/core/button";
+import { A } from "@solidjs/router";
 import { createSignal } from "solid-js";
 import type { User } from "../types";
 import "./ButtonStyles.css";
@@ -7,7 +8,6 @@ import "./AppHeader.css";
 type AppHeaderProps = {
 	user: User;
 	onLogout: () => void;
-	onSetupNotifications: () => void;
 };
 
 export function AppHeader(props: AppHeaderProps) {
@@ -28,16 +28,19 @@ export function AppHeader(props: AppHeaderProps) {
 			{menuOpen() ? (
 				<div class="app-user-panel">
 					{props.user.admin ? (
-						<a class="app-user-action" href="/admin">
+						<A class="app-user-action" href="/admin">
 							Admin
-						</a>
+						</A>
 					) : null}
-					<Button class="app-user-action" onClick={props.onSetupNotifications}>
-						Enable Notifications
-					</Button>
-					<a class="app-user-action" href="/privacy">
-						Privacy Policy
-					</a>
+					<A class="app-user-action" href="/settings">
+						Settings
+					</A>
+					<A class="app-user-action" href="/privacy">
+						Privacy
+					</A>
+					<A class="app-user-action" href="/terms">
+						Terms
+					</A>
 					<Button class="app-user-action" onClick={props.onLogout}>
 						Logout
 					</Button>

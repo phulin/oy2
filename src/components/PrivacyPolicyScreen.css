@@ -7,9 +7,9 @@
 }
 
 .privacy-header {
-	display: flex;
+	display: grid;
+	grid-template-columns: 1fr auto 1fr;
 	align-items: center;
-	justify-content: space-between;
 	gap: 12px;
 	padding: 16px 20px;
 	border-bottom: 1px solid var(--border);
@@ -19,15 +19,20 @@
 	z-index: 1;
 }
 
-.privacy-home {
+.privacy-back {
 	color: var(--primary);
 	font-weight: 600;
 	text-decoration: none;
+	justify-self: start;
 }
 
-.privacy-title {
+.privacy-logo {
 	font-size: 16px;
-	font-weight: 600;
+	font-weight: 700;
+}
+
+.privacy-spacer {
+	justify-self: end;
 }
 
 .privacy-content {

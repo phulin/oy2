@@ -1,0 +1,98 @@
+.settings-screen {
+	display: flex;
+	flex-direction: column;
+	gap: 20px;
+	padding: 8px 0 24px;
+}
+
+.settings-header {
+	display: flex;
+	align-items: center;
+}
+
+.settings-title {
+	font-size: 24px;
+	font-weight: 700;
+	margin: 0;
+	display: inline-flex;
+	align-items: center;
+	gap: 10px;
+}
+
+.settings-back {
+	color: var(--primary);
+	font-weight: 600;
+	text-decoration: none;
+	display: inline-flex;
+	align-items: center;
+}
+
+.settings-section {
+	background: var(--bg-secondary);
+	border-radius: 16px;
+	padding: 16px;
+	box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
+}
+
+.settings-section-row {
+	display: flex;
+	gap: 16px;
+	align-items: center;
+	justify-content: space-between;
+	flex-wrap: wrap;
+}
+
+.settings-section-title {
+	font-size: 16px;
+	font-weight: 600;
+	margin: 0 0 6px;
+}
+
+.settings-section-description {
+	margin: 0;
+	color: var(--text-light);
+	font-size: 14px;
+}
+
+.settings-muted {
+	margin: 12px 0 0;
+	color: var(--text-light);
+	font-size: 14px;
+}
+
+.settings-passkeys {
+	list-style: none;
+	margin: 16px 0 0;
+	padding: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+}
+
+.settings-passkey {
+	border: 1px solid var(--border);
+	border-radius: 12px;
+	padding: 12px 14px;
+	display: grid;
+	gap: 4px;
+}
+
+.settings-passkey-name {
+	font-weight: 600;
+	color: var(--text);
+}
+
+.settings-passkey-meta {
+	font-size: 13px;
+	color: var(--text-light);
+}
+
+.settings-add-passkey {
+	text-decoration: none;
+}
+
+@media (max-width: 600px) {
+	.settings-section-row {
+		align-items: flex-start;
+	}
+}

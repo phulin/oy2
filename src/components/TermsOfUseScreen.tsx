@@ -1,3 +1,4 @@
+import { A } from "@solidjs/router";
 import { createResource } from "solid-js";
 import "./TermsOfUseScreen.css";
 
@@ -12,10 +13,11 @@ export function TermsOfUseScreen() {
 	return (
 		<div class="terms-screen">
 			<header class="terms-header">
-				<a class="terms-home" href="/">
-					Oy
-				</a>
-				<span class="terms-title">Terms of Use</span>
+				<A class="terms-back" href="/">
+					&lt; Back
+				</A>
+				<span class="terms-logo">Oy</span>
+				<span class="terms-spacer" aria-hidden="true" />
 			</header>
 			<pre class="terms-content">{terms()}</pre>
 		</div>

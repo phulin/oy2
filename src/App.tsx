@@ -1,5 +1,6 @@
 import { registerSW } from "virtual:pwa-register";
-import { Tabs } from "@kobalte/core";
+import { useNavigate } from "@solidjs/router";
+import type { JSX } from "solid-js";
 import {
 	createEffect,
 	createMemo,
@@ -8,19 +9,11 @@ import {
 	onMount,
 	Show,
 } from "solid-js";
-import { AddFriendForm } from "./components/AddFriendForm";
-import { AdminDashboard } from "./components/AdminDashboard";
-import { AppHeader } from "./components/AppHeader";
+import { AppContext } from "./AppContext";
 import { ChooseUsernameScreen } from "./components/ChooseUsernameScreen";
-import { FriendsList } from "./components/FriendsList";
 import { LoginScreen } from "./components/LoginScreen";
-import { OysList } from "./components/OysList";
 import { addOyToast, OyToastContainer } from "./components/OyToast";
 import { PasskeySetupScreen } from "./components/PasskeySetupScreen";
-import { PrivacyPolicyScreen } from "./components/PrivacyPolicyScreen";
-import { Screen } from "./components/Screen";
-import { SwipeableTabs } from "./components/SwipeableTabs";
-import { TermsOfUseScreen } from "./components/TermsOfUseScreen";
 import type {
 	Friend,
 	FriendWithLastOy,
@@ -35,7 +28,6 @@ import "./App.css";
 const urlParams = new URLSearchParams(window.location.search);
 const hashValue = window.location.hash.replace(/^#/, "");
 const hashParams = new URLSearchParams(hashValue);
-const initialHashUsesParam = hashParams.has("tab");
 const requestedTab =
 	hashValue && hashValue !== "tab"
 		? (hashParams.get("tab") ?? hashValue)
@@ -46,12 +38,10 @@ const initialTab =
 	requestedTab && ["friends", "oys", "add"].includes(requestedTab)
 		? requestedTab
 		: "friends";
-const isAdminRoute = window.location.pathname === "/admin";
-const isPrivacyRoute = window.location.pathname === "/privacy";
-const isTermsRoute = window.location.pathname === "/terms";
 const cachedUserStorageKey = "cachedUser";
 const cachedFriendsStorageKey = "cachedFriends";
 const cachedLastOyInfoStorageKey = "cachedLastOyInfo";
+const passkeySetupSkipStorageKey = "passkeySetupSkipped";
 
 type AuthStep = "initial" | "login" | "choose_username" | "passkey_setup";
 
@@ -65,13 +55,12 @@ if (needsChooseUsername || needsPasskeySetup) {
 	history.replaceState(null, "", cleanUrl);
 }
 
-export default function App() {
-	if (isPrivacyRoute) {
-		return <PrivacyPolicyScreen />;
-	}
-	if (isTermsRoute) {
-		return <TermsOfUseScreen />;
-	}
+type AppProps = {
+	children?: JSX.Element;
+};
+
+export default function App(props: AppProps) {
+	const navigate = useNavigate();
 
 	const cachedUserRaw = localStorage.getItem(cachedUserStorageKey);
 	const cachedFriendsRaw = localStorage.getItem(cachedFriendsStorageKey);
@@ -118,8 +107,6 @@ export default function App() {
 	let pendingExpandOyId: number | null =
 		parsedOyId !== null && Number.isFinite(parsedOyId) ? parsedOyId : null;
 	let pendingExpandType: string | null = requestedExpand;
-	let hasUpdatedHash = false;
-	const tabOrder = ["friends", "oys", "add"] as const;
 	const seenNotificationLimit = 100;
 
 	const friendsWithLastOy = createMemo<FriendWithLastOy[]>(() => {
@@ -354,12 +341,23 @@ export default function App() {
 
 	// Handle passkey setup completion
 	function handlePasskeyComplete() {
+		localStorage.removeItem(passkeySetupSkipStorageKey);
 		setAuthStep("login"); // Will show main app since user is logged in
 	}
 
 	// Handle passkey setup skip
 	function handlePasskeySkip() {
+		localStorage.setItem(passkeySetupSkipStorageKey, "1");
 		setAuthStep("login"); // Will show main app since user is logged in
+	}
+
+	function passkeyAddComplete() {
+		handlePasskeyComplete();
+		navigate("/settings");
+	}
+
+	function passkeyAddCancel() {
+		navigate("/settings");
 	}
 
 	// Try zero-click passkey authentication
@@ -487,6 +485,21 @@ export default function App() {
 			}
 			setFriends([]);
 			setLastOyInfo([]);
+		}
+	}
+
+	async function maybePromptPasskeySetup() {
+		if (authStep() !== "initial") {
+			return;
+		}
+		if (localStorage.getItem(passkeySetupSkipStorageKey) === "1") {
+			return;
+		}
+		const { hasPasskey } = await api<{ hasPasskey: boolean }>(
+			"/api/auth/passkey/status",
+		);
+		if (!hasPasskey) {
+			setAuthStep("passkey_setup");
 		}
 	}
 
@@ -671,6 +684,14 @@ export default function App() {
 
 		// Try to restore existing session first
 		await restoreSession();
+
+		if (currentUser() && authStep() === "initial") {
+			await maybePromptPasskeySetup();
+			if (authStep() === "passkey_setup") {
+				setLoadingFriends(false);
+				return;
+			}
+		}
 
 		// If no session and in initial state, try zero-click passkey
 		if (!currentUser() && authStep() === "initial") {
@@ -859,95 +880,31 @@ export default function App() {
 		}
 	});
 
-	createEffect(() => {
-		const currentTab = tab();
-		if (!hasUpdatedHash) {
-			hasUpdatedHash = true;
-			return;
-		}
-		if (currentTab === "friends") {
-			if (window.location.hash) {
-				history.replaceState(
-					null,
-					"",
-					window.location.pathname + window.location.search,
-				);
-			}
-			return;
-		}
-		const hash = initialHashUsesParam ? `tab=${currentTab}` : currentTab;
-		if (window.location.hash !== `#${hash}`) {
-			history.replaceState(
-				null,
-				"",
-				`${window.location.pathname}${window.location.search}#${hash}`,
-			);
-		}
-	});
-
-	const renderApp = (user: User) =>
-		isAdminRoute ? (
-			<AdminDashboard user={user} api={api} onLogout={logout} />
-		) : (
-			<Screen>
-				<AppHeader
-					user={user}
-					onLogout={logout}
-					onSetupNotifications={handleSetupNotifications}
-				/>
-
-				<Tabs.Root value={tab()} onChange={setTab} class="app-tabs-root">
-					<Tabs.List class="app-tabs">
-						<Tabs.Trigger class="app-tab" value="friends">
-							Friends
-						</Tabs.Trigger>
-						<Tabs.Trigger class="app-tab" value="oys">
-							Oys
-						</Tabs.Trigger>
-						<Tabs.Trigger class="app-tab" value="add">
-							Add Friend
-						</Tabs.Trigger>
-					</Tabs.List>
-
-					<SwipeableTabs order={tabOrder} value={tab} onChange={setTab}>
-						<Tabs.Content value="friends">
-							<FriendsList
-								friends={friendsWithLastOy()}
-								currentUserId={user.id}
-								loading={() => loadingFriends() && friends().length === 0}
-								loadingLastOy={() =>
-									loadingLastOyInfo() && lastOyInfo().length === 0
-								}
-								onSendOy={sendOy}
-								onSendLo={sendLo}
-							/>
-						</Tabs.Content>
-
-						<Tabs.Content value="oys">
-							<OysList
-								oys={oys()}
-								currentUserId={user.id}
-								openLocations={openLocations}
-								onToggleLocation={toggleLocation}
-								hasMore={hasMoreOys}
-								loadingMore={loadingMoreOys}
-								loading={loadingOys}
-								onLoadMore={() => loadOysPage()}
-							/>
-						</Tabs.Content>
-
-						<Tabs.Content value="add">
-							<AddFriendForm
-								api={api}
-								currentUser={currentUser}
-								friends={friends}
-								onFriendAdded={handleFriendAdded}
-							/>
-						</Tabs.Content>
-					</SwipeableTabs>
-				</Tabs.Root>
-			</Screen>
-		);
+	const appContextValue = {
+		currentUser,
+		friends,
+		friendsWithLastOy,
+		lastOyInfo,
+		oys,
+		openLocations,
+		loadingFriends,
+		loadingLastOyInfo,
+		loadingOys,
+		loadingMoreOys,
+		hasMoreOys,
+		tab,
+		setTab,
+		api,
+		logout,
+		handleSetupNotifications,
+		sendOy,
+		sendLo,
+		toggleLocation,
+		loadOysPage,
+		handleFriendAdded,
+		passkeyAddComplete,
+		passkeyAddCancel,
+	};
 
 	return (
 		<>
@@ -975,7 +932,9 @@ export default function App() {
 							</Show>
 						}
 					>
-						{(user) => renderApp(user())}
+						<AppContext.Provider value={appContextValue}>
+							{props.children}
+						</AppContext.Provider>
 					</Show>
 				</Show>
 			</Show>

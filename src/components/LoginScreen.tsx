@@ -1,3 +1,4 @@
+import { A } from "@solidjs/router";
 import { createSignal, onMount } from "solid-js";
 import { Screen } from "./Screen";
 import "./ButtonStyles.css";
@@ -70,13 +71,13 @@ export function LoginScreen() {
 				</section>
 			)}
 			<footer class="login-legal">
-				<a class="login-legal-link" href="/terms">
-					Terms of Use
-				</a>
+				<A class="login-legal-link" href="/terms">
+					Terms
+				</A>
 				<span class="login-legal-separator">·</span>
-				<a class="login-legal-link" href="/privacy">
-					Privacy Policy
-				</a>
+				<A class="login-legal-link" href="/privacy">
+					Privacy
+				</A>
 			</footer>
 		</Screen>
 	);

@@ -483,13 +483,13 @@ export function registerPasskeyRoutes(app: App) {
 			return c.json({ error: "Invalid counter" }, 400);
 		}
 
-		// Update counter and last_used_at
+		// Update counter for replay protection
 		await c
 			.get("db")
-			.query(
-				"UPDATE passkeys SET counter = $1, last_used_at = EXTRACT(EPOCH FROM NOW())::INTEGER WHERE id = $2",
-				[signCount, passkey.id],
-			);
+			.query("UPDATE passkeys SET counter = $1 WHERE id = $2", [
+				signCount,
+				passkey.id,
+			]);
 
 		// Get user
 		const userResult = await c
@@ -505,6 +505,14 @@ export function registerPasskeyRoutes(app: App) {
 		// Create session
 		const sessionToken = await createSession(c, user);
 		setSessionCookie(c, sessionToken);
+		c.executionCtx.waitUntil(
+			c
+				.get("db")
+				.query(
+					"UPDATE passkeys SET last_used_at = EXTRACT(EPOCH FROM NOW())::INTEGER WHERE id = $1",
+					[passkey.id],
+				),
+		);
 		updateLastSeen(c, user.id);
 
 		return c.json({
@@ -519,12 +527,15 @@ export function registerPasskeyRoutes(app: App) {
 			return c.json({ hasPasskey: false });
 		}
 
-		const passkeys = await c
-			.get("db")
-			.query<{ id: number; device_name: string | null; created_at: number }>(
-				"SELECT id, device_name, created_at FROM passkeys WHERE user_id = $1",
-				[user.id],
-			);
+		const passkeys = await c.get("db").query<{
+			id: number;
+			device_name: string | null;
+			created_at: number;
+			last_used_at: number | null;
+		}>(
+			"SELECT id, device_name, created_at, last_used_at FROM passkeys WHERE user_id = $1",
+			[user.id],
+		);
 
 		return c.json({
 			hasPasskey: passkeys.rows.length > 0,
