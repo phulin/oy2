@@ -5,7 +5,9 @@ import { SESSION_KV_PREFIX } from "./lib";
 import { registerAdminRoutes } from "./routes/admin";
 import { registerAuthRoutes } from "./routes/auth";
 import { registerFriendRoutes } from "./routes/friends";
+import { registerOAuthRoutes } from "./routes/oauth";
 import { registerOyRoutes } from "./routes/oys";
+import { registerPasskeyRoutes } from "./routes/passkey";
 import { registerPushRoutes } from "./routes/push";
 import { registerUserRoutes } from "./routes/users";
 import type { AppContext, AppVariables, Bindings, User } from "./types";
@@ -74,6 +76,8 @@ app.use("*", async (c: AppContext, next) => {
 });
 
 registerAuthRoutes(app);
+registerOAuthRoutes(app);
+registerPasskeyRoutes(app);
 registerUserRoutes(app);
 registerFriendRoutes(app);
 registerOyRoutes(app);

@@ -1,3 +1,4 @@
+import fs from 'fs';
 import { defineConfig } from 'vite';
 import { cloudflare } from '@cloudflare/vite-plugin';
 import solid from 'vite-plugin-solid';
@@ -50,5 +51,9 @@ export default defineConfig({
   ],
   server: {
     port: 5173,
+    https: fs.existsSync('./localhost+1.pem') ? {
+      key: fs.readFileSync('./localhost+1-key.pem'),
+      cert: fs.readFileSync('./localhost+1.pem'),
+    } : undefined,
   },
 });

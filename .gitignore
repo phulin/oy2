@@ -43,3 +43,7 @@ dist/
 build/
 .wrangler/
 *.tsbuildinfo
+
+# Local HTTPS certs
+localhost+1.pem
+localhost+1-key.pem

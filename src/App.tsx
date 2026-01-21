@@ -11,15 +11,16 @@ import {
 import { AddFriendForm } from "./components/AddFriendForm";
 import { AdminDashboard } from "./components/AdminDashboard";
 import { AppHeader } from "./components/AppHeader";
+import { ChooseUsernameScreen } from "./components/ChooseUsernameScreen";
 import { FriendsList } from "./components/FriendsList";
 import { LoginScreen } from "./components/LoginScreen";
 import { OysList } from "./components/OysList";
 import { addOyToast, OyToastContainer } from "./components/OyToast";
-import { PhoneVerificationScreen } from "./components/PhoneVerificationScreen";
+import { PasskeySetupScreen } from "./components/PasskeySetupScreen";
 import { PrivacyPolicyScreen } from "./components/PrivacyPolicyScreen";
 import { Screen } from "./components/Screen";
 import { SwipeableTabs } from "./components/SwipeableTabs";
-import { VerifyCodeScreen } from "./components/VerifyCodeScreen";
+import { TermsOfUseScreen } from "./components/TermsOfUseScreen";
 import type {
 	Friend,
 	FriendWithLastOy,
@@ -47,15 +48,29 @@ const initialTab =
 		: "friends";
 const isAdminRoute = window.location.pathname === "/admin";
 const isPrivacyRoute = window.location.pathname === "/privacy";
+const isTermsRoute = window.location.pathname === "/terms";
 const cachedUserStorageKey = "cachedUser";
 const cachedFriendsStorageKey = "cachedFriends";
 const cachedLastOyInfoStorageKey = "cachedLastOyInfo";
 
-type AuthStep = "login" | "phone" | "verify";
+type AuthStep = "initial" | "login" | "choose_username" | "passkey_setup";
+
+// Check URL params for OAuth callback state
+const needsChooseUsername = urlParams.get("choose_username") === "1";
+const needsPasskeySetup = urlParams.get("passkey_setup") === "1";
+
+// Clear URL params after reading
+if (needsChooseUsername || needsPasskeySetup) {
+	const cleanUrl = window.location.pathname + window.location.hash;
+	history.replaceState(null, "", cleanUrl);
+}
 
 export default function App() {
 	if (isPrivacyRoute) {
 		return <PrivacyPolicyScreen />;
+	}
+	if (isTermsRoute) {
+		return <TermsOfUseScreen />;
 	}
 
 	const cachedUserRaw = localStorage.getItem(cachedUserStorageKey);
@@ -75,8 +90,13 @@ export default function App() {
 	const [currentUser, setCurrentUser] = createSignal<User | null>(
 		initialCachedUser,
 	);
-	const [authStep, setAuthStep] = createSignal<AuthStep>("login");
-	const [pendingUsername, setPendingUsername] = createSignal<string>("");
+	// Determine initial auth step based on URL params
+	const initialAuthStep: AuthStep = needsChooseUsername
+		? "choose_username"
+		: needsPasskeySetup
+			? "passkey_setup"
+			: "initial";
+	const [authStep, setAuthStep] = createSignal<AuthStep>(initialAuthStep);
 	const [friends, setFriends] = createSignal<Friend[]>(initialCachedFriends);
 	const [lastOyInfo, setLastOyInfo] = createSignal<LastOyInfo[]>(
 		initialCachedLastOyInfo,
@@ -326,69 +346,129 @@ export default function App() {
 		await loadData();
 	}
 
-	async function handleLogin(event: SubmitEvent) {
-		event.preventDefault();
-		const form = event.currentTarget as HTMLFormElement;
-		const formData = new FormData(form);
-		const username = String(formData.get("username") || "").trim();
-		if (!username) {
-			return;
+	// Handle OAuth username selection completion
+	async function handleUsernameComplete(user: User) {
+		await applyAuthSession(user);
+		setAuthStep("passkey_setup");
+	}
+
+	// Handle passkey setup completion
+	function handlePasskeyComplete() {
+		setAuthStep("login"); // Will show main app since user is logged in
+	}
+
+	// Handle passkey setup skip
+	function handlePasskeySkip() {
+		setAuthStep("login"); // Will show main app since user is logged in
+	}
+
+	// Try zero-click passkey authentication
+	async function tryPasskeyAuth(): Promise<boolean> {
+		if (!window.PublicKeyCredential) {
+			return false;
 		}
+
 		try {
-			const response = await api<
-				| { status: "needs_phone" | "code_sent" }
-				| { status: "authenticated"; user: User }
-			>("/api/auth/start", {
-				method: "POST",
-				body: JSON.stringify({ username }),
-			});
-			setPendingUsername(username);
-			if (response.status === "authenticated") {
-				await applyAuthSession(response.user);
-				return;
+			// Check if conditional mediation is available
+			const available =
+				await PublicKeyCredential.isConditionalMediationAvailable?.();
+			if (!available) {
+				return false;
 			}
-			setAuthStep(response.status === "needs_phone" ? "phone" : "verify");
-		} catch (err) {
-			alert((err as Error).message);
-		}
-	}
 
-	async function handlePhoneSubmit(event: SubmitEvent) {
-		event.preventDefault();
-		const form = event.currentTarget as HTMLFormElement;
-		const formData = new FormData(form);
-		const phone = String(formData.get("phone") || "").trim();
-		if (!phone) {
-			return;
-		}
-		try {
-			const response = await api<{ status: "code_sent" }>("/api/auth/phone", {
+			// Get authentication options
+			const optionsResponse = await fetch("/api/auth/passkey/auth/options", {
 				method: "POST",
-				body: JSON.stringify({ username: pendingUsername(), phone }),
+				headers: { "Content-Type": "application/json" },
+				credentials: "include",
 			});
-			setAuthStep(response.status === "code_sent" ? "verify" : "phone");
-		} catch (err) {
-			alert((err as Error).message);
-		}
-	}
 
-	async function handleVerifySubmit(event: SubmitEvent) {
-		event.preventDefault();
-		const form = event.currentTarget as HTMLFormElement;
-		const formData = new FormData(form);
-		const otp = String(formData.get("otp") || "").trim();
-		if (!otp) {
-			return;
-		}
-		try {
-			const { user } = await api<{ user: User }>("/api/auth/verify", {
+			if (!optionsResponse.ok) {
+				return false;
+			}
+
+			const options = (await optionsResponse.json()) as {
+				authId: string;
+				challenge: string;
+				rpId: string;
+				timeout: number;
+				userVerification: UserVerificationRequirement;
+			};
+
+			// Try to get credential with conditional mediation
+			const credential = (await navigator.credentials.get({
+				publicKey: {
+					challenge: base64UrlDecode(options.challenge).buffer as ArrayBuffer,
+					rpId: options.rpId,
+					timeout: options.timeout,
+					userVerification: options.userVerification,
+					allowCredentials: [],
+				},
+				mediation: "conditional",
+			})) as PublicKeyCredential | null;
+
+			if (!credential) {
+				return false;
+			}
+
+			const response = credential.response as AuthenticatorAssertionResponse;
+
+			// Verify with server
+			const verifyResponse = await fetch("/api/auth/passkey/auth/verify", {
 				method: "POST",
-				body: JSON.stringify({ username: pendingUsername(), otp }),
+				headers: { "Content-Type": "application/json" },
+				credentials: "include",
+				body: JSON.stringify({
+					authId: options.authId,
+					credential: {
+						id: credential.id,
+						rawId: base64UrlEncode(credential.rawId),
+						type: credential.type,
+						response: {
+							clientDataJSON: base64UrlEncode(response.clientDataJSON),
+							authenticatorData: base64UrlEncode(response.authenticatorData),
+							signature: base64UrlEncode(response.signature),
+							userHandle: response.userHandle
+								? base64UrlEncode(response.userHandle)
+								: null,
+						},
+					},
+				}),
 			});
+
+			if (!verifyResponse.ok) {
+				return false;
+			}
+
+			const { user } = (await verifyResponse.json()) as { user: User };
 			await applyAuthSession(user);
-		} catch (err) {
-			alert((err as Error).message);
+			return true;
+		} catch {
+			return false;
 		}
+	}
+
+	function base64UrlEncode(buffer: ArrayBuffer): string {
+		const bytes = new Uint8Array(buffer);
+		let binary = "";
+		for (let i = 0; i < bytes.byteLength; i++) {
+			binary += String.fromCharCode(bytes[i]);
+		}
+		return btoa(binary)
+			.replace(/\+/g, "-")
+			.replace(/\//g, "_")
+			.replace(/=+$/, "");
+	}
+
+	function base64UrlDecode(str: string): Uint8Array {
+		const base64 = str.replace(/-/g, "+").replace(/_/g, "/");
+		const padding = "=".repeat((4 - (base64.length % 4)) % 4);
+		const binary = atob(base64 + padding);
+		const bytes = new Uint8Array(binary.length);
+		for (let i = 0; i < binary.length; i++) {
+			bytes[i] = binary.charCodeAt(i);
+		}
+		return bytes;
 	}
 
 	async function restoreSession() {
@@ -402,8 +482,9 @@ export default function App() {
 			localStorage.removeItem(cachedUserStorageKey);
 			localStorage.removeItem(cachedFriendsStorageKey);
 			localStorage.removeItem(cachedLastOyInfoStorageKey);
-			setAuthStep("login");
-			setPendingUsername("");
+			if (authStep() === "initial") {
+				setAuthStep("login");
+			}
 			setFriends([]);
 			setLastOyInfo([]);
 		}
@@ -418,7 +499,6 @@ export default function App() {
 		localStorage.removeItem(cachedFriendsStorageKey);
 		localStorage.removeItem(cachedLastOyInfoStorageKey);
 		setAuthStep("login");
-		setPendingUsername("");
 		setFriends([]);
 		setLastOyInfo([]);
 
@@ -578,7 +658,28 @@ export default function App() {
 		await registerServiceWorker();
 		setLoadingFriends(true);
 		setBooting(false);
+
+		// If we need to choose username or set up passkey, don't try session restore
+		if (authStep() === "choose_username" || authStep() === "passkey_setup") {
+			// For passkey_setup, we need to restore session first
+			if (authStep() === "passkey_setup") {
+				await restoreSession();
+			}
+			setLoadingFriends(false);
+			return;
+		}
+
+		// Try to restore existing session first
 		await restoreSession();
+
+		// If no session and in initial state, try zero-click passkey
+		if (!currentUser() && authStep() === "initial") {
+			const passkeySuccess = await tryPasskeyAuth();
+			if (!passkeySuccess) {
+				setAuthStep("login");
+			}
+		}
+
 		if (!currentUser()) {
 			setLoadingFriends(false);
 		}
@@ -852,23 +953,30 @@ export default function App() {
 		<>
 			<OyToastContainer />
 			<Show when={!booting()}>
+				<Show when={authStep() === "choose_username"}>
+					<ChooseUsernameScreen onComplete={handleUsernameComplete} />
+				</Show>
+				<Show when={authStep() === "passkey_setup" && currentUser()}>
+					<PasskeySetupScreen
+						onComplete={handlePasskeyComplete}
+						onSkip={handlePasskeySkip}
+					/>
+				</Show>
 				<Show
-					when={currentUser()}
-					fallback={
-						<>
-							<Show when={authStep() === "login"}>
-								<LoginScreen onSubmit={handleLogin} />
-							</Show>
-							<Show when={authStep() === "phone"}>
-								<PhoneVerificationScreen onSubmit={handlePhoneSubmit} />
-							</Show>
-							<Show when={authStep() === "verify"}>
-								<VerifyCodeScreen onSubmit={handleVerifySubmit} />
-							</Show>
-						</>
+					when={
+						authStep() !== "choose_username" && authStep() !== "passkey_setup"
 					}
 				>
-					{(user) => renderApp(user())}
+					<Show
+						when={currentUser()}
+						fallback={
+							<Show when={authStep() === "login"}>
+								<LoginScreen />
+							</Show>
+						}
+					>
+						{(user) => renderApp(user())}
+					</Show>
 				</Show>
 			</Show>
 		</>

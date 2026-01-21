@@ -2,7 +2,7 @@ import { createResource } from "solid-js";
 import "./PrivacyPolicyScreen.css";
 
 async function loadPrivacyPolicy() {
-	const response = await fetch("/privacy.md");
+	const response = await fetch("/privacy.txt");
 	return response.text();
 }
 

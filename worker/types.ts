@@ -16,6 +16,15 @@ export type Bindings = {
 	VAPID_SUBJECT?: string;
 	TEXTBELT_API_KEY: string;
 	OY2: KVNamespace;
+	// OAuth
+	APPLE_CLIENT_ID: string;
+	APPLE_TEAM_ID: string;
+	APPLE_KEY_ID: string;
+	APPLE_PRIVATE_KEY: string;
+	GOOGLE_CLIENT_ID: string;
+	GOOGLE_CLIENT_SECRET: string;
+	// WebAuthn
+	RP_NAME: string;
 };
 
 export type User = {
@@ -25,6 +34,21 @@ export type User = {
 	phone?: string | null;
 	phone_verified?: number | null;
 	admin?: number | null;
+	oauth_provider?: string | null;
+	oauth_sub?: string | null;
+	email?: string | null;
+};
+
+export type Passkey = {
+	id: number;
+	user_id: number;
+	credential_id: Uint8Array;
+	public_key: Uint8Array;
+	counter: number;
+	transports?: string[] | null;
+	created_at: number;
+	last_used_at?: number | null;
+	device_name?: string | null;
 };
 
 export type FriendUser = {
