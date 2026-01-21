@@ -29,7 +29,7 @@ function clearSessionCookie(c: AppContext) {
 
 export function registerAuthRoutes(app: App) {
 	const createUserIfMissing = async (c: AppContext, nextUsername: string) => {
-		const result = await c.get("db").query<User>(
+		const result = await c.get("db").query<User | null>(
 			`INSERT INTO users (username)
 			 VALUES ($1)
 			 ON CONFLICT (username) DO NOTHING
@@ -78,6 +78,10 @@ export function registerAuthRoutes(app: App) {
 
 		if (!user) {
 			user = await createUserIfMissing(c, trimmedUsername);
+		}
+
+		if (!user) {
+			return c.json({ error: "User not found" }, 404);
 		}
 
 		const sessionToken = await createSession(c, user);

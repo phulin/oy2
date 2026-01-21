@@ -5,31 +5,54 @@ import "./ButtonStyles.css";
 import "./FormControls.css";
 import "./LoginScreen.css";
 
-type OAuthPendingInfo = {
+type PendingInfo = {
 	provider: string;
 	email?: string;
 	name?: string;
+	source: "oauth" | "email";
 };
 
 type ChooseUsernameScreenProps = {
-	onComplete: (user: { id: number; username: string }) => void;
+	onComplete: (
+		user: { id: number; username: string },
+		needsPasskeySetup: boolean,
+	) => void;
 };
 
 export function ChooseUsernameScreen(props: ChooseUsernameScreenProps) {
-	const [pendingInfo, setPendingInfo] = createSignal<OAuthPendingInfo | null>(
-		null,
-	);
+	const [pendingInfo, setPendingInfo] = createSignal<PendingInfo | null>(null);
 	const [error, setError] = createSignal<string | null>(null);
 	const [submitting, setSubmitting] = createSignal(false);
 
 	onMount(async () => {
+		// Try OAuth pending first, then email pending
 		try {
-			const response = await fetch("/api/auth/oauth/pending", {
+			const oauthResponse = await fetch("/api/auth/oauth/pending", {
 				credentials: "include",
 			});
-			if (response.ok) {
-				const data = (await response.json()) as OAuthPendingInfo;
-				setPendingInfo(data);
+			if (oauthResponse.ok) {
+				const data = (await oauthResponse.json()) as {
+					provider: string;
+					email?: string;
+					name?: string;
+				};
+				setPendingInfo({ ...data, source: "oauth" });
+				return;
+			}
+		} catch {
+			// Continue to try email pending
+		}
+
+		try {
+			const emailResponse = await fetch("/api/auth/email/pending", {
+				credentials: "include",
+			});
+			if (emailResponse.ok) {
+				const data = (await emailResponse.json()) as {
+					provider: string;
+					email?: string;
+				};
+				setPendingInfo({ ...data, source: "email" });
 			}
 		} catch {
 			// Ignore errors
@@ -48,7 +71,14 @@ export function ChooseUsernameScreen(props: ChooseUsernameScreenProps) {
 		setSubmitting(true);
 
 		try {
-			const response = await fetch("/api/auth/oauth/complete", {
+			// Use the appropriate endpoint based on the pending source
+			const info = pendingInfo();
+			const endpoint =
+				info?.source === "email"
+					? "/api/auth/email/complete"
+					: "/api/auth/oauth/complete";
+
+			const response = await fetch(endpoint, {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({ username }),
@@ -58,7 +88,7 @@ export function ChooseUsernameScreen(props: ChooseUsernameScreenProps) {
 			const data = (await response.json()) as
 				| {
 						user: { id: number; username: string };
-						needsPasskeySetup?: boolean;
+						needsPasskeySetup: boolean;
 						claimed?: boolean;
 				  }
 				| { error: string };
@@ -70,9 +100,10 @@ export function ChooseUsernameScreen(props: ChooseUsernameScreenProps) {
 
 			const result = data as {
 				user: { id: number; username: string };
+				needsPasskeySetup: boolean;
 				claimed?: boolean;
 			};
-			props.onComplete(result.user);
+			props.onComplete(result.user, result.needsPasskeySetup);
 		} catch {
 			setError("Something went wrong. Please try again.");
 		} finally {

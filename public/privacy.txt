@@ -123,6 +123,7 @@ Services, the choices you make, and the products and features you use.
 The personal information we collect may include the following:
 
 - phone numbers
+- email addresses
 - location information
 
 Sensitive Information. We do not process sensitive information.

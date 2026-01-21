@@ -11,6 +11,7 @@ import {
 } from "solid-js";
 import { AppContext } from "./AppContext";
 import { ChooseUsernameScreen } from "./components/ChooseUsernameScreen";
+import { EmailLoginScreen } from "./components/EmailLoginScreen";
 import { LoginScreen } from "./components/LoginScreen";
 import { addOyToast, OyToastContainer } from "./components/OyToast";
 import { PasskeySetupScreen } from "./components/PasskeySetupScreen";
@@ -43,7 +44,12 @@ const cachedFriendsStorageKey = "cachedFriends";
 const cachedLastOyInfoStorageKey = "cachedLastOyInfo";
 const passkeySetupSkipStorageKey = "passkeySetupSkipped";
 
-type AuthStep = "initial" | "login" | "choose_username" | "passkey_setup";
+type AuthStep =
+	| "initial"
+	| "login"
+	| "email_login"
+	| "choose_username"
+	| "passkey_setup";
 
 // Check URL params for OAuth callback state
 const needsChooseUsername = urlParams.get("choose_username") === "1";
@@ -334,9 +340,12 @@ export default function App(props: AppProps) {
 	}
 
 	// Handle OAuth username selection completion
-	async function handleUsernameComplete(user: User) {
+	async function handleUsernameComplete(
+		user: User,
+		needsPasskeySetup: boolean,
+	) {
 		await applyAuthSession(user);
-		setAuthStep("passkey_setup");
+		setAuthStep(needsPasskeySetup ? "passkey_setup" : "login");
 	}
 
 	// Handle passkey setup completion
@@ -444,6 +453,24 @@ export default function App(props: AppProps) {
 		} catch {
 			return false;
 		}
+	}
+
+	async function handleEmailLoginSuccess(
+		result:
+			| { status: "choose_username" }
+			| {
+					status: "authenticated";
+					user: { id: number; username: string };
+					needsPasskeySetup: boolean;
+			  },
+	) {
+		if (result.status === "choose_username") {
+			setAuthStep("choose_username");
+			return;
+		}
+
+		await applyAuthSession(result.user);
+		setAuthStep(result.needsPasskeySetup ? "passkey_setup" : "login");
 	}
 
 	function base64UrlEncode(buffer: ArrayBuffer): string {
@@ -927,16 +954,25 @@ export default function App(props: AppProps) {
 					<Show
 						when={currentUser()}
 						fallback={
-							<Show when={authStep() === "login"}>
-								<LoginScreen
-									onTryPasskey={async () => {
-										if (currentUser()) {
-											return;
-										}
-										await tryPasskeyAuth();
-									}}
-								/>
-							</Show>
+							<>
+								<Show when={authStep() === "login"}>
+									<LoginScreen
+										onTryPasskey={async () => {
+											if (currentUser()) {
+												return;
+											}
+											await tryPasskeyAuth();
+										}}
+										onEmailLogin={() => setAuthStep("email_login")}
+									/>
+								</Show>
+								<Show when={authStep() === "email_login"}>
+									<EmailLoginScreen
+										onSuccess={handleEmailLoginSuccess}
+										onBack={() => setAuthStep("login")}
+									/>
+								</Show>
+							</>
 						}
 					>
 						<AppContext.Provider value={appContextValue}>

@@ -1,0 +1,48 @@
+.email-back-link {
+	display: block;
+	margin-top: 1.5rem;
+	background: none;
+	border: none;
+	color: var(--text-light);
+	font-size: 0.9rem;
+	cursor: pointer;
+	padding: 0.5rem;
+	text-align: center;
+	width: 100%;
+}
+
+.email-back-link:hover {
+	color: var(--text);
+}
+
+.email-back-link:disabled {
+	opacity: 0.5;
+	cursor: not-allowed;
+}
+
+.email-code-actions {
+	display: flex;
+	justify-content: center;
+	align-items: center;
+	gap: 0.5rem;
+	margin-top: 1rem;
+}
+
+.email-code-actions .email-back-link {
+	margin-top: 0;
+	width: auto;
+}
+
+.email-action-separator {
+	color: var(--text-light);
+}
+
+.oauth-email {
+	background: var(--bg-secondary);
+	color: var(--text);
+	border: 1px solid var(--border);
+}
+
+.oauth-email:hover {
+	background: var(--bg-secondary);
+}

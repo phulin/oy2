@@ -414,7 +414,10 @@ export function updateLastSeen(c: AppContext, userId: number) {
 	);
 }
 
-export async function fetchUserByUsername(c: AppContext, username: string) {
+export async function fetchUserByUsername(
+	c: AppContext,
+	username: string,
+): Promise<User | null> {
 	const result = await c
 		.get("db")
 		.query<User>("SELECT * FROM users WHERE username ILIKE $1", [username]);

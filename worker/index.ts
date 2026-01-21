@@ -4,6 +4,7 @@ import { Client } from "pg";
 import { SESSION_KV_PREFIX } from "./lib";
 import { registerAdminRoutes } from "./routes/admin";
 import { registerAuthRoutes } from "./routes/auth";
+import { registerEmailRoutes } from "./routes/email";
 import { registerFriendRoutes } from "./routes/friends";
 import { registerOAuthRoutes } from "./routes/oauth";
 import { registerOyRoutes } from "./routes/oys";
@@ -77,6 +78,7 @@ app.use("*", async (c: AppContext, next) => {
 
 registerAuthRoutes(app);
 registerOAuthRoutes(app);
+registerEmailRoutes(app);
 registerPasskeyRoutes(app);
 registerUserRoutes(app);
 registerFriendRoutes(app);
