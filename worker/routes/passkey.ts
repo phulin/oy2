@@ -31,9 +31,12 @@ function getRpId(c: AppContext): string {
 }
 
 function setSessionCookie(c: AppContext, token: string) {
+	const url = new URL(c.req.url);
+	const isSecure = url.protocol === "https:";
 	setCookie(c, "session", token, {
 		httpOnly: true,
-		sameSite: "Strict",
+		secure: isSecure,
+		sameSite: isSecure ? "Strict" : "Lax",
 		path: "/",
 		maxAge: 60 * 60 * 24 * 365,
 	});
@@ -57,6 +60,23 @@ function base64UrlDecode(str: string): Uint8Array {
 	const padding = "=".repeat((4 - (base64.length % 4)) % 4);
 	const binary = atob(base64 + padding);
 	return Uint8Array.from(binary, (c) => c.charCodeAt(0));
+}
+
+async function verifyRpIdHash(
+	c: AppContext,
+	authData: Uint8Array,
+): Promise<boolean> {
+	const rpId = getRpId(c);
+	const rpIdHash = authData.slice(0, 32);
+	const rpIdDigest = new Uint8Array(
+		await crypto.subtle.digest("SHA-256", new TextEncoder().encode(rpId)),
+	);
+	for (let i = 0; i < rpIdHash.length; i += 1) {
+		if (rpIdHash[i] !== rpIdDigest[i]) {
+			return false;
+		}
+	}
+	return true;
 }
 
 // Parse CBOR-encoded COSE public key (simplified for ES256)
@@ -325,7 +345,6 @@ export function registerPasskeyRoutes(app: App) {
 		);
 
 		// Parse authData
-		const _rpIdHash = authData.slice(0, 32);
 		const flags = authData[32];
 		const signCount =
 			(authData[33] << 24) |
@@ -336,6 +355,10 @@ export function registerPasskeyRoutes(app: App) {
 		// Verify user presence (bit 0) and user verification (bit 2)
 		if (!(flags & 0x01)) {
 			return c.json({ error: "User presence not verified" }, 400);
+		}
+
+		if (!(await verifyRpIdHash(c, authData))) {
+			return c.json({ error: "RP ID mismatch" }, 400);
 		}
 
 		// Extract attested credential data (if present, bit 6)
@@ -450,6 +473,10 @@ export function registerPasskeyRoutes(app: App) {
 		// Verify type
 		if (clientData.type !== "webauthn.get") {
 			return c.json({ error: "Invalid type" }, 400);
+		}
+
+		if (!(await verifyRpIdHash(c, authenticatorData))) {
+			return c.json({ error: "RP ID mismatch" }, 400);
 		}
 
 		// Verify signature

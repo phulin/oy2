@@ -17,6 +17,13 @@ describe("push subscriptions", () => {
 		assert.equal(json.error, "Invalid subscription");
 	});
 
+	it("returns the VAPID public key", async () => {
+		const { env } = createTestEnv();
+		const { res, json } = await jsonRequest(env, "/api/push/vapid-public-key");
+		assert.equal(res.status, 200);
+		assert.equal(json.publicKey, "test-public");
+	});
+
 	it("subscribes and unsubscribes endpoints", async () => {
 		const { env, db } = createTestEnv();
 		const user = seedUser(db, { username: "Pushy" });

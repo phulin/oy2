@@ -1,6 +1,7 @@
 import { Button } from "@kobalte/core/button";
 import { A } from "@solidjs/router";
-import { createResource, For, Show } from "solid-js";
+import { createResource, createSignal, For, Show } from "solid-js";
+import { registerPasskey } from "../passkeyClient";
 import type { PasskeyStatus } from "../types";
 import "./ButtonStyles.css";
 import "./SettingsScreen.css";
@@ -25,11 +26,30 @@ function formatLastUsed(value?: number | null) {
 }
 
 export function SettingsScreen(props: SettingsScreenProps) {
-	const [status] = createResource(() =>
+	const [status, { refetch }] = createResource(() =>
 		props.api<PasskeyStatus>("/api/auth/passkey/status"),
 	);
+	const [creating, setCreating] = createSignal(false);
+	const [error, setError] = createSignal<string | null>(null);
 
 	const passkeys = () => status()?.passkeys ?? [];
+
+	async function handleAddPasskey() {
+		setCreating(true);
+		setError(null);
+		try {
+			await registerPasskey();
+			await refetch();
+		} catch (err) {
+			if ((err as Error).name === "NotAllowedError") {
+				setError("Setup was cancelled. You can try again.");
+			} else {
+				setError((err as Error).message || "Setup failed. Please try again.");
+			}
+		} finally {
+			setCreating(false);
+		}
+	}
 
 	return (
 		<div class="settings-screen">
@@ -64,13 +84,15 @@ export function SettingsScreen(props: SettingsScreenProps) {
 							Manage the devices you can use to sign in.
 						</p>
 					</div>
-					<A
+					<Button
 						class="btn-primary settings-add-passkey"
-						href="/settings/passkeys/new"
+						onClick={handleAddPasskey}
+						disabled={creating()}
 					>
-						Add passkey
-					</A>
+						{creating() ? "Adding..." : "Add passkey"}
+					</Button>
 				</div>
+				{error() && <p class="form-error">{error()}</p>}
 
 				<Show
 					when={status()}

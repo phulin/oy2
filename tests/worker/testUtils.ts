@@ -7,6 +7,9 @@ type UserRow = {
 	phone: string | null;
 	phone_verified: number | null;
 	admin: number | null;
+	email: string | null;
+	oauth_provider: string | null;
+	oauth_sub: string | null;
 };
 
 type UserLastSeenRow = {
@@ -80,6 +83,18 @@ type SessionRow = {
 	created_at: number;
 };
 
+type PasskeyRow = {
+	id: number;
+	user_id: number;
+	credential_id: Uint8Array;
+	public_key: Uint8Array;
+	counter: number;
+	transports: string[] | null;
+	created_at: number;
+	last_used_at: number | null;
+	device_name: string | null;
+};
+
 type D1Result = {
 	success: boolean;
 	meta: { last_row_id: number; changes: number };
@@ -129,10 +144,12 @@ export class FakeD1Database {
 	notifications: NotificationRow[] = [];
 	notificationDeliveries: NotificationDeliveryRow[] = [];
 	sessions: SessionRow[] = [];
+	passkeys: PasskeyRow[] = [];
 	nextUserId = 1;
 	nextOyId = 1;
 	nextNotificationId = 1;
 	nextNotificationDeliveryId = 1;
+	nextPasskeyId = 1;
 	lastInsertId = 0;
 
 	prepare(sql: string): D1PreparedStatement {
@@ -251,6 +268,35 @@ class FakeD1PreparedStatement implements D1PreparedStatement {
 			const user = this.db.users.find((row) => row.id === userId);
 			if (user) {
 				user.phone_verified = 1;
+				return { success: true, meta: { last_row_id: 0, changes: 1 } };
+			}
+			return { success: true, meta: { last_row_id: 0, changes: 0 } };
+		}
+		if (sql.startsWith("UPDATE users SET email = ? WHERE id = ?")) {
+			const [email, userId] = this.params as [string, number];
+			const user = this.db.users.find((row) => row.id === userId);
+			if (user) {
+				user.email = email;
+				return { success: true, meta: { last_row_id: 0, changes: 1 } };
+			}
+			return { success: true, meta: { last_row_id: 0, changes: 0 } };
+		}
+		if (
+			sql.startsWith(
+				"UPDATE users SET oauth_provider = ?, oauth_sub = ?, email = COALESCE(email, ?) WHERE id = ?",
+			)
+		) {
+			const [provider, sub, email, userId] = this.params as [
+				string,
+				string,
+				string | null,
+				number,
+			];
+			const user = this.db.users.find((row) => row.id === userId);
+			if (user) {
+				user.oauth_provider = provider;
+				user.oauth_sub = sub;
+				user.email = user.email ?? email ?? null;
 				return { success: true, meta: { last_row_id: 0, changes: 1 } };
 			}
 			return { success: true, meta: { last_row_id: 0, changes: 0 } };
@@ -514,6 +560,66 @@ class FakeD1PreparedStatement implements D1PreparedStatement {
 			});
 			return { success: true, meta: { last_row_id: 0, changes: 1 } };
 		}
+		if (sql.startsWith("INSERT INTO passkeys")) {
+			const [userId, credentialId, publicKey, counter, transports, deviceName] =
+				this.params as [
+					number,
+					Buffer,
+					Buffer,
+					number,
+					string[] | null,
+					string | null,
+				];
+			const passkey: PasskeyRow = {
+				id: this.db.nextPasskeyId++,
+				user_id: userId,
+				credential_id: new Uint8Array(credentialId),
+				public_key: new Uint8Array(publicKey),
+				counter,
+				transports: transports ?? null,
+				created_at: nowSeconds(),
+				last_used_at: null,
+				device_name: deviceName ?? null,
+			};
+			this.db.passkeys.push(passkey);
+			return { success: true, meta: { last_row_id: passkey.id, changes: 1 } };
+		}
+		if (sql.startsWith("UPDATE passkeys SET counter = ? WHERE id = ?")) {
+			const [counter, passkeyId] = this.params as [number, number];
+			const passkey = this.db.passkeys.find((row) => row.id === passkeyId);
+			if (passkey) {
+				passkey.counter = counter;
+				return { success: true, meta: { last_row_id: 0, changes: 1 } };
+			}
+			return { success: true, meta: { last_row_id: 0, changes: 0 } };
+		}
+		if (
+			sql.startsWith(
+				"UPDATE passkeys SET last_used_at = EXTRACT(EPOCH FROM NOW())::INTEGER WHERE id = ?",
+			)
+		) {
+			const [passkeyId] = this.params as [number];
+			const passkey = this.db.passkeys.find((row) => row.id === passkeyId);
+			if (passkey) {
+				passkey.last_used_at = nowSeconds();
+				return { success: true, meta: { last_row_id: 0, changes: 1 } };
+			}
+			return { success: true, meta: { last_row_id: 0, changes: 0 } };
+		}
+		if (sql.startsWith("DELETE FROM passkeys WHERE id = ? AND user_id = ?")) {
+			const [passkeyId, userId] = this.params as [number, number];
+			const before = this.db.passkeys.length;
+			this.db.passkeys = this.db.passkeys.filter(
+				(row) => !(row.id === passkeyId && row.user_id === userId),
+			);
+			return {
+				success: true,
+				meta: {
+					last_row_id: 0,
+					changes: before - this.db.passkeys.length,
+				},
+			};
+		}
 		throw new Error(`Unhandled SQL run: ${sql}`);
 	}
 
@@ -539,9 +645,33 @@ class FakeD1PreparedStatement implements D1PreparedStatement {
 				) ?? null;
 			return { results: user ? [user] : [] };
 		}
+		if (sql.startsWith("SELECT * FROM users WHERE LOWER(username) = ?")) {
+			const [username] = this.params as [string];
+			const user =
+				this.db.users.find(
+					(row) => row.username.toLowerCase() === username.toLowerCase(),
+				) ?? null;
+			return { results: user ? [user] : [] };
+		}
 		if (sql.startsWith("SELECT * FROM users WHERE id = ?")) {
 			const [userId] = this.params as [number];
 			const user = this.db.users.find((row) => row.id === userId) ?? null;
+			return { results: user ? [user] : [] };
+		}
+		if (sql.startsWith("SELECT * FROM users WHERE LOWER(email) = ?")) {
+			const [email] = this.params as [string];
+			const user =
+				this.db.users.find(
+					(row) => (row.email ?? "").toLowerCase() === email.toLowerCase(),
+				) ?? null;
+			return { results: user ? [user] : [] };
+		}
+		if (sql.startsWith("SELECT * FROM users WHERE oauth_provider = ?")) {
+			const [provider, sub] = this.params as [string, string];
+			const user =
+				this.db.users.find(
+					(row) => row.oauth_provider === provider && row.oauth_sub === sub,
+				) ?? null;
 			return { results: user ? [user] : [] };
 		}
 		if (sql.startsWith("SELECT 1 FROM friendships WHERE user_id")) {
@@ -766,6 +896,58 @@ class FakeD1PreparedStatement implements D1PreparedStatement {
 					endpoint: row.endpoint,
 					keys_p256dh: row.keys_p256dh,
 					keys_auth: row.keys_auth,
+				}));
+			return { results };
+		}
+		if (sql.startsWith("SELECT id FROM passkeys WHERE user_id = ? LIMIT 1")) {
+			const [userId] = this.params as [number];
+			const passkey = this.db.passkeys.find((row) => row.user_id === userId);
+			return { results: passkey ? [{ id: passkey.id }] : [] };
+		}
+		if (sql.startsWith("SELECT credential_id FROM passkeys WHERE user_id = ?")) {
+			const [userId] = this.params as [number];
+			const results = this.db.passkeys
+				.filter((row) => row.user_id === userId)
+				.map((row) => ({ credential_id: row.credential_id }));
+			return { results };
+		}
+		if (
+			sql.startsWith(
+				"SELECT p.*, u.username FROM passkeys p JOIN users u ON u.id = p.user_id WHERE p.credential_id = ?",
+			)
+		) {
+			const [credentialId] = this.params as [Buffer];
+			const credentialBytes = new Uint8Array(credentialId);
+			const passkey =
+				this.db.passkeys.find((row) =>
+					buffersEqual(row.credential_id, credentialBytes),
+				) ?? null;
+			if (!passkey) {
+				return { results: [] };
+			}
+			const user = this.db.users.find((row) => row.id === passkey.user_id);
+			return {
+				results: [
+					{
+						...passkey,
+						username: user?.username ?? "",
+					},
+				],
+			};
+		}
+		if (
+			sql.startsWith(
+				"SELECT id, device_name, created_at, last_used_at FROM passkeys WHERE user_id = ?",
+			)
+		) {
+			const [userId] = this.params as [number];
+			const results = this.db.passkeys
+				.filter((row) => row.user_id === userId)
+				.map((row) => ({
+					id: row.id,
+					device_name: row.device_name,
+					created_at: row.created_at,
+					last_used_at: row.last_used_at,
 				}));
 			return { results };
 		}
@@ -1012,6 +1194,42 @@ class FakeD1PreparedStatement implements D1PreparedStatement {
 			return seedUser(this.db, { username });
 		}
 		if (
+			sql.startsWith("INSERT INTO users (username, email) VALUES") &&
+			sql.includes("RETURNING *")
+		) {
+			const [username, email] = this.params as [string, string | null];
+			const existing = this.db.users.find(
+				(user) => user.username.toLowerCase() === username.toLowerCase(),
+			);
+			if (existing) {
+				return null;
+			}
+			return seedUser(this.db, { username, email: email ?? null });
+		}
+		if (
+			sql.startsWith("INSERT INTO users (username, oauth_provider") &&
+			sql.includes("RETURNING *")
+		) {
+			const [username, provider, sub, email] = this.params as [
+				string,
+				string,
+				string,
+				string | null,
+			];
+			const existing = this.db.users.find(
+				(user) => user.username.toLowerCase() === username.toLowerCase(),
+			);
+			if (existing) {
+				return null;
+			}
+			return seedUser(this.db, {
+				username,
+				email: email ?? null,
+				oauthProvider: provider,
+				oauthSub: sub,
+			});
+		}
+		if (
 			sql.startsWith("UPDATE users SET phone = ?, phone_verified = ?") &&
 			sql.includes("RETURNING *")
 		) {
@@ -1198,9 +1416,33 @@ class FakeD1PreparedStatement implements D1PreparedStatement {
 				) ?? null
 			);
 		}
+		if (sql.startsWith("SELECT * FROM users WHERE LOWER(username) = ?")) {
+			const [username] = this.params as [string];
+			return (
+				this.db.users.find(
+					(user) => user.username.toLowerCase() === username.toLowerCase(),
+				) ?? null
+			);
+		}
 		if (sql.startsWith("SELECT * FROM users WHERE id = ?")) {
 			const [userId] = this.params as [number];
 			return this.db.users.find((user) => user.id === userId) ?? null;
+		}
+		if (sql.startsWith("SELECT * FROM users WHERE LOWER(email) = ?")) {
+			const [email] = this.params as [string];
+			return (
+				this.db.users.find(
+					(row) => (row.email ?? "").toLowerCase() === email.toLowerCase(),
+				) ?? null
+			);
+		}
+		if (sql.startsWith("SELECT * FROM users WHERE oauth_provider = ?")) {
+			const [provider, sub] = this.params as [string, string];
+			return (
+				this.db.users.find(
+					(row) => row.oauth_provider === provider && row.oauth_sub === sub,
+				) ?? null
+			);
 		}
 		if (sql.startsWith("SELECT 1 FROM friendships WHERE user_id")) {
 			const [userId, friendId] = this.params as [number, number];
@@ -1268,6 +1510,14 @@ export function createTestEnv() {
 		VAPID_PRIVATE_KEY: "test-private",
 		VAPID_SUBJECT: "mailto:test@example.com",
 		TEXTBELT_API_KEY: "test-key",
+		APPLE_CLIENT_ID: "apple-client",
+		APPLE_TEAM_ID: "apple-team",
+		APPLE_KEY_ID: "apple-key",
+		APPLE_PRIVATE_KEY: "-----BEGIN PRIVATE KEY-----\nAAA=\n-----END PRIVATE KEY-----",
+		GOOGLE_CLIENT_ID: "google-client",
+		GOOGLE_CLIENT_SECRET: "google-secret",
+		RESEND_API_KEY: "resend-key",
+		RP_NAME: "Oy",
 	};
 	return { env, db, kv };
 }
@@ -1280,12 +1530,18 @@ export function seedUser(
 		phoneVerified = 0,
 		admin = 0,
 		lastSeen = null,
+		email = null,
+		oauthProvider = null,
+		oauthSub = null,
 	}: {
 		username: string;
 		phone?: string | null;
 		phoneVerified?: number;
 		admin?: number;
 		lastSeen?: number | null;
+		email?: string | null;
+		oauthProvider?: string | null;
+		oauthSub?: string | null;
 	},
 ) {
 	const user: UserRow = {
@@ -1295,6 +1551,9 @@ export function seedUser(
 		phone,
 		phone_verified: phoneVerified,
 		admin,
+		email,
+		oauth_provider: oauthProvider,
+		oauth_sub: oauthSub,
 	};
 	db.users.push(user);
 	db.lastInsertId = user.id;
@@ -1428,6 +1687,55 @@ export function seedNotificationDelivery(
 		created_at: createdAt,
 	});
 }
+
+export function seedPasskey(
+	db: FakeD1Database,
+	{
+		userId,
+		credentialId = new Uint8Array([1, 2, 3]),
+		publicKey = new Uint8Array([4, 5, 6]),
+		counter = 0,
+		transports = null,
+		deviceName = null,
+		createdAt = nowSeconds(),
+		lastUsedAt = null,
+	}: {
+		userId: number;
+		credentialId?: Uint8Array;
+		publicKey?: Uint8Array;
+		counter?: number;
+		transports?: string[] | null;
+		deviceName?: string | null;
+		createdAt?: number;
+		lastUsedAt?: number | null;
+	},
+) {
+	const passkey: PasskeyRow = {
+		id: db.nextPasskeyId++,
+		user_id: userId,
+		credential_id: credentialId,
+		public_key: publicKey,
+		counter,
+		transports,
+		created_at: createdAt,
+		last_used_at: lastUsedAt,
+		device_name: deviceName,
+	};
+	db.passkeys.push(passkey);
+	return passkey;
+}
+
+const buffersEqual = (a: Uint8Array, b: Uint8Array) => {
+	if (a.length !== b.length) {
+		return false;
+	}
+	for (let i = 0; i < a.length; i += 1) {
+		if (a[i] !== b[i]) {
+			return false;
+		}
+	}
+	return true;
+};
 
 const nowSeconds = () => Math.floor(Date.now() / 1000);
 

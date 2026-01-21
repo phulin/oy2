@@ -44,6 +44,21 @@ async function generateState(): Promise<string> {
 	return Array.from(array, (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
+function base64UrlDecodeString(value: string): string {
+	const base64 = value.replace(/-/g, "+").replace(/_/g, "/");
+	const padding = "=".repeat((4 - (base64.length % 4)) % 4);
+	return atob(base64 + padding);
+}
+
+function base64UrlDecodeBytes(value: string): Uint8Array {
+	const decoded = base64UrlDecodeString(value);
+	const bytes = new Uint8Array(decoded.length);
+	for (let i = 0; i < decoded.length; i += 1) {
+		bytes[i] = decoded.charCodeAt(i);
+	}
+	return bytes;
+}
+
 // Apple Sign-In: Generate client_secret JWT
 async function _generateAppleClientSecret(c: AppContext): Promise<string> {
 	const now = Math.floor(Date.now() / 1000);
@@ -100,19 +115,65 @@ async function _generateAppleClientSecret(c: AppContext): Promise<string> {
 
 // Verify Apple ID token
 async function verifyAppleIdToken(
+	c: AppContext,
 	idToken: string,
 ): Promise<{ sub: string; email?: string } | null> {
 	try {
 		const parts = idToken.split(".");
 		if (parts.length !== 3) return null;
 
-		const payload = JSON.parse(
-			atob(parts[1].replace(/-/g, "+").replace(/_/g, "/")),
+		const header = JSON.parse(base64UrlDecodeString(parts[0])) as {
+			alg?: string;
+			kid?: string;
+		};
+		const payload = JSON.parse(base64UrlDecodeString(parts[1])) as {
+			iss?: string;
+			exp?: number;
+			sub?: string;
+			email?: string;
+			aud?: string | string[];
+		};
+
+		if (!header.kid || header.alg !== "RS256") return null;
+
+		const jwksResponse = await fetch("https://appleid.apple.com/auth/keys");
+		if (!jwksResponse.ok) return null;
+		const jwks = (await jwksResponse.json()) as {
+			keys?: Array<JsonWebKey & { kid?: string }>;
+		};
+		const jwk = jwks.keys?.find((key) => key.kid === header.kid);
+		if (!jwk) return null;
+
+		const key = await crypto.subtle.importKey(
+			"jwk",
+			jwk,
+			{ name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
+			false,
+			["verify"],
 		);
+
+		const signedData = new TextEncoder().encode(`${parts[0]}.${parts[1]}`);
+		const signature = base64UrlDecodeBytes(parts[2]);
+		const signatureBuffer = signature.buffer as ArrayBuffer;
+		const valid = await crypto.subtle.verify(
+			"RSASSA-PKCS1-v1_5",
+			key,
+			signatureBuffer,
+			signedData,
+		);
+		if (!valid) return null;
 
 		// Verify issuer and expiry
 		if (payload.iss !== "https://appleid.apple.com") return null;
-		if (payload.exp < Date.now() / 1000) return null;
+		if (!payload.exp || payload.exp < Date.now() / 1000) return null;
+		if (!payload.sub) return null;
+		const aud = payload.aud;
+		const clientId = c.env.APPLE_CLIENT_ID;
+		if (Array.isArray(aud)) {
+			if (!aud.includes(clientId)) return null;
+		} else if (aud !== clientId) {
+			return null;
+		}
 
 		return { sub: payload.sub, email: payload.email };
 	} catch {
@@ -235,7 +296,7 @@ export function registerOAuthRoutes(app: App) {
 				return c.redirect("/?error=missing_token");
 			}
 
-			const verified = await verifyAppleIdToken(idToken);
+			const verified = await verifyAppleIdToken(c, idToken);
 			if (!verified) {
 				return c.redirect("/?error=invalid_token");
 			}

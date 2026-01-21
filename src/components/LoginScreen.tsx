@@ -122,7 +122,7 @@ export function LoginScreen(props: LoginScreenProps) {
 				throw new Error(data.error || "Passkey login failed");
 			}
 
-			window.location.reload();
+			window.location.href = "/";
 		} catch (err) {
 			if ((err as Error).name === "NotAllowedError") {
 				setPasskeyError("Passkey login cancelled.");

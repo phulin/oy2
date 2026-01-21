@@ -449,6 +449,9 @@ export default function App(props: AppProps) {
 
 			const { user } = (await verifyResponse.json()) as { user: User };
 			await applyAuthSession(user);
+			if (window.location.pathname.startsWith("/settings")) {
+				navigate("/", { replace: true });
+			}
 			return true;
 		} catch {
 			return false;
