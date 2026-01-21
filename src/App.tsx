@@ -928,7 +928,14 @@ export default function App(props: AppProps) {
 						when={currentUser()}
 						fallback={
 							<Show when={authStep() === "login"}>
-								<LoginScreen />
+								<LoginScreen
+									onTryPasskey={async () => {
+										if (currentUser()) {
+											return;
+										}
+										await tryPasskeyAuth();
+									}}
+								/>
 							</Show>
 						}
 					>

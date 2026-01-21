@@ -4,8 +4,14 @@ import { Screen } from "./Screen";
 import "./ButtonStyles.css";
 import "./LoginScreen.css";
 
-export function LoginScreen() {
+type LoginScreenProps = {
+	onTryPasskey: () => Promise<void>;
+};
+
+export function LoginScreen(props: LoginScreenProps) {
 	const [showInstall, setShowInstall] = createSignal(false);
+	const [signingIn, setSigningIn] = createSignal(false);
+	const [passkeyError, setPasskeyError] = createSignal<string | null>(null);
 
 	onMount(() => {
 		const isStandalone =
@@ -13,7 +19,120 @@ export function LoginScreen() {
 			(navigator as Navigator & { standalone?: boolean }).standalone === true;
 
 		setShowInstall(!isStandalone);
+		void props.onTryPasskey();
 	});
+
+	function base64UrlEncode(buffer: ArrayBuffer): string {
+		const bytes = new Uint8Array(buffer);
+		let binary = "";
+		for (let i = 0; i < bytes.byteLength; i++) {
+			binary += String.fromCharCode(bytes[i]);
+		}
+		return btoa(binary)
+			.replace(/\+/g, "-")
+			.replace(/\//g, "_")
+			.replace(/=+$/, "");
+	}
+
+	function base64UrlDecode(str: string): Uint8Array {
+		const base64 = str.replace(/-/g, "+").replace(/_/g, "/");
+		const padding = "=".repeat((4 - (base64.length % 4)) % 4);
+		const binary = atob(base64 + padding);
+		const bytes = new Uint8Array(binary.length);
+		for (let i = 0; i < binary.length; i++) {
+			bytes[i] = binary.charCodeAt(i);
+		}
+		return bytes;
+	}
+
+	async function handlePasskeyLogin() {
+		if (!window.PublicKeyCredential) {
+			setPasskeyError("Passkeys are not supported on this device");
+			return;
+		}
+		if (!window.isSecureContext) {
+			setPasskeyError("Passkeys require a secure (HTTPS) connection.");
+			return;
+		}
+
+		setSigningIn(true);
+		setPasskeyError(null);
+
+		try {
+			const optionsResponse = await fetch("/api/auth/passkey/auth/options", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				credentials: "include",
+			});
+
+			if (!optionsResponse.ok) {
+				throw new Error("Failed to get passkey options");
+			}
+
+			const options = (await optionsResponse.json()) as {
+				authId: string;
+				challenge: string;
+				rpId: string;
+				timeout: number;
+				userVerification: UserVerificationRequirement;
+			};
+
+			const credential = (await navigator.credentials.get({
+				publicKey: {
+					challenge: base64UrlDecode(options.challenge).buffer as ArrayBuffer,
+					rpId: options.rpId,
+					timeout: options.timeout,
+					userVerification: options.userVerification,
+					allowCredentials: [],
+				},
+			})) as PublicKeyCredential | null;
+
+			if (!credential) {
+				throw new Error("Passkey login cancelled");
+			}
+
+			const response = credential.response as AuthenticatorAssertionResponse;
+
+			const verifyResponse = await fetch("/api/auth/passkey/auth/verify", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				credentials: "include",
+				body: JSON.stringify({
+					authId: options.authId,
+					credential: {
+						id: credential.id,
+						rawId: base64UrlEncode(credential.rawId),
+						type: credential.type,
+						response: {
+							clientDataJSON: base64UrlEncode(response.clientDataJSON),
+							authenticatorData: base64UrlEncode(response.authenticatorData),
+							signature: base64UrlEncode(response.signature),
+							userHandle: response.userHandle
+								? base64UrlEncode(response.userHandle)
+								: null,
+						},
+					},
+				}),
+			});
+
+			if (!verifyResponse.ok) {
+				const data = (await verifyResponse.json()) as { error?: string };
+				throw new Error(data.error || "Passkey login failed");
+			}
+
+			window.location.reload();
+		} catch (err) {
+			if ((err as Error).name === "NotAllowedError") {
+				setPasskeyError("Passkey login cancelled.");
+			} else {
+				setPasskeyError(
+					(err as Error).message || "Passkey login failed. Try again.",
+				);
+			}
+		} finally {
+			setSigningIn(false);
+		}
+	}
 
 	return (
 		<Screen>
@@ -24,6 +143,14 @@ export function LoginScreen() {
 			</p>
 
 			<div class="oauth-buttons">
+				<button
+					type="button"
+					class="oauth-button btn-primary"
+					onClick={handlePasskeyLogin}
+					disabled={signingIn()}
+				>
+					{signingIn() ? "Signing in..." : "Sign in with passkey"}
+				</button>
 				{/* Apple Sign-In disabled for now
 				<a href="/api/auth/oauth/apple" class="oauth-button oauth-apple">
 					<svg class="oauth-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -33,7 +160,13 @@ export function LoginScreen() {
 				</a>
 				*/}
 
-				<a href="/api/auth/oauth/google" class="oauth-button oauth-google">
+				<button
+					type="button"
+					class="oauth-button oauth-google"
+					onClick={() => {
+						window.location.href = "/api/auth/oauth/google";
+					}}
+				>
 					<svg class="oauth-icon" viewBox="0 0 24 24" aria-hidden="true">
 						<path
 							fill="#4285F4"
@@ -53,8 +186,9 @@ export function LoginScreen() {
 						/>
 					</svg>
 					Sign in with Google
-				</a>
+				</button>
 			</div>
+			{passkeyError() && <p class="form-error">{passkeyError()}</p>}
 
 			{showInstall() && (
 				<section class="login-install">
