@@ -509,6 +509,16 @@ export function registerOAuthRoutes(app: App) {
 				return c.json({ error: "Username already taken" }, 400);
 			}
 
+			// If user has a passkey, they've already claimed their account
+			const passkeys = await c
+				.get("db")
+				.query("SELECT id FROM passkeys WHERE user_id = $1 LIMIT 1", [
+					existingUser.id,
+				]);
+			if (passkeys.rows.length > 0) {
+				return c.json({ error: "Username already taken" }, 400);
+			}
+
 			// Claim the existing user by linking OAuth credentials
 			await c.get("db").query(
 				`UPDATE users SET oauth_provider = $1, oauth_sub = $2, email = COALESCE(email, $3)
