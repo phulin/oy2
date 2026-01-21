@@ -8,5 +8,9 @@
 		"skipLibCheck": true
 	},
 	"files": [],
-	"references": [{ "path": "./src" }, { "path": "./worker" }]
+	"references": [
+		{ "path": "./src" },
+		{ "path": "./worker" },
+		{ "path": "./backup-worker" }
+	]
 }

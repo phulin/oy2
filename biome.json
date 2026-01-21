@@ -3,6 +3,7 @@
 	"files": {
 		"includes": [
 			"*.json",
+			"backup-worker/**/*",
 			"index.html",
 			"public/assets/**/*",
 			"scripts/**/*",
