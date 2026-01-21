@@ -8,7 +8,10 @@ CREATE TABLE IF NOT EXISTS users (
   created_at INTEGER DEFAULT EXTRACT(EPOCH FROM NOW())::INTEGER,
   phone TEXT,
   phone_verified INTEGER DEFAULT 0,
-  admin INTEGER DEFAULT 0
+  admin INTEGER DEFAULT 0,
+  oauth_provider TEXT,
+  oauth_sub TEXT,
+  email TEXT
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username_lower
@@ -17,10 +20,17 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username_lower
 CREATE INDEX IF NOT EXISTS idx_users_username_trgm
   ON users USING GIN (username gin_trgm_ops);
 
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_oauth
+  ON users(oauth_provider, oauth_sub)
+  WHERE oauth_provider IS NOT NULL;
+
 CREATE TABLE IF NOT EXISTS user_last_seen (
   user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
   last_seen INTEGER NOT NULL
 );
+
+CREATE INDEX IF NOT EXISTS idx_user_last_seen_last_seen
+  ON user_last_seen(last_seen DESC, user_id);
 
 CREATE TABLE IF NOT EXISTS friendships (
   user_id INTEGER NOT NULL,
@@ -37,23 +47,23 @@ CREATE INDEX IF NOT EXISTS idx_friendships_user
 CREATE INDEX IF NOT EXISTS idx_friendships_friend_id
   ON friendships(friend_id);
 
-CREATE TABLE IF NOT EXISTS last_yo_info (
+CREATE TABLE IF NOT EXISTS last_oy_info (
   user_id INTEGER NOT NULL,
   friend_id INTEGER NOT NULL,
-  last_yo_id INTEGER,
-  last_yo_type TEXT,
-  last_yo_created_at INTEGER,
-  last_yo_from_user_id INTEGER,
+  last_oy_id INTEGER,
+  last_oy_type TEXT,
+  last_oy_created_at INTEGER,
+  last_oy_from_user_id INTEGER,
   streak_start_date INTEGER,
   PRIMARY KEY (user_id, friend_id),
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
   FOREIGN KEY (friend_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
-CREATE INDEX IF NOT EXISTS idx_last_yo_info_user
-  ON last_yo_info(user_id);
+CREATE INDEX IF NOT EXISTS idx_last_oy_info_user
+  ON last_oy_info(user_id);
 
-CREATE TABLE IF NOT EXISTS yos (
+CREATE TABLE IF NOT EXISTS oys (
   id SERIAL PRIMARY KEY,
   from_user_id INTEGER NOT NULL,
   to_user_id INTEGER NOT NULL,
@@ -64,14 +74,14 @@ CREATE TABLE IF NOT EXISTS yos (
   FOREIGN KEY (to_user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
-CREATE INDEX IF NOT EXISTS idx_yos_to_user
-  ON yos(to_user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_oys_to_user
+  ON oys(to_user_id, created_at DESC);
 
-CREATE INDEX IF NOT EXISTS idx_yos_to_user_created_at_id
-  ON yos(to_user_id, created_at DESC, id DESC);
+CREATE INDEX IF NOT EXISTS idx_oys_to_user_created_at_id
+  ON oys(to_user_id, created_at DESC, id DESC);
 
-CREATE INDEX IF NOT EXISTS idx_yos_from_user_created_at_id
-  ON yos(from_user_id, created_at DESC, id DESC);
+CREATE INDEX IF NOT EXISTS idx_oys_from_user_created_at_id
+  ON oys(from_user_id, created_at DESC, id DESC);
 
 CREATE TABLE IF NOT EXISTS push_subscriptions (
   user_id INTEGER NOT NULL,
@@ -130,3 +140,21 @@ CREATE TABLE IF NOT EXISTS sessions (
 
 CREATE INDEX IF NOT EXISTS idx_sessions_user
   ON sessions(user_id);
+
+CREATE TABLE IF NOT EXISTS passkeys (
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  credential_id BYTEA NOT NULL UNIQUE,
+  public_key BYTEA NOT NULL,
+  counter INTEGER NOT NULL DEFAULT 0,
+  transports TEXT[],
+  created_at INTEGER DEFAULT EXTRACT(EPOCH FROM NOW())::INTEGER,
+  last_used_at INTEGER,
+  device_name TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_passkeys_user
+  ON passkeys(user_id);
+
+CREATE INDEX IF NOT EXISTS idx_passkeys_credential
+  ON passkeys(credential_id);
