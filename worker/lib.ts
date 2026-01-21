@@ -10,8 +10,6 @@ import type {
 const PUSH_MAX_ATTEMPTS = 3;
 const PUSH_BACKOFF_MS = 250;
 const PUSH_BACKOFF_MULTIPLIER = 2;
-const SETTINGS_KV_PREFIX = "settings:";
-export const PHONE_AUTH_KV_KEY = `${SETTINGS_KV_PREFIX}phone_auth_enabled`;
 export const SESSION_KV_PREFIX = "session:";
 const PUSH_SUBSCRIPTIONS_KV_PREFIX = "push_subscriptions:";
 
@@ -73,18 +71,6 @@ export function computeStreakLength({
 	);
 	const hasOyToday = lastOyCreatedAt >= startOfTodayNY;
 	return daysSinceStart + (hasOyToday ? 1 : 0);
-}
-
-export async function getPhoneAuthEnabled(c: AppContext) {
-	const stored = await c.env.OY2.get(PHONE_AUTH_KV_KEY);
-	if (stored === null) {
-		return true;
-	}
-	return stored === "true";
-}
-
-export async function setPhoneAuthEnabled(c: AppContext, enabled: boolean) {
-	await c.env.OY2.put(PHONE_AUTH_KV_KEY, enabled ? "true" : "false");
 }
 
 async function sendPushWithRetry(
@@ -334,41 +320,6 @@ export async function invalidatePushSubscriptionsCache(
 	await c.env.OY2.delete(pushSubscriptionsCacheKey(userId));
 }
 
-export async function sendOtp(
-	c: AppContext,
-	{ phone, username }: { phone: string; username: string },
-) {
-	const response = await fetch("https://textbelt.com/otp/generate", {
-		method: "POST",
-		body: new URLSearchParams({
-			phone,
-			userid: username,
-			key: c.env.TEXTBELT_API_KEY,
-			message: "Your Oy verification code is $OTP",
-		}),
-	});
-	return response.json() as Promise<{
-		success: boolean;
-		quotaRemaining: number;
-		otp: string;
-	}>;
-}
-
-export async function verifyOtp(
-	c: AppContext,
-	{ otp, username }: { otp: string; username: string },
-) {
-	const params = new URLSearchParams({
-		otp,
-		userid: username,
-		key: c.env.TEXTBELT_API_KEY,
-	});
-	const response = await fetch(
-		`https://textbelt.com/otp/verify?${params.toString()}`,
-	);
-	return response.json() as Promise<{ success: boolean; isValidOtp: boolean }>;
-}
-
 export function authUserPayload(user: User) {
 	return {
 		id: user.id,
@@ -399,6 +350,7 @@ export async function createSession(c: AppContext, user: User) {
 	await c.env.OY2.put(
 		`${SESSION_KV_PREFIX}${sessionToken}`,
 		JSON.stringify(user),
+		{ expirationTtl: 60 * 60 },
 	);
 	return sessionToken;
 }
@@ -422,17 +374,6 @@ export async function fetchUserByUsername(
 		.get("db")
 		.query<User>("SELECT * FROM users WHERE username ILIKE $1", [username]);
 	return result.rows[0] ?? null;
-}
-
-export async function sendOtpResponse(
-	c: AppContext,
-	{ phone, username }: { phone: string; username: string },
-) {
-	const result = await sendOtp(c, { phone, username });
-	if (!result.success) {
-		return c.json({ error: "Unable to send verification code" }, 400);
-	}
-	return c.json({ status: "code_sent" });
 }
 
 export function requireAdmin(c: { get: (key: "user") => User | null }) {

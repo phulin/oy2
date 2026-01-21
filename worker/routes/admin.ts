@@ -1,4 +1,4 @@
-import { getPhoneAuthEnabled, requireAdmin, setPhoneAuthEnabled } from "../lib";
+import { requireAdmin } from "../lib";
 import type { App, AppContext } from "../types";
 
 export function registerAdminRoutes(app: App) {
@@ -90,30 +90,5 @@ export function registerAdminRoutes(app: App) {
 			}>,
 			generatedAt: now,
 		});
-	});
-
-	app.get("/api/admin/phone-auth", async (c: AppContext) => {
-		const adminCheck = requireAdmin(c);
-		if (!adminCheck.ok) {
-			return c.json(adminCheck.response, adminCheck.status);
-		}
-
-		const enabled = await getPhoneAuthEnabled(c);
-		return c.json({ enabled });
-	});
-
-	app.put("/api/admin/phone-auth", async (c: AppContext) => {
-		const adminCheck = requireAdmin(c);
-		if (!adminCheck.ok) {
-			return c.json(adminCheck.response, adminCheck.status);
-		}
-
-		const { enabled } = await c.req.json();
-		if (typeof enabled !== "boolean") {
-			return c.json({ error: "Missing enabled flag" }, 400);
-		}
-
-		await setPhoneAuthEnabled(c, enabled);
-		return c.json({ enabled });
 	});
 }

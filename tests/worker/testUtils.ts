@@ -1509,7 +1509,6 @@ export function createTestEnv() {
 		VAPID_PUBLIC_KEY: "test-public",
 		VAPID_PRIVATE_KEY: "test-private",
 		VAPID_SUBJECT: "mailto:test@example.com",
-		TEXTBELT_API_KEY: "test-key",
 		APPLE_CLIENT_ID: "apple-client",
 		APPLE_TEAM_ID: "apple-team",
 		APPLE_KEY_ID: "apple-key",

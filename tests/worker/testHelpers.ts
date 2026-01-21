@@ -1,4 +1,3 @@
-import type { TestContext } from "node:test";
 import app from "../../worker/index";
 import { createExecutionContext, createTestEnv } from "./testUtils";
 
@@ -87,43 +86,4 @@ export const getCookieValue = (res: Response, name: string) => {
 	}
 	const match = new RegExp(`(?:^|,)\s*${name}=([^;]+)`).exec(setCookie);
 	return match ? match[1] : null;
-};
-
-export const setOtpFetchMock = (
-	t: TestContext,
-	{
-		generate = { success: true, quotaRemaining: 1, otp: "123456" },
-		verify = { success: true, isValidOtp: true },
-	}: {
-		generate?: { success: boolean; quotaRemaining: number; otp: string };
-		verify?: { success: boolean; isValidOtp: boolean };
-	} = {},
-) => {
-	const originalFetch = globalThis.fetch;
-	globalThis.fetch = async (input) => {
-		let url: string;
-		if (typeof input === "string") {
-			url = input;
-		} else if (input instanceof URL) {
-			url = input.toString();
-		} else {
-			url = input.url;
-		}
-		if (url.includes("/otp/generate")) {
-			return {
-				ok: true,
-				json: async () => generate,
-			} as Response;
-		}
-		if (url.includes("/otp/verify")) {
-			return {
-				ok: true,
-				json: async () => verify,
-			} as Response;
-		}
-		throw new Error(`Unexpected fetch: ${url}`);
-	};
-	t.after(() => {
-		globalThis.fetch = originalFetch;
-	});
 };

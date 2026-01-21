@@ -14,7 +14,6 @@ export type Bindings = {
 	VAPID_PUBLIC_KEY: string;
 	VAPID_PRIVATE_KEY: string;
 	VAPID_SUBJECT?: string;
-	TEXTBELT_API_KEY: string;
 	OY2: KVNamespace;
 	// OAuth
 	APPLE_CLIENT_ID: string;
