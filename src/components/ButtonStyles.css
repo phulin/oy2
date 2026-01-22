@@ -5,7 +5,11 @@
 	font-size: 1rem;
 	font-weight: 700;
 	color: #ffffff;
-	background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+	background: linear-gradient(
+		135deg,
+		var(--primary) 0%,
+		var(--primary-dark) 100%
+	);
 	border: none;
 	border-radius: 12px;
 	cursor: pointer;
