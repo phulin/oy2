@@ -1,5 +1,10 @@
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
-import { authUserPayload, createSession, updateLastSeen } from "../lib";
+import {
+	authUserPayload,
+	createSession,
+	invalidateUserSessionsCache,
+	updateLastSeen,
+} from "../lib";
 import type { App, AppContext, User } from "../types";
 
 const OAUTH_STATE_PREFIX = "oauth_state:";
@@ -575,6 +580,12 @@ export function registerOAuthRoutes(app: App) {
 				 WHERE id = $4`,
 				[provider, sub, email || null, existingUser.id],
 			);
+			await invalidateUserSessionsCache(c, existingUser.id);
+			existingUser.oauth_provider = provider;
+			existingUser.oauth_sub = sub;
+			if (!existingUser.email && email) {
+				existingUser.email = email;
+			}
 
 			// Clean up pending data
 			await c.env.OY2.delete(`${OAUTH_PENDING_PREFIX}${pendingId}`);

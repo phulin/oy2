@@ -1,6 +1,12 @@
 import { Button } from "@kobalte/core/button";
 import { A } from "@solidjs/router";
-import { createResource, createSignal, For, Show } from "solid-js";
+import {
+	createEffect,
+	createResource,
+	createSignal,
+	For,
+	Show,
+} from "solid-js";
 import { registerPasskey } from "../passkeyClient";
 import type { PasskeyStatus, User } from "../types";
 import "./ButtonStyles.css";
@@ -41,6 +47,12 @@ export function SettingsScreen(props: SettingsScreenProps) {
 	const [emailMessage, setEmailMessage] = createSignal<string | null>(null);
 	const [sendingEmail, setSendingEmail] = createSignal(false);
 	const [verifyingEmail, setVerifyingEmail] = createSignal(false);
+
+	createEffect(() => {
+		const email = props.user.email ?? "";
+		setLinkedEmail(email);
+		setEmailValue(email);
+	});
 
 	const passkeys = () => status()?.passkeys ?? [];
 

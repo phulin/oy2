@@ -26,6 +26,8 @@ export type Bindings = {
 	RESEND_API_KEY: string;
 	// WebAuthn
 	RP_NAME: string;
+	WEBAUTHN_ORIGIN?: string;
+	WEBAUTHN_RP_ID?: string;
 };
 
 export type User = {

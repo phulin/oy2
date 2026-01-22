@@ -356,6 +356,25 @@ export async function createSession(c: AppContext, user: User) {
 	return sessionToken;
 }
 
+export async function invalidateUserSessionsCache(
+	c: AppContext,
+	userId: number,
+) {
+	const result = await c
+		.get("db")
+		.query<{ token: string }>("SELECT token FROM sessions WHERE user_id = $1", [
+			userId,
+		]);
+	if (result.rows.length === 0) {
+		return;
+	}
+	await Promise.all(
+		result.rows.map((row) =>
+			c.env.OY2.delete(`${SESSION_KV_PREFIX}${row.token}`),
+		),
+	);
+}
+
 export function updateLastSeen(c: AppContext, userId: number) {
 	const now = Math.floor(Date.now() / 1000);
 	c.executionCtx.waitUntil(
