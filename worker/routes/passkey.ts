@@ -31,12 +31,10 @@ function getRpId(c: AppContext): string {
 }
 
 function setSessionCookie(c: AppContext, token: string) {
-	const url = new URL(c.req.url);
-	const isSecure = url.protocol === "https:";
 	setCookie(c, "session", token, {
 		httpOnly: true,
-		secure: isSecure,
-		sameSite: isSecure ? "Strict" : "Lax",
+		secure: true,
+		sameSite: "Strict",
 		path: "/",
 		maxAge: 60 * 60 * 24 * 365,
 	});

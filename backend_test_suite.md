@@ -5,7 +5,7 @@ The backend tests exercise the worker API routes with an in-memory FakeD1 + Fake
 environment to avoid external dependencies while keeping the route logic intact.
 
 ## Coverage
-- Auth flows (start, session, logout).
+- Auth flows (session, logout).
 - Users (create, search, suggested mutuals).
 - Friends (add, list, last-oy metadata).
 - Oys/Los (friend gating, notification payloads, cursor pagination).

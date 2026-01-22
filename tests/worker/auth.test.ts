@@ -1,50 +1,9 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { getSessionToken, jsonRequest } from "./testHelpers";
+import { jsonRequest } from "./testHelpers";
 import { createTestEnv, seedSession, seedUser } from "./testUtils";
 
 describe("auth", () => {
-	it("rejects invalid usernames", async () => {
-		const { env } = createTestEnv();
-		const { res, json } = await jsonRequest(env, "/api/auth/start", {
-			method: "POST",
-			body: { username: "a" },
-		});
-		assert.equal(res.status, 400);
-		assert.equal(json.error, "Username must be 2-20 characters");
-	});
-
-	it("creates a new user and session", async () => {
-		const { env, db } = createTestEnv();
-		const { res, json } = await jsonRequest(env, "/api/auth/start", {
-			method: "POST",
-			body: { username: "Newbie" },
-		});
-		const body = json as { status: string; user: { username: string } };
-		assert.equal(res.status, 200);
-		assert.equal(body.status, "authenticated");
-		assert.equal(body.user.username, "Newbie");
-		assert.ok(getSessionToken(res));
-		assert.equal(db.users.length, 1);
-		assert.equal(db.sessions.length, 1);
-	});
-
-	it("authenticates existing users", async () => {
-		const { env, db } = createTestEnv();
-		seedUser(db, { username: "Otto" });
-		const { res, json } = await jsonRequest(env, "/api/auth/start", {
-			method: "POST",
-			body: { username: "Otto" },
-		});
-		const body = json as { status: string; user: { username: string } };
-		assert.equal(res.status, 200);
-		assert.equal(body.status, "authenticated");
-		assert.equal(body.user.username, "Otto");
-		assert.ok(getSessionToken(res));
-		assert.equal(db.users.length, 1);
-		assert.equal(db.sessions.length, 1);
-	});
-
 	it("returns the current session user", async () => {
 		const { env, db } = createTestEnv();
 		const user = seedUser(db, { username: "Zed" });

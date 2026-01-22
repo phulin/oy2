@@ -29,12 +29,10 @@ async function generatePendingId(): Promise<string> {
 }
 
 function setSessionCookie(c: AppContext, token: string) {
-	const url = new URL(c.req.url);
-	const isSecure = url.protocol === "https:";
 	setCookie(c, "session", token, {
 		httpOnly: true,
-		secure: isSecure,
-		sameSite: isSecure ? "Strict" : "Lax",
+		secure: true,
+		sameSite: "Strict",
 		path: "/",
 		maxAge: 60 * 60 * 24 * 365,
 	});
@@ -245,12 +243,10 @@ export function registerEmailRoutes(app: App) {
 			{ expirationTtl: 600 },
 		);
 
-		const url = new URL(c.req.url);
-		const isSecure = url.protocol === "https:";
 		setCookie(c, "email_pending", pendingId, {
 			httpOnly: true,
-			secure: isSecure,
-			sameSite: isSecure ? "Strict" : "Lax",
+			secure: true,
+			sameSite: "Strict",
 			path: "/",
 			maxAge: 600,
 		});
