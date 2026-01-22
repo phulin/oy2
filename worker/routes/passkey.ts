@@ -146,6 +146,10 @@ export function registerPasskeyRoutes(app: App) {
 		const expectedOrigin = getExpectedOrigins(c);
 		const expectedRPID = getRpId(c);
 
+		if (credential.type !== "public-key") {
+			return c.json({ error: "Invalid credential type" }, 400);
+		}
+
 		const { verifyRegistrationResponse } = await loadWebAuthn();
 		let verification: Awaited<ReturnType<typeof verifyRegistrationResponse>>;
 		try {

@@ -721,6 +721,13 @@ class FakeD1PreparedStatement implements D1PreparedStatement {
 					: [],
 			};
 		}
+		if (sql.startsWith("SELECT token FROM sessions WHERE user_id = ?")) {
+			const [userId] = this.params as [number];
+			const tokens = this.db.sessions
+				.filter((row) => row.user_id === userId)
+				.map((row) => ({ token: row.token }));
+			return { results: tokens };
+		}
 		if (
 			sql.startsWith(
 				"SELECT id, username FROM users WHERE username COLLATE NOCASE LIKE ?",
