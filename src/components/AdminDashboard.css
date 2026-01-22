@@ -160,6 +160,29 @@
 	font-weight: 600;
 }
 
+.admin-user {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	flex-wrap: wrap;
+}
+
+.admin-badge {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 1.5rem;
+	height: 1.5rem;
+	border-radius: 999px;
+	background: #e0f2fe;
+	color: #0369a1;
+}
+
+.admin-badge-icon {
+	width: 1rem;
+	height: 1rem;
+}
+
 @media (max-width: 600px) {
 	.admin-screen {
 		padding: 1.5rem 1rem 2rem;

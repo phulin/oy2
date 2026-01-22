@@ -11,8 +11,10 @@
 }
 
 .settings-title {
-	font-size: 24px;
-	font-weight: 700;
+	font-family: var(--font-display);
+	font-size: 1.75rem;
+	font-weight: 800;
+	letter-spacing: -0.02em;
 	margin: 0;
 	display: inline-flex;
 	align-items: center;
@@ -21,17 +23,24 @@
 
 .settings-back {
 	color: var(--primary);
+	font-family: var(--font-display);
 	font-weight: 600;
 	text-decoration: none;
 	display: inline-flex;
 	align-items: center;
+	transition: opacity 0.2s ease;
+}
+
+.settings-back:hover {
+	opacity: 0.8;
 }
 
 .settings-section {
-	background: var(--bg-secondary);
-	border-radius: 16px;
-	padding: 16px;
-	box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
+	background: var(--bg-card);
+	border-radius: 18px;
+	padding: 18px;
+	border: 1px solid var(--border);
+	box-shadow: var(--card-shadow);
 }
 
 .settings-section-row {
@@ -43,21 +52,23 @@
 }
 
 .settings-section-title {
-	font-size: 16px;
-	font-weight: 600;
+	font-family: var(--font-display);
+	font-size: 1.1rem;
+	font-weight: 700;
 	margin: 0 0 6px;
 }
 
 .settings-section-description {
 	margin: 0;
 	color: var(--text-light);
-	font-size: 14px;
+	font-size: 0.9rem;
 }
 
 .settings-email-current {
+	font-family: var(--font-body);
 	color: var(--text);
 	font-weight: 600;
-	font-size: 14px;
+	font-size: 0.9rem;
 }
 
 .settings-email-form {
@@ -70,7 +81,8 @@
 
 .settings-email-label {
 	display: block;
-	font-size: 13px;
+	font-family: var(--font-display);
+	font-size: 0.85rem;
 	font-weight: 600;
 	margin-bottom: 6px;
 	color: var(--text);
@@ -90,13 +102,13 @@
 .settings-message {
 	margin: 12px 0 0;
 	color: var(--text-light);
-	font-size: 14px;
+	font-size: 0.9rem;
 }
 
 .settings-muted {
 	margin: 12px 0 0;
 	color: var(--text-light);
-	font-size: 14px;
+	font-size: 0.9rem;
 }
 
 .settings-passkeys {
@@ -110,19 +122,26 @@
 
 .settings-passkey {
 	border: 1px solid var(--border);
-	border-radius: 12px;
-	padding: 12px 14px;
+	border-radius: 14px;
+	padding: 14px 16px;
 	display: grid;
 	gap: 4px;
+	background: var(--bg-secondary);
+	transition: border-color 0.2s ease;
+}
+
+.settings-passkey:hover {
+	border-color: var(--primary);
 }
 
 .settings-passkey-name {
+	font-family: var(--font-display);
 	font-weight: 600;
 	color: var(--text);
 }
 
 .settings-passkey-meta {
-	font-size: 13px;
+	font-size: 0.85rem;
 	color: var(--text-light);
 }
 

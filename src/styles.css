@@ -1,25 +1,42 @@
 @charset "UTF-8";
 
 :root {
-	--primary: #4b50f0;
-	--primary-dark: #3b3fd6;
+	/* Typography */
+	--font-display: "Outfit", -apple-system, BlinkMacSystemFont, sans-serif;
+	--font-body: "DM Sans", -apple-system, BlinkMacSystemFont, sans-serif;
+
+	/* Cosmic purple palette */
+	--primary: #7c3aed;
+	--primary-dark: #6d28d9;
+	--primary-light: #a78bfa;
+	--primary-glow: rgba(124, 58, 237, 0.35);
+
+	/* Warm gold accent */
+	--accent: #f59e0b;
+	--accent-dark: #d97706;
+	--accent-glow: rgba(245, 158, 11, 0.35);
+
+	/* Light mode */
 	--text: #1a1a1a;
-	--text-light: #666;
+	--text-light: #6b7280;
 	--bg: #ffffff;
-	--bg-secondary: #f5f5f5;
-	--border: #e0e0e0;
+	--bg-secondary: #f5f5f7;
+	--bg-card: #ffffff;
+	--border: #e5e7eb;
+	--card-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+
 	color-scheme: light dark;
 }
 
 @media (prefers-color-scheme: dark) {
 	:root {
-		--primary: #7b7fe8;
-		--primary-dark: #5e63d6;
 		--text: #f3f4f6;
-		--text-light: #b3b7c3;
-		--bg: #0f1115;
-		--bg-secondary: #1a1d23;
-		--border: #2a2f38;
+		--text-light: #9ca3af;
+		--bg: #09090b;
+		--bg-secondary: #18181b;
+		--bg-card: #1f1f23;
+		--border: #27272a;
+		--card-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
 	}
 }
 
@@ -32,12 +49,28 @@
 }
 
 body {
-	font-family:
-		-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+	font-family: var(--font-body);
 	background: var(--bg);
 	color: var(--text);
 	line-height: 1.5;
 	-webkit-font-smoothing: antialiased;
+}
+
+@media (prefers-color-scheme: dark) {
+	body {
+		background:
+			radial-gradient(
+				ellipse at 10% 0%,
+				rgba(124, 58, 237, 0.08) 0%,
+				transparent 50%
+			),
+			radial-gradient(
+				ellipse at 90% 100%,
+				rgba(245, 158, 11, 0.05) 0%,
+				transparent 50%
+			),
+			var(--bg);
+	}
 }
 
 .stack {
@@ -55,9 +88,14 @@ body {
 }
 
 .card {
-	background: var(--bg-secondary);
-	border-radius: 12px;
+	background: var(--bg-card);
+	border-radius: 16px;
 	padding: 1rem;
+	border: 1px solid var(--border);
+	box-shadow: var(--card-shadow);
+	transition:
+		transform 0.2s ease,
+		box-shadow 0.2s ease;
 }
 
 .card-bordered {
@@ -68,9 +106,11 @@ body {
 	text-align: center;
 	color: var(--text-light);
 	padding: 3rem 1rem;
+	font-size: 1.1rem;
 }
 
 .item-title {
+	font-family: var(--font-display);
 	font-weight: 600;
 	color: var(--text);
 }

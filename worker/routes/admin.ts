@@ -20,7 +20,15 @@ export function registerAdminRoutes(app: App) {
 		] = await Promise.all([
 			c.get("db").query(
 				`
-      SELECT users.id, users.username, uls.last_seen
+      SELECT
+        users.id,
+        users.username,
+        uls.last_seen,
+        (
+          users.email IS NOT NULL
+          OR users.oauth_provider IS NOT NULL
+          OR EXISTS (SELECT 1 FROM passkeys WHERE passkeys.user_id = users.id)
+        ) AS has_auth_methods
       FROM users
       JOIN user_last_seen uls ON uls.user_id = users.id
       WHERE uls.last_seen >= $1
@@ -87,6 +95,7 @@ export function registerAdminRoutes(app: App) {
 				id: number;
 				username: string;
 				last_seen: number;
+				has_auth_methods: boolean;
 			}>,
 			generatedAt: now,
 		});

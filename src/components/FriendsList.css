@@ -6,6 +6,27 @@
 	border: none;
 	text-align: left;
 	width: 100%;
+	position: relative;
+	overflow: hidden;
+}
+
+/* Subtle glow effect for cards with recent activity */
+.friends-list-item::before {
+	content: "";
+	position: absolute;
+	inset: 0;
+	background: radial-gradient(
+		ellipse at top left,
+		rgba(124, 58, 237, 0.06) 0%,
+		transparent 60%
+	);
+	opacity: 0;
+	transition: opacity 0.3s ease;
+	pointer-events: none;
+}
+
+.friends-list-item[data-recent="true"]::before {
+	opacity: 1;
 }
 
 .friends-list-item-content {
@@ -14,6 +35,9 @@
 }
 
 .friends-list-item-title {
+	font-family: var(--font-display);
+	font-weight: 600;
+	font-size: 1.05rem;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
@@ -25,10 +49,51 @@
 	flex-shrink: 0;
 }
 
+/* Staggered animation for friend cards only (not infinite scroll lists) */
+.friends-list > .card {
+	animation: cardSlideUp 0.4s ease backwards;
+}
+
+.friends-list > .card:nth-child(1) {
+	animation-delay: 0.05s;
+}
+.friends-list > .card:nth-child(2) {
+	animation-delay: 0.1s;
+}
+.friends-list > .card:nth-child(3) {
+	animation-delay: 0.15s;
+}
+.friends-list > .card:nth-child(4) {
+	animation-delay: 0.2s;
+}
+.friends-list > .card:nth-child(5) {
+	animation-delay: 0.25s;
+}
+.friends-list > .card:nth-child(6) {
+	animation-delay: 0.3s;
+}
+.friends-list > .card:nth-child(7) {
+	animation-delay: 0.35s;
+}
+.friends-list > .card:nth-child(8) {
+	animation-delay: 0.4s;
+}
+
+@keyframes cardSlideUp {
+	from {
+		opacity: 0;
+		transform: translateY(16px);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
 .friends-skeleton-card {
 	position: relative;
 	height: 72px;
-	border-radius: 12px;
+	border-radius: 16px;
 	background: var(--bg-secondary);
 	overflow: hidden;
 }
@@ -39,9 +104,9 @@
 	background: linear-gradient(
 		100deg,
 		transparent 20%,
-		rgba(255, 255, 255, 0.08) 45%,
-		rgba(255, 255, 255, 0.18) 55%,
-		rgba(255, 255, 255, 0.08) 65%,
+		rgba(255, 255, 255, 0.06) 45%,
+		rgba(255, 255, 255, 0.12) 55%,
+		rgba(255, 255, 255, 0.06) 65%,
 		transparent 80%
 	);
 	transform: translateX(-100%);
@@ -65,14 +130,41 @@
 	cursor: pointer;
 	font-size: inherit;
 	vertical-align: middle;
+	transition: transform 0.2s ease;
+}
+
+.streak-trigger:hover {
+	transform: scale(1.2);
 }
 
 .streak-popover {
+	font-family: var(--font-body);
 	padding: 0.5rem 0.75rem;
-	border-radius: 10px;
+	border-radius: 12px;
 	border: 1px solid var(--border);
-	background: var(--bg);
+	background: var(--bg-card);
 	color: var(--text);
 	font-size: 0.85rem;
-	box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12);
+	box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+}
+
+/* Direction indicator for last oy */
+.friends-list-item-subtitle {
+	display: flex;
+	align-items: center;
+	gap: 0.35rem;
+}
+
+.friends-list-item-subtitle .direction-arrow {
+	display: inline-block;
+	font-size: 0.75rem;
+	opacity: 0.7;
+}
+
+.friends-list-item-subtitle .direction-arrow.outgoing {
+	color: var(--primary);
+}
+
+.friends-list-item-subtitle .direction-arrow.incoming {
+	color: var(--accent);
 }

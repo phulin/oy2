@@ -7,6 +7,7 @@ type AdminActiveUser = {
 	id: number;
 	username: string;
 	last_seen: number;
+	has_auth_methods: boolean;
 };
 
 type AdminStats = {
@@ -144,7 +145,28 @@ export function AdminDashboard(props: AdminDashboardProps) {
 								>
 									{payload().activeUsers.map((activeUser) => (
 										<div class="admin-table-row">
-											<span>{activeUser.username}</span>
+											<span class="admin-user">
+												<span>{activeUser.username}</span>
+												<Show when={activeUser.has_auth_methods}>
+													<span
+														class="admin-badge"
+														role="img"
+														aria-label="Authenticated"
+														title="Authenticated"
+													>
+														<svg
+															class="admin-badge-icon"
+															viewBox="0 0 24 24"
+															aria-hidden="true"
+														>
+															<path
+																d="M17 10V8a5 5 0 0 0-10 0v2H5v10h14V10h-2Zm-8-2a3 3 0 1 1 6 0v2H9V8Zm3 9a2 2 0 1 0-2-2 2 2 0 0 0 2 2Z"
+																fill="currentColor"
+															/>
+														</svg>
+													</span>
+												</Show>
+											</span>
 											<span>{formatTimestamp(activeUser.last_seen)}</span>
 										</div>
 									))}
