@@ -21,7 +21,6 @@ export function FriendsList(props: FriendsListProps) {
 		setTimeTick(Date.now());
 	}, 60000);
 	onCleanup(() => window.clearInterval(intervalId));
-
 	const skeletonItems = () => Array.from({ length: 4 });
 	const sortedFriends = createMemo(() =>
 		[...props.friends].sort(

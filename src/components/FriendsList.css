@@ -50,45 +50,6 @@
 }
 
 /* Staggered animation for friend cards only (not infinite scroll lists) */
-.friends-list > .card {
-	animation: cardSlideUp 0.4s ease backwards;
-}
-
-.friends-list > .card:nth-child(1) {
-	animation-delay: 0.05s;
-}
-.friends-list > .card:nth-child(2) {
-	animation-delay: 0.1s;
-}
-.friends-list > .card:nth-child(3) {
-	animation-delay: 0.15s;
-}
-.friends-list > .card:nth-child(4) {
-	animation-delay: 0.2s;
-}
-.friends-list > .card:nth-child(5) {
-	animation-delay: 0.25s;
-}
-.friends-list > .card:nth-child(6) {
-	animation-delay: 0.3s;
-}
-.friends-list > .card:nth-child(7) {
-	animation-delay: 0.35s;
-}
-.friends-list > .card:nth-child(8) {
-	animation-delay: 0.4s;
-}
-
-@keyframes cardSlideUp {
-	from {
-		opacity: 0;
-		transform: translateY(16px);
-	}
-	to {
-		opacity: 1;
-		transform: translateY(0);
-	}
-}
 
 .friends-skeleton-card {
 	position: relative;
