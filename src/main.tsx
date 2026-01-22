@@ -7,6 +7,7 @@ import { TermsOfUseScreen } from "./components/TermsOfUseScreen";
 import { AdminRoute } from "./routes/AdminRoute";
 import { AppHomeRoute } from "./routes/AppHomeRoute";
 import { PasskeyAddRoute } from "./routes/PasskeyAddRoute";
+import { PublicHomeRoute } from "./routes/PublicHomeRoute";
 import { SettingsRoute } from "./routes/SettingsRoute";
 import "leaflet/dist/leaflet.css";
 import "./styles.css";
@@ -25,6 +26,7 @@ render(
 				<Route path="settings/passkeys/new" component={PasskeyAddRoute} />
 				<Route path="admin" component={AdminRoute} />
 			</Route>
+			<Route path="/home" component={PublicHomeRoute} />
 			<Route path="/privacy" component={PrivacyPolicyScreen} />
 			<Route path="/terms" component={TermsOfUseScreen} />
 			<Route path="*" component={ErrorScreen} />

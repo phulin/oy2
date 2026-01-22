@@ -24,6 +24,7 @@ export type OyPayload = {
 	lat: number;
 	lon: number;
 	accuracy?: number | null;
+	city?: string | null;
 };
 
 export type Oy = {

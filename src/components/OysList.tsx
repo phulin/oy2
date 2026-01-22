@@ -74,6 +74,10 @@ export function OysList(props: OysListProps) {
 							: isLocation
 								? `Lo from ${oy.from_username}`
 								: `Oy from ${oy.from_username}`;
+						const subtitle =
+							isLocation && payload?.city
+								? `${payload.city} · ${formatRelativeTime(oy.created_at)}`
+								: formatRelativeTime(oy.created_at);
 						const isOpen = () => props.openLocations().has(oy.id);
 
 						return (
@@ -93,7 +97,7 @@ export function OysList(props: OysListProps) {
 										<div class="oys-list-item-text stack stack-sm">
 											<div class="oys-list-item-title item-title">{title}</div>
 											<div class="oys-list-item-subtitle item-subtitle">
-												{formatRelativeTime(oy.created_at)}
+												{subtitle}
 											</div>
 										</div>
 										<Show when={isLocation}>

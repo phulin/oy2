@@ -315,7 +315,6 @@ export default function App(props: AppProps) {
 		}
 
 		if (reset) {
-			setOpenLocations(new Set<number>());
 			const expandId = pendingExpandOyId;
 			if (expandId !== null && pendingExpandType === "location") {
 				setOpenLocations(new Set([expandId]));

@@ -22,6 +22,7 @@ export type Bindings = {
 	APPLE_PRIVATE_KEY: string;
 	GOOGLE_CLIENT_ID: string;
 	GOOGLE_CLIENT_SECRET: string;
+	GOOGLE_MAPS_API_KEY: string;
 	// Email
 	RESEND_API_KEY: string;
 	// WebAuthn

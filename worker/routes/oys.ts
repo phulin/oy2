@@ -14,6 +14,51 @@ import type {
 	User,
 } from "../types";
 
+type GeocodeResult = {
+	addressComponents?: {
+		longText: string;
+		types: string[];
+	}[];
+};
+
+type GeocodeResponse = {
+	results?: GeocodeResult[];
+};
+
+const cityTypes = new Set(["locality", "postal_town", "sublocality"]);
+
+async function reverseGeocodeCity(
+	c: AppContext,
+	lat: number,
+	lon: number,
+): Promise<string | null> {
+	const response = await fetch(
+		`https://geocode.googleapis.com/v4beta/geocode/location?location.latitude=${lat}&location.longitude=${lon}`,
+		{
+			headers: {
+				"Content-Type": "application/json",
+				"X-Goog-Api-Key": c.env.GOOGLE_MAPS_API_KEY,
+				"X-Goog-FieldMask": "results.addressComponents",
+			},
+		},
+	);
+
+	if (!response.ok) {
+		console.warn("Reverse geocode failed:", response.status);
+		return null;
+	}
+
+	const data = (await response.json()) as GeocodeResponse;
+	for (const result of data.results ?? []) {
+		for (const component of result.addressComponents ?? []) {
+			if (component.types.some((type) => cityTypes.has(type))) {
+				return component.longText;
+			}
+		}
+	}
+	return null;
+}
+
 export function registerOyRoutes(app: App) {
 	const sendOyLike = async (
 		c: AppContext,
@@ -136,10 +181,12 @@ export function registerOyRoutes(app: App) {
 			return c.json({ error: "Missing location" }, 400);
 		}
 
+		const city = await reverseGeocodeCity(c, lat, lon);
 		const payload = JSON.stringify({
 			lat,
 			lon,
 			accuracy: location.accuracy || null,
+			city,
 		});
 
 		const notificationPayload: PushPayload = {
