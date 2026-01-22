@@ -540,17 +540,8 @@ export function registerOAuthRoutes(app: App) {
 			.trim()
 			.toLowerCase();
 
-		// Validate username
-		if (trimmedUsername.length < 2 || trimmedUsername.length > 20) {
-			return c.json({ error: "Username must be 2-20 characters" }, 400);
-		}
-		if (!/^[a-z0-9_]+$/.test(trimmedUsername)) {
-			return c.json(
-				{
-					error: "Username can only contain letters, numbers, and underscores",
-				},
-				400,
-			);
+		if (!trimmedUsername) {
+			return c.json({ error: "Username is required" }, 400);
 		}
 
 		// Check if username exists

@@ -1,6 +1,8 @@
 import type { App, AppContext, FriendUser } from "../types";
 
 export function registerUserRoutes(app: App) {
+	const escapeLikePattern = (value: string) => value.replace(/[\\%_]/g, "\\$&");
+
 	app.get("/api/users/search", async (c: AppContext) => {
 		const user = c.get("user");
 		if (!user) {
@@ -13,11 +15,12 @@ export function registerUserRoutes(app: App) {
 			return c.json({ users: [] });
 		}
 
+		const escapedQuery = escapeLikePattern(trimmedQuery);
 		const users = await c
 			.get("db")
 			.query<FriendUser>(
-				"SELECT id, username FROM users WHERE username ILIKE $1 LIMIT 20",
-				[`%${trimmedQuery}%`],
+				"SELECT id, username FROM users WHERE username ILIKE $1 ESCAPE '\\' LIMIT 20",
+				[`%${escapedQuery}%`],
 			);
 
 		const userResults = users.rows;

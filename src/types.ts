@@ -2,6 +2,7 @@ export type User = {
 	id: number;
 	username: string;
 	admin?: number | null;
+	email?: string | null;
 };
 
 export type Friend = {

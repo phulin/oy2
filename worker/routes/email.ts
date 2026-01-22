@@ -5,6 +5,7 @@ import type { App, AppContext, User } from "../types";
 const EMAIL_CODE_PREFIX = "email_code:";
 const EMAIL_RATE_PREFIX = "email_rate:";
 const EMAIL_PENDING_PREFIX = "email_pending:";
+const EMAIL_ADD_PREFIX = "email_add:";
 
 type EmailCodeData = {
 	code: string;
@@ -12,6 +13,11 @@ type EmailCodeData = {
 };
 type EmailRateData = {
 	count: number;
+};
+type EmailAddData = {
+	email: string;
+	code: string;
+	attempts: number;
 };
 
 function generateVerificationCode(): string {
@@ -275,17 +281,8 @@ export function registerEmailRoutes(app: App) {
 			.trim()
 			.toLowerCase();
 
-		// Validate username
-		if (trimmedUsername.length < 2 || trimmedUsername.length > 20) {
-			return c.json({ error: "Username must be 2-20 characters" }, 400);
-		}
-		if (!/^[a-z0-9_]+$/.test(trimmedUsername)) {
-			return c.json(
-				{
-					error: "Username can only contain letters, numbers, and underscores",
-				},
-				400,
-			);
+		if (!trimmedUsername) {
+			return c.json({ error: "Username is required" }, 400);
 		}
 
 		// Check if username exists
@@ -365,6 +362,140 @@ export function registerEmailRoutes(app: App) {
 			user: authUserPayload(user),
 			needsPasskeySetup: true,
 		});
+	});
+
+	// Send verification code to add email for authenticated users
+	app.post("/api/auth/email/add/send-code", async (c: AppContext) => {
+		const user = c.get("user");
+		if (!user) {
+			return c.json({ error: "Not authenticated" }, 401);
+		}
+
+		const body = await c.req.json();
+		const email = String(body.email || "")
+			.trim()
+			.toLowerCase();
+
+		if (!email || !isValidEmail(email)) {
+			return c.json({ error: "Invalid email address" }, 400);
+		}
+
+		if (user.email?.toLowerCase() === email) {
+			return c.json({ status: "already_set", email });
+		}
+
+		const existingUser = await c
+			.get("db")
+			.query<User>("SELECT * FROM users WHERE LOWER(email) = $1", [email]);
+		if (existingUser.rows[0] && existingUser.rows[0].id !== user.id) {
+			return c.json({ error: "Email already in use" }, 400);
+		}
+
+		// Check rate limit (max 3 codes per email per minute)
+		const rateKey = `${EMAIL_RATE_PREFIX}${email}`;
+		const rateDataRaw = await c.env.OY2.get(rateKey);
+		const rateData = rateDataRaw
+			? (JSON.parse(rateDataRaw) as EmailRateData)
+			: { count: 0 };
+		if (rateData.count >= 3) {
+			return c.json(
+				{
+					error:
+						"Too many requests. Please wait before requesting another code.",
+				},
+				429,
+			);
+		}
+		await c.env.OY2.put(
+			rateKey,
+			JSON.stringify({ count: rateData.count + 1 }),
+			{ expirationTtl: 60 },
+		);
+
+		const code = generateVerificationCode();
+		await c.env.OY2.put(
+			`${EMAIL_ADD_PREFIX}${user.id}`,
+			JSON.stringify({ email, code, attempts: 0 }),
+			{ expirationTtl: 600 },
+		);
+
+		const result = await sendEmailCode(c, { email, code });
+		if (!result.success) {
+			await c.env.OY2.delete(`${EMAIL_ADD_PREFIX}${user.id}`);
+			return c.json({ error: result.error || "Failed to send email" }, 500);
+		}
+
+		return c.json({ status: "code_sent", email });
+	});
+
+	// Verify code and update email for authenticated users
+	app.post("/api/auth/email/add/verify", async (c: AppContext) => {
+		const user = c.get("user");
+		if (!user) {
+			return c.json({ error: "Not authenticated" }, 401);
+		}
+
+		const body = await c.req.json();
+		const code = String(body.code || "").trim();
+		if (!code) {
+			return c.json({ error: "Code is required" }, 400);
+		}
+
+		const storedData = await c.env.OY2.get(`${EMAIL_ADD_PREFIX}${user.id}`);
+		if (!storedData) {
+			return c.json(
+				{ error: "Code expired or not found. Please request a new code." },
+				400,
+			);
+		}
+
+		const data = JSON.parse(storedData) as EmailAddData;
+
+		if (data.attempts >= 5) {
+			await c.env.OY2.delete(`${EMAIL_ADD_PREFIX}${user.id}`);
+			return c.json(
+				{ error: "Too many failed attempts. Please request a new code." },
+				400,
+			);
+		}
+
+		const codeMatches = timingSafeEqualString(code, data.code);
+		if (!codeMatches) {
+			await c.env.OY2.put(
+				`${EMAIL_ADD_PREFIX}${user.id}`,
+				JSON.stringify({ ...data, attempts: data.attempts + 1 }),
+				{ expirationTtl: 600 },
+			);
+			return c.json({ error: "Invalid code" }, 400);
+		}
+
+		const existingUser = await c
+			.get("db")
+			.query<User>("SELECT * FROM users WHERE LOWER(email) = $1", [data.email]);
+		if (existingUser.rows[0] && existingUser.rows[0].id !== user.id) {
+			return c.json({ error: "Email already in use" }, 400);
+		}
+
+		await c
+			.get("db")
+			.query("UPDATE users SET email = $1 WHERE id = $2", [
+				data.email,
+				user.id,
+			]);
+		await c.env.OY2.delete(`${EMAIL_ADD_PREFIX}${user.id}`);
+
+		const sessionToken = c.get("sessionToken");
+		if (sessionToken) {
+			const updatedUser = { ...user, email: data.email };
+			await c.env.OY2.put(
+				`session:${sessionToken}`,
+				JSON.stringify(updatedUser),
+				{ expirationTtl: 60 * 60 },
+			);
+			c.set("user", updatedUser);
+		}
+
+		return c.json({ status: "email_updated", email: data.email });
 	});
 
 	// Get pending email info (for username selection screen)

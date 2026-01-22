@@ -13,6 +13,7 @@ export function SettingsRoute() {
 		<Screen>
 			<AppHeader user={user()} onLogout={logout} />
 			<SettingsScreen
+				user={user()}
 				onSetupNotifications={handleSetupNotifications}
 				api={api}
 			/>

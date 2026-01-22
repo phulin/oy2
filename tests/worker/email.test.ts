@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { getCookieValue, getSessionToken, jsonRequest } from "./testHelpers";
-import { createTestEnv, seedUser } from "./testUtils";
+import { createTestEnv, seedSession, seedUser } from "./testUtils";
 
 describe("email auth", () => {
 	it("sends verification codes for valid emails", async (t) => {
@@ -78,5 +78,50 @@ describe("email auth", () => {
 		assert.ok(getSessionToken(completeRes));
 		assert.equal(db.users.length, 1);
 		assert.equal(db.users[0].email, email);
+	});
+
+	it("links email for authenticated users", async (t) => {
+		const { env, kv, db } = createTestEnv();
+		const user = seedUser(db, { username: "Emailer" });
+		seedSession(db, user.id, "email-token");
+		const originalFetch = globalThis.fetch;
+		globalThis.fetch = async () =>
+			({ ok: true, json: async () => ({}) }) as Response;
+		t.after(() => {
+			globalThis.fetch = originalFetch;
+		});
+
+		const email = "linked@example.com";
+		const { res: sendRes, json: sendJson } = await jsonRequest(
+			env,
+			"/api/auth/email/add/send-code",
+			{
+				method: "POST",
+				headers: { "x-session-token": "email-token" },
+				body: { email },
+			},
+		);
+		assert.equal(sendRes.status, 200);
+		assert.equal(sendJson.status, "code_sent");
+
+		const stored = await kv.get(`email_add:${user.id}`);
+		const data = JSON.parse(stored ?? "{}") as { code?: string; email?: string };
+		assert.equal(data.email, email);
+		assert.ok(data.code);
+
+		const { res: verifyRes, json: verifyJson } = await jsonRequest(
+			env,
+			"/api/auth/email/add/verify",
+			{
+				method: "POST",
+				headers: { "x-session-token": "email-token" },
+				body: { code: data.code },
+			},
+		);
+		assert.equal(verifyRes.status, 200);
+		assert.equal(verifyJson.status, "email_updated");
+		assert.equal(verifyJson.email, email);
+		assert.equal(db.users[0].email, email);
+		assert.equal(await kv.get(`email_add:${user.id}`), null);
 	});
 });

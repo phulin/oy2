@@ -324,6 +324,7 @@ export function authUserPayload(user: User) {
 	return {
 		id: user.id,
 		username: user.username,
+		email: user.email ?? null,
 		...(user.admin ? { admin: true } : {}),
 	};
 }
