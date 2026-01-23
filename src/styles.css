@@ -48,16 +48,12 @@
 	padding: 0;
 }
 
-body {
-	font-family: var(--font-body);
+html {
 	background: var(--bg);
-	color: var(--text);
-	line-height: 1.5;
-	-webkit-font-smoothing: antialiased;
 }
 
 @media (prefers-color-scheme: dark) {
-	body {
+	html {
 		background:
 			radial-gradient(
 				ellipse at 10% 0%,
@@ -71,6 +67,14 @@ body {
 			),
 			var(--bg);
 	}
+}
+
+body {
+	font-family: var(--font-body);
+	background: transparent;
+	color: var(--text);
+	line-height: 1.5;
+	-webkit-font-smoothing: antialiased;
 }
 
 .stack {

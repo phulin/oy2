@@ -9,13 +9,14 @@ import {
 } from "solid-js";
 import { registerPasskey } from "../passkeyClient";
 import type { PasskeyStatus, User } from "../types";
+import { AsyncButton } from "./AsyncButton";
 import "./ButtonStyles.css";
 import "./FormControls.css";
 import "./SettingsScreen.css";
 
 type SettingsScreenProps = {
 	user: User;
-	onSetupNotifications: () => void;
+	onSetupNotifications: () => Promise<void>;
 	api: <T>(path: string, options?: RequestInit) => Promise<T>;
 };
 
@@ -145,9 +146,9 @@ export function SettingsScreen(props: SettingsScreenProps) {
 							Enable push notifications for Oys.
 						</p>
 					</div>
-					<Button class="btn-primary" onClick={props.onSetupNotifications}>
+					<AsyncButton class="btn-primary" onClick={props.onSetupNotifications}>
 						Enable Notifications
-					</Button>
+					</AsyncButton>
 				</div>
 			</section>
 

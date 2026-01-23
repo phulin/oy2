@@ -569,15 +569,31 @@ export default function App(props: AppProps) {
 		}
 	}
 
-	function handleSetupNotifications() {
+	async function handleSetupNotifications() {
 		const registration = swRegistration();
-		if (registration) {
-			ensurePushSubscription(registration).catch((err) => {
-				console.error("Notification setup failed:", err);
-				alert("Failed to enable notifications. Please try again.");
+		if (!registration) {
+			addOyToast({
+				id: Date.now(),
+				title: "Notifications",
+				body: "Service worker not ready. Please refresh and try again.",
 			});
-		} else {
-			alert("Service worker not ready. Please refresh the page and try again.");
+			return;
+		}
+
+		try {
+			await ensurePushSubscription(registration);
+			addOyToast({
+				id: Date.now(),
+				title: "Notifications",
+				body: "Push notifications enabled!",
+			});
+		} catch (err) {
+			console.error("Notification setup failed:", err);
+			addOyToast({
+				id: Date.now(),
+				title: "Notifications",
+				body: "Failed to enable notifications. Please try again.",
+			});
 		}
 	}
 
