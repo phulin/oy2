@@ -102,13 +102,7 @@ export function OysList(props: OysListProps) {
 										</div>
 										<Show when={isLocation}>
 											<div class="oys-list-item-toggle-slot">
-												<Button
-													class="oys-location-toggle"
-													onClick={(event) => {
-														event.stopPropagation();
-														props.onToggleLocation(oy.id);
-													}}
-												>
+												<span class="oys-location-toggle">
 													<span class="oys-location-button">
 														<span
 															class={`oys-location-arrow${
@@ -116,7 +110,7 @@ export function OysList(props: OysListProps) {
 															}`}
 														/>
 													</span>
-												</Button>
+												</span>
 											</div>
 										</Show>
 									</div>
