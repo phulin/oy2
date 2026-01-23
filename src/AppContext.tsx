@@ -19,7 +19,7 @@ export type AppContextValue = {
 	setTab: Setter<string>;
 	api: <T>(path: string, options?: RequestInit) => Promise<T>;
 	logout: () => void;
-	handleSetupNotifications: () => void;
+	handleSetupNotifications: () => Promise<void>;
 	sendOy: (toUserId: number) => Promise<void>;
 	sendLo: (toUserId: number) => Promise<void>;
 	toggleLocation: (id: number) => void;

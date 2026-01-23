@@ -29,12 +29,12 @@ export function AppHomeRoute() {
 		loadingMoreOys,
 		loadingOys,
 		loadOysPage,
-		refresh,
-		refreshing,
 		tab,
 		setTab,
 		api,
 		handleFriendAdded,
+		refresh,
+		refreshing,
 	} = useAppContext();
 
 	let hasUpdatedHash = false;
@@ -93,6 +93,7 @@ export function AppHomeRoute() {
 					onChange={setTab}
 					onRefresh={refresh}
 					refreshing={refreshing}
+					refreshableTabs={["friends", "oys"]}
 				>
 					<Tabs.Content value="friends">
 						<FriendsList
