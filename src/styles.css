@@ -50,10 +50,20 @@
 
 html {
 	background: var(--bg);
+	overscroll-behavior-y: contain;
+}
+
+html::before {
+	content: "";
+	position: fixed;
+	inset: 0;
+	z-index: -1;
+	pointer-events: none;
+	background: var(--bg);
 }
 
 @media (prefers-color-scheme: dark) {
-	html {
+	html::before {
 		background:
 			radial-gradient(
 				ellipse at 10% 0%,
