@@ -29,6 +29,8 @@ export function AppHomeRoute() {
 		loadingMoreOys,
 		loadingOys,
 		loadOysPage,
+		refresh,
+		refreshing,
 		tab,
 		setTab,
 		api,
@@ -85,7 +87,13 @@ export function AppHomeRoute() {
 					</Tabs.Trigger>
 				</Tabs.List>
 
-				<SwipeableTabs order={tabOrder} value={tab} onChange={setTab}>
+				<SwipeableTabs
+				order={tabOrder}
+				value={tab}
+				onChange={setTab}
+				onRefresh={refresh}
+				refreshing={refreshing}
+			>
 					<Tabs.Content value="friends">
 						<FriendsList
 							friends={friendsWithLastOy()}

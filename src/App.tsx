@@ -108,6 +108,7 @@ export default function App(props: AppProps) {
 	const [loadingMoreOys, setLoadingMoreOys] = createSignal(false);
 	const [loadingFriends, setLoadingFriends] = createSignal(false);
 	const [loadingLastOyInfo, setLoadingLastOyInfo] = createSignal(false);
+	const [refreshing, setRefreshing] = createSignal(false);
 	const [hasMoreOys, setHasMoreOys] = createSignal(true);
 	const [oysCursor, setOysCursor] = createSignal<OysCursor | null>(null);
 	let pendingExpandOyId: number | null =
@@ -330,6 +331,18 @@ export default function App(props: AppProps) {
 			loadLastOyInfo(),
 			loadOysPage({ reset: true }),
 		]);
+	}
+
+	async function refresh() {
+		if (refreshing()) {
+			return;
+		}
+		setRefreshing(true);
+		try {
+			await Promise.all([loadFriends(), loadLastOyInfo(), loadOysPage({ reset: true })]);
+		} finally {
+			setRefreshing(false);
+		}
 	}
 
 	async function applyAuthSession(user: User) {
@@ -935,6 +948,7 @@ export default function App(props: AppProps) {
 		loadingOys,
 		loadingMoreOys,
 		hasMoreOys,
+		refreshing,
 		tab,
 		setTab,
 		api,
@@ -944,6 +958,7 @@ export default function App(props: AppProps) {
 		sendLo,
 		toggleLocation,
 		loadOysPage,
+		refresh,
 		handleFriendAdded,
 		passkeyAddComplete,
 		passkeyAddCancel,

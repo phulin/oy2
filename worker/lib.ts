@@ -10,7 +10,6 @@ import type {
 const PUSH_MAX_ATTEMPTS = 3;
 const PUSH_BACKOFF_MS = 250;
 const PUSH_BACKOFF_MULTIPLIER = 2;
-export const SESSION_KV_PREFIX = "session:";
 
 const delay = (ms: number) =>
 	new Promise((resolve) => {
@@ -322,31 +321,7 @@ export async function createSession(c: AppContext, user: User) {
 			sessionToken,
 			user.id,
 		]);
-	await c.env.OY2.put(
-		`${SESSION_KV_PREFIX}${sessionToken}`,
-		JSON.stringify(user),
-		{ expirationTtl: 60 * 60 },
-	);
 	return sessionToken;
-}
-
-export async function invalidateUserSessionsCache(
-	c: AppContext,
-	userId: number,
-) {
-	const result = await c
-		.get("db")
-		.query<{ token: string }>("SELECT token FROM sessions WHERE user_id = $1", [
-			userId,
-		]);
-	if (result.rows.length === 0) {
-		return;
-	}
-	await Promise.all(
-		result.rows.map((row) =>
-			c.env.OY2.delete(`${SESSION_KV_PREFIX}${row.token}`),
-		),
-	);
 }
 
 export function updateLastSeen(c: AppContext, userId: number) {

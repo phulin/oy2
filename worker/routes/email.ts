@@ -1,10 +1,5 @@
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
-import {
-	authUserPayload,
-	createSession,
-	invalidateUserSessionsCache,
-	updateLastSeen,
-} from "../lib";
+import { authUserPayload, createSession, updateLastSeen } from "../lib";
 import type { App, AppContext, User } from "../types";
 
 const EMAIL_CODE_PREFIX = "email_code:";
@@ -327,7 +322,6 @@ export function registerEmailRoutes(app: App) {
 					email,
 					existingUser.id,
 				]);
-			await invalidateUserSessionsCache(c, existingUser.id);
 			existingUser.email = email;
 
 			// Clean up pending data
@@ -489,19 +483,7 @@ export function registerEmailRoutes(app: App) {
 				data.email,
 				user.id,
 			]);
-		await invalidateUserSessionsCache(c, user.id);
 		await c.env.OY2.delete(`${EMAIL_ADD_PREFIX}${user.id}`);
-
-		const sessionToken = c.get("sessionToken");
-		if (sessionToken) {
-			const updatedUser = { ...user, email: data.email };
-			await c.env.OY2.put(
-				`session:${sessionToken}`,
-				JSON.stringify(updatedUser),
-				{ expirationTtl: 60 * 60 },
-			);
-			c.set("user", updatedUser);
-		}
 
 		return c.json({ status: "email_updated", email: data.email });
 	});

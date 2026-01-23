@@ -1,7 +1,6 @@
 import { Hono } from "hono";
 import { getCookie } from "hono/cookie";
 import { Client } from "pg";
-import { SESSION_KV_PREFIX } from "./lib";
 import { registerAdminRoutes } from "./routes/admin";
 import { registerAuthRoutes } from "./routes/auth";
 import { registerEmailRoutes } from "./routes/email";
@@ -41,30 +40,20 @@ app.use("*", async (c: AppContext, next) => {
 		getCookie(c, "session") || c.req.header("x-session-token");
 	if (sessionToken) {
 		try {
-			const sessionKey = `${SESSION_KV_PREFIX}${sessionToken}`;
-			const cachedUser = await c.env.OY2.get(sessionKey, "json");
-			let user = cachedUser as User | null;
-			if (!user) {
-				const userResult = await c
-					.get("db")
-					.query<User>(
-						`SELECT users.*
-						FROM sessions
-						JOIN users ON users.id = sessions.user_id
-						WHERE sessions.token = $1`,
-						[sessionToken],
-					)
-					.catch((err) => {
-						console.error("Error fetching user from DB:", err);
-						return { rows: [] };
-					});
-				user = userResult.rows[0] ?? null;
-				if (user) {
-					c.executionCtx.waitUntil(
-						c.env.OY2.put(sessionKey, JSON.stringify(user)),
-					);
-				}
-			}
+			const userResult = await c
+				.get("db")
+				.query<User>(
+					`SELECT users.*
+					FROM sessions
+					JOIN users ON users.id = sessions.user_id
+					WHERE sessions.token = $1`,
+					[sessionToken],
+				)
+				.catch((err) => {
+					console.error("Error fetching user from DB:", err);
+					return { rows: [] };
+				});
+			const user = userResult.rows[0] ?? null;
 			c.set("user", user);
 			if (user) {
 				c.set("sessionToken", sessionToken);

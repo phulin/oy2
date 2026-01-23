@@ -1,5 +1,5 @@
 import { deleteCookie } from "hono/cookie";
-import { authUserPayload, SESSION_KV_PREFIX } from "../lib";
+import { authUserPayload } from "../lib";
 import type { App, AppContext } from "../types";
 
 function clearSessionCookie(c: AppContext) {
@@ -29,7 +29,6 @@ export function registerAuthRoutes(app: App) {
 		await c
 			.get("db")
 			.query("DELETE FROM sessions WHERE token = $1", [sessionToken]);
-		await c.env.OY2.delete(`${SESSION_KV_PREFIX}${sessionToken}`);
 		clearSessionCookie(c);
 
 		return c.json({ success: true });

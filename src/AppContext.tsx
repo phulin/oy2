@@ -14,6 +14,7 @@ export type AppContextValue = {
 	loadingOys: Accessor<boolean>;
 	loadingMoreOys: Accessor<boolean>;
 	hasMoreOys: Accessor<boolean>;
+	refreshing: Accessor<boolean>;
 	tab: Accessor<string>;
 	setTab: Setter<string>;
 	api: <T>(path: string, options?: RequestInit) => Promise<T>;
@@ -23,6 +24,7 @@ export type AppContextValue = {
 	sendLo: (toUserId: number) => Promise<void>;
 	toggleLocation: (id: number) => void;
 	loadOysPage: (options?: { reset?: boolean }) => Promise<void>;
+	refresh: () => Promise<void>;
 	handleFriendAdded: (friend: Friend) => void;
 	passkeyAddComplete: () => void;
 	passkeyAddCancel: () => void;

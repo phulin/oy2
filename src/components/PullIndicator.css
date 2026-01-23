@@ -21,5 +21,17 @@
 }
 
 #pull-indicator.refreshing {
+	transform: translate(-50%, 0);
 	opacity: 1;
+	animation: pull-indicator-pulse 1s ease-in-out infinite;
+}
+
+@keyframes pull-indicator-pulse {
+	0%,
+	100% {
+		opacity: 1;
+	}
+	50% {
+		opacity: 0.4;
+	}
 }
