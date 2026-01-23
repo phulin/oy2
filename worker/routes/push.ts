@@ -1,4 +1,3 @@
-import { invalidatePushSubscriptionsCache } from "../lib";
 import type { App, AppContext } from "../types";
 
 export function registerPushRoutes(app: App) {
@@ -33,7 +32,6 @@ export function registerPushRoutes(app: App) {
     `,
 			[user.id, endpoint, keys.p256dh, keys.auth],
 		);
-		await invalidatePushSubscriptionsCache(c, user.id);
 
 		return c.json({ success: true });
 	});
@@ -56,7 +54,6 @@ export function registerPushRoutes(app: App) {
 				"DELETE FROM push_subscriptions WHERE user_id = $1 AND endpoint = $2",
 				[user.id, endpoint],
 			);
-		await invalidatePushSubscriptionsCache(c, user.id);
 
 		return c.json({ success: true });
 	});

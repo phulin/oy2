@@ -577,6 +577,13 @@ export default function App(props: AppProps) {
 	}
 
 	async function sendOy(toUserId: number) {
+		const registration = swRegistration();
+		if (registration) {
+			ensurePushSubscription(registration).catch((err) => {
+				console.error("Push subscription failed:", err);
+			});
+		}
+
 		try {
 			const { streak } = await api<{ streak: number }>("/api/oy", {
 				method: "POST",
@@ -630,6 +637,13 @@ export default function App(props: AppProps) {
 	}
 
 	async function sendLo(toUserId: number) {
+		const registration = swRegistration();
+		if (registration) {
+			ensurePushSubscription(registration).catch((err) => {
+				console.error("Push subscription failed:", err);
+			});
+		}
+
 		try {
 			const position = await getCurrentPosition({
 				enableHighAccuracy: true,

@@ -11,7 +11,6 @@ const PUSH_MAX_ATTEMPTS = 3;
 const PUSH_BACKOFF_MS = 250;
 const PUSH_BACKOFF_MULTIPLIER = 2;
 export const SESSION_KV_PREFIX = "session:";
-const PUSH_SUBSCRIPTIONS_KV_PREFIX = "push_subscriptions:";
 
 const delay = (ms: number) =>
 	new Promise((resolve) => {
@@ -149,7 +148,6 @@ export async function sendPushNotifications(
 			}),
 		);
 
-		let didMutateSubscriptions = false;
 		const queries: Array<Promise<unknown>> = [];
 
 		for (let i = 0; i < results.length; i += 1) {
@@ -187,16 +185,12 @@ export async function sendPushNotifications(
 								[toUserId, sub.endpoint],
 							),
 					);
-					didMutateSubscriptions = true;
 				}
 			}
 		}
 
 		if (queries.length > 0) {
 			await Promise.all(queries);
-		}
-		if (didMutateSubscriptions) {
-			await invalidatePushSubscriptionsCache(c, toUserId);
 		}
 	} catch (err) {
 		console.error("Push notification error:", err);
@@ -287,37 +281,17 @@ export async function createOyAndNotification(
 	};
 }
 
-function pushSubscriptionsCacheKey(userId: number) {
-	return `${PUSH_SUBSCRIPTIONS_KV_PREFIX}${userId}`;
-}
-
 async function fetchPushSubscriptions(c: AppContext, userId: number) {
-	const cacheKey = pushSubscriptionsCacheKey(userId);
-	const cached = await c.env.OY2.get(cacheKey, "json");
-	if (cached) {
-		return cached as PushSubscriptionRow[];
-	}
-
 	const subscriptionResults = await c.get("db").query<PushSubscriptionRow>(
 		`
-      SELECT endpoint, keys_p256dh, keys_auth
+      SELECT endpoint, keys_p256dh, keys_auth, NOW()
       FROM push_subscriptions
       WHERE user_id = $1
     `,
 		[userId],
 	);
 
-	const subscriptions = subscriptionResults.rows;
-	const cacheWrite = c.env.OY2.put(cacheKey, JSON.stringify(subscriptions));
-	c.executionCtx.waitUntil(cacheWrite);
-	return subscriptions;
-}
-
-export async function invalidatePushSubscriptionsCache(
-	c: AppContext,
-	userId: number,
-) {
-	await c.env.OY2.delete(pushSubscriptionsCacheKey(userId));
+	return subscriptionResults.rows;
 }
 
 export function authUserPayload(user: User) {
