@@ -8,6 +8,7 @@ type AdminActiveUser = {
 	username: string;
 	last_seen: number;
 	has_auth_methods: boolean;
+	push_subscriptions_count: number;
 };
 
 type AdminStats = {
@@ -129,49 +130,56 @@ export function AdminDashboard(props: AdminDashboardProps) {
 									Updated {formatTimestamp(payload().generatedAt)}
 								</span>
 							</div>
-							<div class="admin-table">
-								<div class="admin-table-row admin-table-head">
-									<span>User</span>
-									<span>Last seen</span>
-								</div>
-								<Show
-									when={payload().activeUsers.length > 0}
-									fallback={
-										<div class="admin-table-row">
-											<span>No active users.</span>
-											<span />
-										</div>
-									}
-								>
-									{payload().activeUsers.map((activeUser) => (
-										<div class="admin-table-row">
-											<span class="admin-user">
-												<span>{activeUser.username}</span>
-												<Show when={activeUser.has_auth_methods}>
-													<span
-														class="admin-badge"
-														role="img"
-														aria-label="Authenticated"
-														title="Authenticated"
-													>
-														<svg
-															class="admin-badge-icon"
-															viewBox="0 0 24 24"
-															aria-hidden="true"
-														>
-															<path
-																d="M17 10V8a5 5 0 0 0-10 0v2H5v10h14V10h-2Zm-8-2a3 3 0 1 1 6 0v2H9V8Zm3 9a2 2 0 1 0-2-2 2 2 0 0 0 2 2Z"
-																fill="currentColor"
-															/>
-														</svg>
+							<table class="admin-table">
+								<thead>
+									<tr>
+										<th>User</th>
+										<th>Push</th>
+										<th>Last seen</th>
+									</tr>
+								</thead>
+								<tbody>
+									<Show
+										when={payload().activeUsers.length > 0}
+										fallback={
+											<tr>
+												<td colspan="3">No active users.</td>
+											</tr>
+										}
+									>
+										{payload().activeUsers.map((activeUser) => (
+											<tr>
+												<td>
+													<span class="admin-user">
+														<span>{activeUser.username}</span>
+														<Show when={activeUser.has_auth_methods}>
+															<span
+																class="admin-badge"
+																role="img"
+																aria-label="Authenticated"
+																title="Authenticated"
+															>
+																<svg
+																	class="admin-badge-icon"
+																	viewBox="0 0 24 24"
+																	aria-hidden="true"
+																>
+																	<path
+																		d="M17 10V8a5 5 0 0 0-10 0v2H5v10h14V10h-2Zm-8-2a3 3 0 1 1 6 0v2H9V8Zm3 9a2 2 0 1 0-2-2 2 2 0 0 0 2 2Z"
+																		fill="currentColor"
+																	/>
+																</svg>
+															</span>
+														</Show>
 													</span>
-												</Show>
-											</span>
-											<span>{formatTimestamp(activeUser.last_seen)}</span>
-										</div>
-									))}
-								</Show>
-							</div>
+												</td>
+												<td>{activeUser.push_subscriptions_count}</td>
+												<td>{formatTimestamp(activeUser.last_seen)}</td>
+											</tr>
+										))}
+									</Show>
+								</tbody>
+							</table>
 						</div>
 					</>
 				)}

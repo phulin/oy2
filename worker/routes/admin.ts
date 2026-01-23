@@ -28,7 +28,10 @@ export function registerAdminRoutes(app: App) {
           users.email IS NOT NULL
           OR users.oauth_provider IS NOT NULL
           OR EXISTS (SELECT 1 FROM passkeys WHERE passkeys.user_id = users.id)
-        ) AS has_auth_methods
+        ) AS has_auth_methods,
+        (
+          SELECT COUNT(*) FROM push_subscriptions ps WHERE ps.user_id = users.id
+        ) AS push_subscriptions_count
       FROM users
       JOIN user_last_seen uls ON uls.user_id = users.id
       WHERE uls.last_seen >= $1
@@ -96,6 +99,7 @@ export function registerAdminRoutes(app: App) {
 				username: string;
 				last_seen: number;
 				has_auth_methods: boolean;
+				push_subscriptions_count: number;
 			}>,
 			generatedAt: now,
 		});
