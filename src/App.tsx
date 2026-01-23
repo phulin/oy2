@@ -339,7 +339,11 @@ export default function App(props: AppProps) {
 		}
 		setRefreshing(true);
 		try {
-			await Promise.all([loadFriends(), loadLastOyInfo(), loadOysPage({ reset: true })]);
+			await Promise.all([
+				loadFriends(),
+				loadLastOyInfo(),
+				loadOysPage({ reset: true }),
+			]);
 		} finally {
 			setRefreshing(false);
 		}

@@ -59,7 +59,11 @@ export function SwipeableTabs(props: SwipeableTabsProps) {
 		source = null;
 
 		// Handle pull-to-refresh (compare scaled values)
-		if (currentAxis === "y" && currentPullOffset >= pullThreshold * offsetScale && props.onRefresh) {
+		if (
+			currentAxis === "y" &&
+			currentPullOffset >= pullThreshold * offsetScale &&
+			props.onRefresh
+		) {
 			props.onRefresh();
 			return;
 		}

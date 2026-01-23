@@ -88,12 +88,12 @@ export function AppHomeRoute() {
 				</Tabs.List>
 
 				<SwipeableTabs
-				order={tabOrder}
-				value={tab}
-				onChange={setTab}
-				onRefresh={refresh}
-				refreshing={refreshing}
-			>
+					order={tabOrder}
+					value={tab}
+					onChange={setTab}
+					onRefresh={refresh}
+					refreshing={refreshing}
+				>
 					<Tabs.Content value="friends">
 						<FriendsList
 							friends={friendsWithLastOy()}
