@@ -1,4 +1,11 @@
-import { createMemo, createSignal, For, onCleanup, Show } from "solid-js";
+import {
+	createMemo,
+	createSignal,
+	For,
+	onCleanup,
+	onMount,
+	Show,
+} from "solid-js";
 import type { FriendWithLastOy } from "../types";
 import { formatTime } from "../utils";
 import { AsyncButton } from "./AsyncButton";
@@ -21,6 +28,19 @@ export function FriendsList(props: FriendsListProps) {
 		setTimeTick(Date.now());
 	}, 60000);
 	onCleanup(() => window.clearInterval(intervalId));
+	onMount(() => {
+		const handleVisibility = () => {
+			if (document.visibilityState === "visible") {
+				setTimeTick(Date.now());
+			}
+		};
+		document.addEventListener("visibilitychange", handleVisibility);
+		window.addEventListener("focus", handleVisibility);
+		onCleanup(() => {
+			document.removeEventListener("visibilitychange", handleVisibility);
+			window.removeEventListener("focus", handleVisibility);
+		});
+	});
 	const skeletonItems = () => Array.from({ length: 4 });
 	const sortedFriends = createMemo(() =>
 		[...props.friends].sort(

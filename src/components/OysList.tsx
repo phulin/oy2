@@ -22,6 +22,19 @@ export function OysList(props: OysListProps) {
 		setTimeTick(Date.now());
 	}, 60000);
 	onCleanup(() => window.clearInterval(intervalId));
+	onMount(() => {
+		const handleVisibility = () => {
+			if (document.visibilityState === "visible") {
+				setTimeTick(Date.now());
+			}
+		};
+		document.addEventListener("visibilitychange", handleVisibility);
+		window.addEventListener("focus", handleVisibility);
+		onCleanup(() => {
+			document.removeEventListener("visibilitychange", handleVisibility);
+			window.removeEventListener("focus", handleVisibility);
+		});
+	});
 
 	let sentinel: HTMLDivElement | undefined;
 	const setSentinel = (el: HTMLDivElement) => {
