@@ -57,6 +57,10 @@ export function SwipeableTabs(props: SwipeableTabsProps) {
 		!!target?.closest(".oys-location-map");
 
 	const isAtTop = () => {
+		// Check global scroll position first
+		if (window.scrollY > 1) {
+			return false;
+		}
 		const scrollEl = scrollRef;
 		return scrollEl ? scrollEl.scrollTop <= 1 : true;
 	};
