@@ -10,6 +10,7 @@ export type DbClient = {
 
 export type Bindings = {
 	HYPERDRIVE: Hyperdrive;
+	HYPERDRIVE_NO_CACHE: Hyperdrive;
 	TEST_DB?: DbClient;
 	VAPID_PUBLIC_KEY: string;
 	VAPID_PRIVATE_KEY: string;
@@ -113,6 +114,7 @@ export type AppVariables = {
 	user: User | null;
 	sessionToken: string | null;
 	db: DbClient;
+	dbNoCache: DbClient;
 };
 
 export type App = Hono<{

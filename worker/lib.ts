@@ -281,14 +281,16 @@ export async function createOyAndNotification(
 }
 
 async function fetchPushSubscriptions(c: AppContext, userId: number) {
-	const subscriptionResults = await c.get("db").query<PushSubscriptionRow>(
-		`
-      SELECT endpoint, keys_p256dh, keys_auth, NOW()
+	const subscriptionResults = await c
+		.get("dbNoCache")
+		.query<PushSubscriptionRow>(
+			`
+      SELECT endpoint, keys_p256dh, keys_auth
       FROM push_subscriptions
       WHERE user_id = $1
     `,
-		[userId],
-	);
+			[userId],
+		);
 
 	return subscriptionResults.rows;
 }

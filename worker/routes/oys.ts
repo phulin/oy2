@@ -216,12 +216,14 @@ export function registerOyRoutes(app: App) {
 
 		const beforeRaw = c.req.query("before");
 		const beforeIdRaw = c.req.query("beforeId");
+		const noCache = c.req.query("no-cache") === "true";
 		const before = beforeRaw ? Number(beforeRaw) : Number.NaN;
 		const beforeId = beforeIdRaw ? Number(beforeIdRaw) : Number.NaN;
 		const hasCursor = Number.isFinite(before) && Number.isFinite(beforeId);
 		const pageSize = 30;
 
-		const oys = await c.get("db").query<{
+		const db = noCache ? c.get("dbNoCache") : c.get("db");
+		const oys = await db.query<{
 			id: number;
 			from_user_id: number;
 			to_user_id: number;
@@ -245,7 +247,6 @@ export function registerOyRoutes(app: App) {
           OR y.created_at < $3
           OR (y.created_at = $4 AND y.id < $5)
         )
-        AND NOW() IS NOT NULL
       ORDER BY y.created_at DESC, y.id DESC
       LIMIT $6
     ),
@@ -263,7 +264,6 @@ export function registerOyRoutes(app: App) {
           OR y.created_at < $10
           OR (y.created_at = $11 AND y.id < $12)
         )
-        AND NOW() IS NOT NULL
       ORDER BY y.created_at DESC, y.id DESC
       LIMIT $13
     )

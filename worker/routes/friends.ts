@@ -52,7 +52,9 @@ export function registerFriendRoutes(app: App) {
 			return c.json({ error: "Not authenticated" }, 401);
 		}
 
-		const friends = await c.get("db").query<FriendListRow>(
+		const noCache = c.req.query("no-cache") === "true";
+		const db = noCache ? c.get("dbNoCache") : c.get("db");
+		const friends = await db.query<FriendListRow>(
 			`
     SELECT
       u.id,
@@ -78,7 +80,9 @@ export function registerFriendRoutes(app: App) {
 			return c.json({ error: "Not authenticated" }, 401);
 		}
 
-		const lastOyInfo = await c.get("db").query<LastOyInfoRow>(
+		const noCache = c.req.query("no-cache") === "true";
+		const db = noCache ? c.get("dbNoCache") : c.get("db");
+		const lastOyInfo = await db.query<LastOyInfoRow>(
 			`
     SELECT
       friend_id,

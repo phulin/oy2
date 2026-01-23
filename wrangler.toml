@@ -25,6 +25,10 @@ custom_domain = true
 binding = "HYPERDRIVE"
 id = "f9cd31eff0a444f0b02cca63f470a151"
 
+[[hyperdrive]]
+binding = "HYPERDRIVE_NO_CACHE"
+id = "135558b7b7dd4bf08fb8e8c2bb4a9326"
+
 [[kv_namespaces]]
 binding = "OY2"
 id = "3dff6009997c423ead2cea611dc58cb3"
@@ -44,6 +48,10 @@ custom_domain = true
 [[env.dev.hyperdrive]]
 binding = "HYPERDRIVE"
 id = "f9cd31eff0a444f0b02cca63f470a151"
+
+[[env.dev.hyperdrive]]
+binding = "HYPERDRIVE_NO_CACHE"
+id = "135558b7b7dd4bf08fb8e8c2bb4a9326"
 
 [[env.dev.kv_namespaces]]
 binding = "OY2"

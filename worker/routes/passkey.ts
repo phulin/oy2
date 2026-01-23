@@ -318,7 +318,7 @@ export function registerPasskeyRoutes(app: App) {
 			return c.json({ hasPasskey: false });
 		}
 
-		const passkeys = await c.get("db").query<{
+		const passkeys = await c.get("dbNoCache").query<{
 			id: number;
 			device_name: string | null;
 			created_at: number;

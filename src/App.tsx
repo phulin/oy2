@@ -229,11 +229,12 @@ export default function App(props: AppProps) {
 			});
 	}
 
-	async function loadFriends() {
+	async function loadFriends({ noCache = false }: { noCache?: boolean } = {}) {
 		setLoadingFriends(true);
 		try {
+			const query = noCache ? "?no-cache=true" : "";
 			const { friends: data } = await api<{ friends: Friend[] }>(
-				"/api/friends",
+				`/api/friends${query}`,
 			);
 			const nextFriends = data || [];
 			setFriends(nextFriends);
@@ -264,11 +265,16 @@ export default function App(props: AppProps) {
 		});
 	}
 
-	async function loadLastOyInfo() {
+	async function loadLastOyInfo({
+		noCache = false,
+	}: {
+		noCache?: boolean;
+	} = {}) {
 		setLoadingLastOyInfo(true);
 		try {
+			const query = noCache ? "?no-cache=true" : "";
 			const { lastOyInfo: data } = await api<{ lastOyInfo: LastOyInfo[] }>(
-				"/api/last-oy-info",
+				`/api/last-oy-info${query}`,
 			);
 			const nextLastOyInfo = data || [];
 			setLastOyInfo(nextLastOyInfo);
@@ -283,7 +289,13 @@ export default function App(props: AppProps) {
 		}
 	}
 
-	async function loadOysPage({ reset = false }: { reset?: boolean } = {}) {
+	async function loadOysPage({
+		reset = false,
+		noCache = false,
+	}: {
+		reset?: boolean;
+		noCache?: boolean;
+	} = {}) {
 		if (!reset && (loadingMoreOys() || !hasMoreOys())) {
 			return;
 		}
@@ -295,9 +307,15 @@ export default function App(props: AppProps) {
 
 		try {
 			const cursor = reset ? null : oysCursor();
-			const query = cursor
-				? `?before=${cursor.before}&beforeId=${cursor.beforeId}`
-				: "";
+			const params = new URLSearchParams();
+			if (cursor) {
+				params.set("before", String(cursor.before));
+				params.set("beforeId", String(cursor.beforeId));
+			}
+			if (noCache) {
+				params.set("no-cache", "true");
+			}
+			const query = params.toString() ? `?${params.toString()}` : "";
 			const { oys: oysData, nextCursor } = await api<{
 				oys: Oy[];
 				nextCursor: OysCursor | null;
@@ -340,9 +358,9 @@ export default function App(props: AppProps) {
 		setRefreshing(true);
 		try {
 			await Promise.all([
-				loadFriends(),
-				loadLastOyInfo(),
-				loadOysPage({ reset: true }),
+				loadFriends({ noCache: true }),
+				loadLastOyInfo({ noCache: true }),
+				loadOysPage({ reset: true, noCache: true }),
 			]);
 		} finally {
 			setRefreshing(false);

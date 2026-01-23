@@ -21,12 +21,17 @@ app.use("*", async (c: AppContext, next) => {
 	if (!c.get("db")) {
 		if (c.env.TEST_DB) {
 			c.set("db", c.env.TEST_DB);
+			c.set("dbNoCache", c.env.TEST_DB);
 		} else {
 			const client = new Client({
 				connectionString: c.env.HYPERDRIVE.connectionString,
 			});
 			c.set("db", client);
-			await client.connect();
+			const clientNoCache = new Client({
+				connectionString: c.env.HYPERDRIVE_NO_CACHE.connectionString,
+			});
+			c.set("dbNoCache", clientNoCache);
+			await Promise.all([client.connect(), clientNoCache.connect()]);
 		}
 	}
 	await next();
@@ -41,7 +46,7 @@ app.use("*", async (c: AppContext, next) => {
 	if (sessionToken) {
 		try {
 			const userResult = await c
-				.get("db")
+				.get("dbNoCache")
 				.query<User>(
 					`SELECT users.*
 					FROM sessions
