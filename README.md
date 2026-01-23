@@ -1,23 +1,24 @@
 # Oy - Send Oys to Your Friends
 
-A minimalist social media app. Send simple "Oy" messages to your friends with push notifications.
+A minimalist social app for sending quick "Oy" taps (and optional location "Lo")
+to friends with push notifications.
 
 ## Features
 
-- Super-fast server-side rendered PWA
-- Send "Oy" to friends with one tap
-- Real-time push notifications
-- Offline support via Service Worker
-- No authentication required (just username)
-- Edge deployment on Cloudflare Workers
+- One-tap Oys plus optional location shares
+- Push notifications + offline-ready PWA
+- Passkeys (WebAuthn), email codes, and Apple/Google OAuth sign-in
+- Friend graph with streaks and last-seen info
+- Cloudflare Workers at the edge with Postgres via Hyperdrive
 
 ## Tech Stack
 
-- **Frontend**: SolidJS + Kobalte (Vite)
-- **Backend**: Hono framework on Cloudflare Workers
-- **Database**: Cloudflare D1 (SQLite at the edge)
-- **Push Notifications**: Web Push API
-- **Deployment**: Cloudflare Workers
+- **Frontend**: SolidJS + Vite + vite-plugin-pwa
+- **Backend**: Hono on Cloudflare Workers
+- **Database**: Postgres (Cloudflare Hyperdrive)
+- **KV**: Cloudflare KV (ephemeral auth + OAuth state)
+- **Push**: Web Push API
+- **Maps**: Leaflet + Google Geocoding API
 - **Package Manager**: Yarn 4
 
 ## Local Development
@@ -26,7 +27,8 @@ A minimalist social media app. Send simple "Oy" messages to your friends with pu
 
 - Node.js 20+
 - Yarn 4
-- Cloudflare account (free tier works!)
+- Postgres
+- Cloudflare account (for Hyperdrive/Workers)
 
 ### Setup
 
@@ -39,42 +41,42 @@ yarn install
 2. Generate VAPID keys for push notifications:
 
 ```bash
-yarn generate-vapid
+node scripts/generate-vapid-keys.js
 ```
 
-This will output VAPID keys. Save them - you'll need them for deployment.
+3. Configure environment variables for the worker:
 
-3. Create a D1 database:
+Create a `.dev.vars` file in the repo root (used by Wrangler). Minimum
+recommended variables are shown below; add OAuth credentials only if you want
+to enable those sign-in options.
 
 ```bash
-yarn db:create
+VAPID_PUBLIC_KEY=your_vapid_public_key
+VAPID_PRIVATE_KEY=your_vapid_private_key
+VAPID_SUBJECT=mailto:admin@example.com
+RESEND_API_KEY=your_resend_key
+GOOGLE_MAPS_API_KEY=your_google_maps_key
+APPLE_CLIENT_ID=your_apple_client_id
+APPLE_TEAM_ID=your_apple_team_id
+APPLE_KEY_ID=your_apple_key_id
+APPLE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----"
+GOOGLE_CLIENT_ID=your_google_client_id
+GOOGLE_CLIENT_SECRET=your_google_client_secret
 ```
 
-Copy the database ID from the output and update `wrangler.toml`:
+4. Configure Hyperdrive + KV bindings:
 
-```toml
-[[d1_databases]]
-binding = "DB"
-database_name = "oy2-db"
-database_id = "YOUR_DATABASE_ID_HERE"
-```
+Update `wrangler.toml` with your Hyperdrive and KV IDs for `dev` and `prod`.
 
-4. Run migrations to set up database schema:
+5. Run database migrations locally:
 
 ```bash
-yarn db:migrate:local
+DATABASE_URL=postgres://... yarn db:migrate:local
 ```
 
-5. Set up secrets for local development:
+If `DATABASE_URL` is not set, the script connects to a local `oy2` database.
 
-Create a `.dev.vars` file in the root directory:
-
-```bash
-VAPID_PUBLIC_KEY=your_vapid_public_key_here
-VAPID_PRIVATE_KEY=your_vapid_private_key_here
-```
-
-6. Start the development server:
+6. Start the dev server:
 
 ```bash
 yarn dev
@@ -82,82 +84,49 @@ yarn dev
 
 The app will be available at [http://localhost:5173](http://localhost:5173).
 
-7. Build and preview locally:
+### Tests and Quality
 
 ```bash
-yarn build
-yarn preview
+yarn test
+yarn check
+yarn lint
+yarn format
 ```
 
 ## Production Deployment (Cloudflare Workers)
 
-### Prerequisites
-
-- Cloudflare account
-- Wrangler CLI (installed with `yarn install`)
-
-### First-time Deployment
-
-1. Login to Cloudflare:
-
-```bash
-npx wrangler login
-```
-
-2. Create the D1 database:
-
-```bash
-yarn db:create
-```
-
-Copy the `database_id` from the output and update it in `wrangler.toml`.
-
-3. Run migrations on the remote database:
-
-```bash
-yarn db:migrate
-```
-
-4. Set VAPID keys as secrets:
+1. Set secrets:
 
 ```bash
 npx wrangler secret put VAPID_PUBLIC_KEY
-# Paste your public key when prompted
-
 npx wrangler secret put VAPID_PRIVATE_KEY
-# Paste your private key when prompted
+npx wrangler secret put VAPID_SUBJECT
+npx wrangler secret put RESEND_API_KEY
+npx wrangler secret put GOOGLE_MAPS_API_KEY
+npx wrangler secret put APPLE_CLIENT_ID
+npx wrangler secret put APPLE_TEAM_ID
+npx wrangler secret put APPLE_KEY_ID
+npx wrangler secret put APPLE_PRIVATE_KEY
+npx wrangler secret put GOOGLE_CLIENT_ID
+npx wrangler secret put GOOGLE_CLIENT_SECRET
 ```
 
-5. Deploy:
+2. Run remote migrations:
+
+```bash
+yarn db:migrate:remote
+```
+
+3. Deploy:
 
 ```bash
 yarn deploy
 ```
 
-6. Oyur app is now live! Wrangler will output the URL (e.g., `https://oy2.your-subdomain.workers.dev`)
-
-### Updating the Deployment
+For the dev environment:
 
 ```bash
-yarn deploy
-```
-
-### View Logs
-
-```bash
-npx wrangler tail
-```
-
-### Managing the Database
-
-View your database:
-```bash
-npx wrangler d1 execute oy2-db --remote --command "SELECT * FROM users"
-```
-
-Create new migrations:
-```bash
-npx wrangler d1 migrations create oy2-db migration_name
+yarn deploy:dev
 ```
 
 ## Project Structure
@@ -165,98 +134,70 @@ npx wrangler d1 migrations create oy2-db migration_name
 ```
 oy2/
 ├── src/
-│   ├── App.tsx          # SolidJS app
-│   ├── main.tsx         # Frontend entrypoint
-│   ├── map.ts           # Leaflet map setup
-│   └── styles.css       # UI styles
+│   ├── routes/                 # SolidJS routes
+│   ├── components/             # UI components
+│   ├── sw.ts                    # PWA service worker
+│   └── main.tsx                 # Frontend entry
 ├── worker/
-│   ├── index.js         # Hono app for Cloudflare Workers
-│   └── push.js          # Web Push notification logic
-├── public/
-│   ├── sw.js            # Service Worker for PWA
-│   ├── manifest.json    # PWA manifest
-│   └── icon.svg         # App icon
-├── migrations/
-│   └── 0001_initial_schema.sql  # D1 database schema
-├── scripts/
-│   └── generate-vapid-keys.js   # Helper to generate VAPID keys
-├── index.html           # Vite HTML entrypoint
-├── vite.config.js       # Vite + Cloudflare plugin config
-├── wrangler.toml        # Cloudflare Workers configuration
-└── package.json         # Dependencies and scripts
+│   ├── routes/                  # Hono API routes
+│   ├── index.ts                 # Worker entry
+│   └── push.ts                  # Web Push helpers
+├── migrations-pg/               # Postgres migrations
+├── backup-worker/               # Export/backup worker
+├── scripts/                     # Tooling (migrations, VAPID, etc.)
+├── public/                      # Static assets + PWA manifest
+├── wrangler.toml                # Cloudflare Workers config
+├── production_schema.sql        # Production DB schema
+└── package.json
 ```
 
 ## API Endpoints
 
-### Users
+### Auth
 
-- `POST /api/users` - Create or get user
-- `GET /api/users/search?q=<query>` - Search users
+- `GET /api/auth/session`
+- `POST /api/auth/logout`
+- `POST /api/auth/email/send-code`
+- `POST /api/auth/email/verify`
+- `POST /api/auth/email/complete`
+- `POST /api/auth/passkey/register/options`
+- `POST /api/auth/passkey/register/verify`
+- `POST /api/auth/passkey/auth/options`
+- `POST /api/auth/passkey/auth/verify`
+- `GET /api/auth/oauth/apple`
+- `GET /api/auth/oauth/google`
+- `POST /api/auth/oauth/callback`
+- `POST /api/auth/oauth/complete`
 
-### Friends
+### Users and Friends
 
-- `POST /api/friends` - Add a friend
-- `GET /api/friends` - Get friends list
+- `GET /api/users/search`
+- `GET /api/users/suggested`
+- `POST /api/users/suggested/mutuals`
+- `POST /api/friends`
+- `GET /api/friends`
+- `GET /api/last-oy-info`
 
 ### Oys
 
-- `POST /api/oy` - Send an Oy
-- `GET /api/oys` - Get recent Oys received
+- `POST /api/oy`
+- `POST /api/lo`
+- `GET /api/oys`
 
-### Push Notifications
+### Push
 
-- `GET /api/push/vapid-public-key` - Get VAPID public key
-- `POST /api/push/subscribe` - Subscribe to push notifications
-- `POST /api/push/unsubscribe` - Unsubscribe from push notifications
+- `POST /api/push/subscribe`
+- `POST /api/push/unsubscribe`
+- `GET /api/push/vapid-public-key`
+
+### Admin
+
+- `GET /api/admin/stats`
 
 ## Database Schema
 
-### users
-- `id` - Auto-increment primary key
-- `username` - Unique username
-- `created_at` - Timestamp
-
-### friendships
-- `user_id` - User ID
-- `friend_id` - Friend's user ID
-- `created_at` - Timestamp
-
-### oys
-- `id` - Auto-increment primary key
-- `from_user_id` - Sender's user ID
-- `to_user_id` - Recipient's user ID
-- `created_at` - Timestamp
-
-### push_subscriptions
-- `user_id` - User ID
-- `endpoint` - Push subscription endpoint
-- `keys_p256dh` - P256DH key
-- `keys_auth` - Auth key
-- `created_at` - Timestamp
-
-## Why Cloudflare Workers?
-
-- **Global Edge Network**: Oyur app runs on Cloudflare's edge, close to your users worldwide
-- **Zero Cold Starts**: Workers start instantly
-- **D1 Database**: SQLite at the edge with low latency
-- **Free Tier**: 100,000 requests/day and 5GB storage on the free plan
-- **No Server Management**: Focus on code, not infrastructure
-- **Fast Deployment**: Deploy in seconds with `yarn deploy`
-
-## Icons
-
-The app includes a simple SVG icon at `/public/icon.svg`. To generate PNG icons:
-
-```bash
-# Install imagemagick if you haven't
-brew install imagemagick  # macOS
-# or
-sudo apt-get install imagemagick  # Linux
-
-# Generate PNG icons
-convert public/icon.svg -resize 192x192 public/icon-192.png
-convert public/icon.svg -resize 512x512 public/icon-512.png
-```
+Current production schema is tracked in `production_schema.sql`. Migrations live
+in `migrations-pg/`.
 
 ## License
 
