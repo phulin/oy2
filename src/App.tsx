@@ -23,7 +23,7 @@ import type {
 	OysCursor,
 	User,
 } from "./types";
-import { urlBase64ToUint8Array } from "./utils";
+import { onAppVisible, urlBase64ToUint8Array } from "./utils";
 import "./App.css";
 
 const urlParams = new URLSearchParams(window.location.search);
@@ -798,6 +798,16 @@ export default function App(props: AppProps) {
 		if (!currentUser()) {
 			setLoadingFriends(false);
 		}
+	});
+
+	onMount(() => {
+		onCleanup(
+			onAppVisible(() => {
+				if (currentUser()) {
+					void refresh();
+				}
+			}),
+		);
 	});
 
 	onMount(() => {

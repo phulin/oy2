@@ -1,7 +1,7 @@
 import { Button } from "@kobalte/core/button";
 import { createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import type { Oy, OyPayload } from "../types";
-import { formatTime } from "../utils";
+import { formatTime, onAppVisible } from "../utils";
 import { LocationMap } from "./LocationMap";
 import "./OysList.css";
 
@@ -22,19 +22,7 @@ export function OysList(props: OysListProps) {
 		setTimeTick(Date.now());
 	}, 60000);
 	onCleanup(() => window.clearInterval(intervalId));
-	onMount(() => {
-		const handleVisibility = () => {
-			if (document.visibilityState === "visible") {
-				setTimeTick(Date.now());
-			}
-		};
-		document.addEventListener("visibilitychange", handleVisibility);
-		window.addEventListener("focus", handleVisibility);
-		onCleanup(() => {
-			document.removeEventListener("visibilitychange", handleVisibility);
-			window.removeEventListener("focus", handleVisibility);
-		});
-	});
+	onCleanup(onAppVisible(() => setTimeTick(Date.now())));
 
 	let sentinel: HTMLDivElement | undefined;
 	const setSentinel = (el: HTMLDivElement) => {

@@ -18,3 +18,19 @@ export function formatTime(timestamp: number) {
 	if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
 	return `${Math.floor(diff / 86400)}d ago`;
 }
+
+export function onAppVisible(callback: () => void) {
+	const handleVisibility = () => {
+		if (document.visibilityState === "visible") {
+			callback();
+		}
+	};
+
+	document.addEventListener("visibilitychange", handleVisibility);
+	window.addEventListener("focus", handleVisibility);
+
+	return () => {
+		document.removeEventListener("visibilitychange", handleVisibility);
+		window.removeEventListener("focus", handleVisibility);
+	};
+}
