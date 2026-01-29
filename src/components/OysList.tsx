@@ -1,7 +1,7 @@
 import { Button } from "@kobalte/core/button";
 import { createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import type { Oy, OyPayload } from "../types";
-import { formatTime, onAppVisible } from "../utils";
+import { calculateDistance, formatTime, onAppVisible } from "../utils";
 import { LocationMap } from "./LocationMap";
 import "./OysList.css";
 
@@ -18,6 +18,11 @@ type OysListProps = {
 
 export function OysList(props: OysListProps) {
 	const [timeTick, setTimeTick] = createSignal(Date.now());
+	const [myLocation, setMyLocation] = createSignal<{
+		lat: number;
+		lon: number;
+	} | null>(null);
+
 	const intervalId = window.setInterval(() => {
 		setTimeTick(Date.now());
 	}, 60000);
@@ -41,6 +46,20 @@ export function OysList(props: OysListProps) {
 
 		if (sentinel) {
 			observer.observe(sentinel);
+		}
+
+		if ("geolocation" in navigator) {
+			navigator.geolocation.getCurrentPosition(
+				(position) => {
+					setMyLocation({
+						lat: position.coords.latitude,
+						lon: position.coords.longitude,
+					});
+				},
+				(err) => {
+					console.warn("Geolocation failed:", err);
+				},
+			);
 		}
 
 		onCleanup(() => {
@@ -75,10 +94,25 @@ export function OysList(props: OysListProps) {
 							: isLocation
 								? `Lo from ${oy.from_username}`
 								: `Oy from ${oy.from_username}`;
-						const subtitle =
+
+						const location = myLocation();
+						const distance =
+							isLocation && location
+								? calculateDistance(
+										location.lat,
+										location.lon,
+										payload.lat,
+										payload.lon,
+									)
+								: null;
+
+						const subtitleBase =
 							isLocation && payload?.city
 								? `${payload.city} · ${formatRelativeTime(oy.created_at)}`
 								: formatRelativeTime(oy.created_at);
+						const subtitle = distance
+							? `${subtitleBase} · ${distance} away`
+							: subtitleBase;
 						const isOpen = () => props.openLocations().has(oy.id);
 
 						return (
