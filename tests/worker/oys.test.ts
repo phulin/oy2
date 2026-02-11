@@ -254,7 +254,7 @@ describe("oys and los", () => {
 				message.android?.notification?.channel_id,
 				"oy_notifications_v1",
 			);
-			assert.equal(message.android?.notification?.sound, "oy.wav");
+			assert.equal(message.android?.notification?.sound, "oy");
 		} finally {
 			globalThis.fetch = originalFetch;
 		}

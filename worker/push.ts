@@ -7,6 +7,7 @@ const GOOGLE_TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token";
 const APNS_PRODUCTION_HOST = "https://api.push.apple.com";
 const APNS_SANDBOX_HOST = "https://api.sandbox.push.apple.com";
 const NATIVE_PUSH_SOUND_FILE = "oy.wav";
+const ANDROID_NATIVE_PUSH_SOUND = "oy";
 const ANDROID_PUSH_CHANNEL_ID = "oy_notifications_v1";
 
 type PushSendError = Error & {
@@ -311,7 +312,7 @@ async function sendAndroidPushNotification(
 						priority: "high",
 						notification: {
 							channel_id: ANDROID_PUSH_CHANNEL_ID,
-							sound: NATIVE_PUSH_SOUND_FILE,
+							sound: ANDROID_NATIVE_PUSH_SOUND,
 						},
 					},
 				},
@@ -327,8 +328,7 @@ async function sendAndroidPushNotification(
 		const errorCode =
 			details.find((detail) => detail.errorCode)?.errorCode ??
 			(typeof errorBody.status === "string" ? errorBody.status : undefined);
-		const permanent =
-			errorCode === "UNREGISTERED" || errorCode === "INVALID_ARGUMENT";
+		const permanent = errorCode === "UNREGISTERED";
 		throw makePushError(
 			`FCM push failed (${response.status}) ${errorCode ?? ""}`.trim(),
 			response.status,
