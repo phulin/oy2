@@ -26,6 +26,26 @@ describe("email auth", () => {
 		assert.equal(data.code?.length, 6);
 	});
 
+	it("skips code delivery for hardcoded demo emails", async (t) => {
+		const { env, kv } = createTestEnv();
+		const originalFetch = globalThis.fetch;
+		globalThis.fetch = async () => {
+			throw new Error("fetch should not be called for demo emails");
+		};
+		t.after(() => {
+			globalThis.fetch = originalFetch;
+		});
+
+		const email = "demo1@example.com";
+		const { res, json } = await jsonRequest(env, "/api/auth/email/send-code", {
+			method: "POST",
+			body: { email },
+		});
+		assert.equal(res.status, 200);
+		assert.equal(json.status, "code_sent");
+		assert.equal(await kv.get(`email_code:${email}`), null);
+	});
+
 	it("authenticates existing users with valid codes", async () => {
 		const { env, kv, db } = createTestEnv();
 		const email = "signedin@example.com";
@@ -38,6 +58,22 @@ describe("email auth", () => {
 		const { res, json } = await jsonRequest(env, "/api/auth/email/verify", {
 			method: "POST",
 			body: { email, code: "123456" },
+		});
+		const body = json as { status: string; user: { id: number } };
+		assert.equal(res.status, 200);
+		assert.equal(body.status, "authenticated");
+		assert.equal(body.user.id, user.id);
+		assert.ok(getSessionToken(res));
+	});
+
+	it("authenticates existing demo users without codes", async () => {
+		const { env, db } = createTestEnv();
+		const email = "demo2@example.com";
+		const user = seedUser(db, { username: "DemoTwo", email });
+
+		const { res, json } = await jsonRequest(env, "/api/auth/email/verify", {
+			method: "POST",
+			body: { email },
 		});
 		const body = json as { status: string; user: { id: number } };
 		assert.equal(res.status, 200);
@@ -78,6 +114,24 @@ describe("email auth", () => {
 		assert.ok(getSessionToken(completeRes));
 		assert.equal(db.users.length, 1);
 		assert.equal(db.users[0].email, email);
+	});
+
+	it("creates and authenticates missing demo accounts without codes", async () => {
+		const { env, db } = createTestEnv();
+		const email = "demo3@example.com";
+
+		const { res, json } = await jsonRequest(env, "/api/auth/email/verify", {
+			method: "POST",
+			body: { email },
+		});
+		const body = json as { status: string; needsPasskeySetup: boolean };
+		assert.equal(res.status, 200);
+		assert.equal(body.status, "authenticated");
+		assert.equal(body.needsPasskeySetup, false);
+		assert.equal(db.users.length, 1);
+		assert.equal(db.users[0].email, email);
+		assert.equal(db.users[0].username, "demo3_appstore");
+		assert.ok(getSessionToken(res));
 	});
 
 	it("rejects profane usernames during email registration completion", async () => {

@@ -7,6 +7,11 @@ const EMAIL_CODE_PREFIX = "email_code:";
 const EMAIL_RATE_PREFIX = "email_rate:";
 const EMAIL_PENDING_PREFIX = "email_pending:";
 const EMAIL_ADD_PREFIX = "email_add:";
+const DEMO_ACCOUNTS = {
+	"demo1@example.com": "demo1_appstore",
+	"demo2@example.com": "demo2_appstore",
+	"demo3@example.com": "demo3_appstore",
+} as const;
 
 type EmailCodeData = {
 	code: string;
@@ -119,6 +124,14 @@ function isValidEmail(email: string): boolean {
 	return emailRegex.test(email) && email.length <= 254;
 }
 
+function isDemoEmail(email: string): boolean {
+	return Object.hasOwn(DEMO_ACCOUNTS, email);
+}
+
+function getDemoUsername(email: string): string {
+	return DEMO_ACCOUNTS[email as keyof typeof DEMO_ACCOUNTS];
+}
+
 export function registerEmailRoutes(app: App) {
 	// Send verification code to email
 	app.post("/api/auth/email/send-code", async (c: AppContext) => {
@@ -129,6 +142,10 @@ export function registerEmailRoutes(app: App) {
 
 		if (!email || !isValidEmail(email)) {
 			return c.json({ error: "Invalid email address" }, 400);
+		}
+
+		if (isDemoEmail(email)) {
+			return c.json({ status: "code_sent" });
 		}
 
 		// Check rate limit (max 3 codes per email per minute)
@@ -178,45 +195,51 @@ export function registerEmailRoutes(app: App) {
 			.toLowerCase();
 		const code = String(body.code || "").trim();
 
-		if (!email || !code) {
+		if (!email) {
+			return c.json({ error: "Email is required" }, 400);
+		}
+
+		if (!isDemoEmail(email) && !code) {
 			return c.json({ error: "Email and code are required" }, 400);
 		}
 
-		// Get stored code
-		const storedData = await c.env.OY2.get(`${EMAIL_CODE_PREFIX}${email}`);
-		if (!storedData) {
-			return c.json(
-				{ error: "Code expired or not found. Please request a new code." },
-				400,
-			);
-		}
+		if (!isDemoEmail(email)) {
+			// Get stored code
+			const storedData = await c.env.OY2.get(`${EMAIL_CODE_PREFIX}${email}`);
+			if (!storedData) {
+				return c.json(
+					{ error: "Code expired or not found. Please request a new code." },
+					400,
+				);
+			}
 
-		const data = JSON.parse(storedData) as EmailCodeData;
+			const data = JSON.parse(storedData) as EmailCodeData;
 
-		// Check attempts (max 5)
-		if (data.attempts >= 5) {
+			// Check attempts (max 5)
+			if (data.attempts >= 5) {
+				await c.env.OY2.delete(`${EMAIL_CODE_PREFIX}${email}`);
+				return c.json(
+					{ error: "Too many failed attempts. Please request a new code." },
+					400,
+				);
+			}
+
+			// Verify code (constant-time comparison)
+			const codeMatches = timingSafeEqualString(code, data.code);
+
+			if (!codeMatches) {
+				// Increment attempts
+				await c.env.OY2.put(
+					`${EMAIL_CODE_PREFIX}${email}`,
+					JSON.stringify({ ...data, attempts: data.attempts + 1 }),
+					{ expirationTtl: 600 },
+				);
+				return c.json({ error: "Invalid code" }, 400);
+			}
+
+			// Code is valid - delete it
 			await c.env.OY2.delete(`${EMAIL_CODE_PREFIX}${email}`);
-			return c.json(
-				{ error: "Too many failed attempts. Please request a new code." },
-				400,
-			);
 		}
-
-		// Verify code (constant-time comparison)
-		const codeMatches = timingSafeEqualString(code, data.code);
-
-		if (!codeMatches) {
-			// Increment attempts
-			await c.env.OY2.put(
-				`${EMAIL_CODE_PREFIX}${email}`,
-				JSON.stringify({ ...data, attempts: data.attempts + 1 }),
-				{ expirationTtl: 600 },
-			);
-			return c.json({ error: "Invalid code" }, 400);
-		}
-
-		// Code is valid - delete it
-		await c.env.OY2.delete(`${EMAIL_CODE_PREFIX}${email}`);
 
 		// Check if user exists with this email
 		const existingUser = await c
@@ -230,6 +253,15 @@ export function registerEmailRoutes(app: App) {
 			setSessionCookie(c, sessionToken);
 			updateLastSeen(c, user.id);
 
+			// Demo accounts never require passkey setup during App Store review
+			if (isDemoEmail(email)) {
+				return c.json({
+					status: "authenticated",
+					user: authUserPayload(user),
+					needsPasskeySetup: false,
+				});
+			}
+
 			// Check if they have a passkey
 			const passkeys = await c
 				.get("db")
@@ -239,6 +271,26 @@ export function registerEmailRoutes(app: App) {
 				status: "authenticated",
 				user: authUserPayload(user),
 				needsPasskeySetup: passkeys.rows.length === 0,
+			});
+		}
+
+		if (isDemoEmail(email)) {
+			const username = getDemoUsername(email);
+			const inserted = await c
+				.get("db")
+				.query<User>(
+					"INSERT INTO users (username, email) VALUES ($1, $2) RETURNING *",
+					[username, email],
+				);
+			const user = inserted.rows[0];
+			const sessionToken = await createSession(c, user);
+			setSessionCookie(c, sessionToken);
+			updateLastSeen(c, user.id);
+
+			return c.json({
+				status: "authenticated",
+				user: authUserPayload(user),
+				needsPasskeySetup: false,
 			});
 		}
 
