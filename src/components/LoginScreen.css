@@ -87,6 +87,19 @@
 	gap: 0.75rem;
 }
 
+.signup-acknowledgement {
+	margin: 0 0 1rem;
+	font-size: 0.85rem;
+	line-height: 1.4;
+	color: var(--text-light);
+	text-align: center;
+}
+
+.signup-acknowledgement a {
+	color: inherit;
+	text-decoration: underline;
+}
+
 /* Divider */
 .login-divider {
 	display: flex;

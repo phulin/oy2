@@ -48,11 +48,8 @@ export function AppHeader(props: AppHeaderProps) {
 					<A class="app-user-action" href="/settings">
 						Settings
 					</A>
-					<A class="app-user-action" href="/privacy">
-						Privacy
-					</A>
-					<A class="app-user-action" href="/terms">
-						Terms
+					<A class="app-user-action" href="/legal">
+						Legal
 					</A>
 					<Button class="app-user-action" onClick={props.onLogout}>
 						Logout

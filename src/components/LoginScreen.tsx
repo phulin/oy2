@@ -449,6 +449,10 @@ export function LoginScreen(props: LoginScreenProps) {
 					<>
 						{/* Pick Registration Method Screen */}
 						<h2 class="signup-heading">Sign up as {username().trim()}</h2>
+						<p class="signup-acknowledgement">
+							By continuing, you confirm you are 18 or older and agree to our{" "}
+							<A href="/terms">Terms of Use</A>.
+						</p>
 
 						<div class="signup-buttons">
 							<button
@@ -600,6 +604,10 @@ export function LoginScreen(props: LoginScreenProps) {
 				<span class="login-legal-separator">·</span>
 				<A class="login-legal-link" href="/privacy">
 					Privacy
+				</A>
+				<span class="login-legal-separator">·</span>
+				<A class="login-legal-link" href="/legal">
+					Other
 				</A>
 			</footer>
 		</Screen>

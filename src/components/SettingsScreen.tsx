@@ -317,6 +317,25 @@ export function SettingsScreen(props: SettingsScreenProps) {
 				</div>
 			</section>
 
+			<section class="settings-section">
+				<div class="settings-section-row">
+					<div>
+						<h3 class="settings-section-title">Legal + Data Requests</h3>
+						<p class="settings-section-description">
+							View policies or submit a data subject rights request.
+						</p>
+					</div>
+					<div class="settings-link-actions">
+						<A class="btn-secondary settings-link-button" href="/legal">
+							Open legal page
+						</A>
+						<A class="btn-secondary settings-link-button" href="/settings/dsar">
+							Open DSAR form
+						</A>
+					</div>
+				</div>
+			</section>
+
 			<section class="settings-section settings-danger">
 				<div class="settings-section-row">
 					<div>

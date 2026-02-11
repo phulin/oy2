@@ -125,6 +125,12 @@
 	align-items: center;
 }
 
+.settings-link-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 10px;
+}
+
 .settings-danger {
 	border-color: color-mix(in srgb, #c62828 45%, var(--border));
 }

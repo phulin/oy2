@@ -70,6 +70,10 @@ export function PublicHomeRoute() {
 					<A class="public-home-legal-link" href="/privacy">
 						Privacy
 					</A>
+					<span class="public-home-legal-separator">·</span>
+					<A class="public-home-legal-link" href="/legal">
+						Other
+					</A>
 				</footer>
 			</div>
 		</Screen>

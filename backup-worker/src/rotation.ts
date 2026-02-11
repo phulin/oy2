@@ -1,4 +1,4 @@
-const DAILY_RETENTION_DAYS = 30;
+const BACKUP_RETENTION_DAYS = 90;
 
 type BackupFileInfo = {
 	key: string;
@@ -71,63 +71,30 @@ export async function rotateBackups(
 	};
 
 	const cutoffDate = new Date(now);
-	cutoffDate.setUTCDate(cutoffDate.getUTCDate() - DAILY_RETENTION_DAYS);
+	cutoffDate.setUTCDate(cutoffDate.getUTCDate() - BACKUP_RETENTION_DAYS);
 
 	const dailyList = await bucket.list({ prefix: "backups/daily/" });
 	const monthlyList = await bucket.list({ prefix: "backups/monthly/" });
+	const backups = [...dailyList.objects, ...monthlyList.objects];
 
-	const monthlyBackupMonths = new Set<string>();
-	for (const obj of monthlyList.objects) {
-		const info = parseBackupKey(obj.key);
-		if (info) {
-			const monthKey = `${info.date.getUTCFullYear()}-${info.date.getUTCMonth()}`;
-			monthlyBackupMonths.add(monthKey);
-		}
-		result.kept.push(obj.key);
-	}
-
-	for (const obj of dailyList.objects) {
+	for (const obj of backups) {
 		const info = parseBackupKey(obj.key);
 		if (!info) {
 			result.kept.push(obj.key);
 			continue;
 		}
 
-		const isOld = info.date < cutoffDate;
-		const monthKey = `${info.date.getUTCFullYear()}-${info.date.getUTCMonth()}`;
-		const isFirstOfMonth = info.date.getUTCDate() === 1;
-
-		if (isOld) {
-			if (isFirstOfMonth && !monthlyBackupMonths.has(monthKey)) {
-				try {
-					const monthlyKey = generateBackupKey(info.date, true);
-					const srcObj = await bucket.get(obj.key);
-					if (srcObj) {
-						await bucket.put(monthlyKey, srcObj.body, {
-							httpMetadata: srcObj.httpMetadata,
-							customMetadata: {
-								...srcObj.customMetadata,
-								promotedFrom: obj.key,
-								promotedAt: now.toISOString(),
-							},
-						});
-						monthlyBackupMonths.add(monthKey);
-						result.promoted.push(monthlyKey);
-					}
-				} catch (err) {
-					result.errors.push(`Failed to promote ${obj.key}: ${err}`);
-				}
-			}
-
+		if (info.date < cutoffDate) {
 			try {
 				await bucket.delete(obj.key);
 				result.deleted.push(obj.key);
 			} catch (err) {
 				result.errors.push(`Failed to delete ${obj.key}: ${err}`);
 			}
-		} else {
-			result.kept.push(obj.key);
+			continue;
 		}
+
+		result.kept.push(obj.key);
 	}
 
 	return result;

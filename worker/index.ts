@@ -4,6 +4,7 @@ import { cors } from "hono/cors";
 import { Client } from "pg";
 import { registerAdminRoutes } from "./routes/admin";
 import { registerAuthRoutes } from "./routes/auth";
+import { registerDsarRoutes } from "./routes/dsar";
 import { registerEmailRoutes } from "./routes/email";
 import { registerFriendRoutes } from "./routes/friends";
 import { registerMiscRoutes } from "./routes/misc";
@@ -97,5 +98,6 @@ registerFriendRoutes(app);
 registerOyRoutes(app);
 registerPushRoutes(app);
 registerAdminRoutes(app);
+registerDsarRoutes(app);
 
 export default app;

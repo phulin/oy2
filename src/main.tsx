@@ -7,7 +7,9 @@ import { TermsOfUseScreen } from "./components/TermsOfUseScreen";
 import { AdminRoute } from "./routes/AdminRoute";
 import { AppHomeRoute } from "./routes/AppHomeRoute";
 import { BlockedUsersRoute } from "./routes/BlockedUsersRoute";
+import { DsarRoute } from "./routes/DsarRoute";
 import { FriendCardsRoute } from "./routes/FriendCardsRoute";
+import { LegalRoute } from "./routes/LegalRoute";
 import { PasskeyAddRoute } from "./routes/PasskeyAddRoute";
 import { PublicHomeRoute } from "./routes/PublicHomeRoute";
 import { SettingsRoute } from "./routes/SettingsRoute";
@@ -26,11 +28,13 @@ render(
 				<Route path="" component={AppHomeRoute} />
 				<Route path="friends/cards" component={FriendCardsRoute} />
 				<Route path="settings" component={SettingsRoute} />
+				<Route path="settings/dsar" component={DsarRoute} />
 				<Route path="settings/blocked" component={BlockedUsersRoute} />
 				<Route path="settings/passkeys/new" component={PasskeyAddRoute} />
 				<Route path="admin" component={AdminRoute} />
 			</Route>
 			<Route path="/home" component={PublicHomeRoute} />
+			<Route path="/legal" component={LegalRoute} />
 			<Route path="/privacy" component={PrivacyPolicyScreen} />
 			<Route path="/terms" component={TermsOfUseScreen} />
 			<Route path="*" component={ErrorScreen} />

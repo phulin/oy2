@@ -1,0 +1,57 @@
+.dsar-screen {
+	display: flex;
+	flex-direction: column;
+	gap: 20px;
+	padding: 8px 0 24px;
+}
+
+.dsar-section {
+	background: var(--bg-card);
+	border-radius: 18px;
+	padding: 18px;
+	border: 1px solid var(--border);
+	box-shadow: var(--card-shadow);
+}
+
+.dsar-title {
+	font-family: var(--font-display);
+	font-size: 1.1rem;
+	font-weight: 700;
+	margin: 0 0 6px;
+}
+
+.dsar-description {
+	margin: 0 0 14px;
+	color: var(--text-light);
+	font-size: 0.9rem;
+}
+
+.dsar-label {
+	display: block;
+	font-family: var(--font-display);
+	font-size: 0.85rem;
+	font-weight: 600;
+	margin-bottom: 6px;
+	color: var(--text);
+}
+
+.dsar-select {
+	margin-bottom: 14px;
+}
+
+.dsar-textarea {
+	min-height: 140px;
+	resize: vertical;
+}
+
+.dsar-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 10px;
+}
+
+.dsar-message {
+	margin: 12px 0;
+	color: var(--text-light);
+	font-size: 0.9rem;
+}
