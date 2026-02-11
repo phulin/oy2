@@ -13,6 +13,7 @@ type FriendsListProps = {
 	loadingLastOy: () => boolean;
 	onSendOy: (friendId: number) => Promise<void>;
 	onSendLo: (friendId: number) => Promise<void>;
+	onOpenProfileCards: (friendId: number) => void;
 };
 
 export function FriendsList(props: FriendsListProps) {
@@ -63,34 +64,40 @@ export function FriendsList(props: FriendsListProps) {
 
 						return (
 							<div class="friends-list-item card">
-								<div class="friends-list-item-content stack stack-sm">
-									<div class="friends-list-item-title item-title">
-										{friend.username}
-									</div>
-									<Show
-										when={lastOyCreatedAt !== null}
-										fallback={
-											<Show when={props.loadingLastOy()}>
-												<div class="friends-list-item-subtitle item-subtitle">
-													Loading...
-												</div>
-											</Show>
-										}
-									>
-										<div class="friends-list-item-subtitle item-subtitle">
-											{lastOyDirection}{" "}
-											{formatRelativeTime(lastOyCreatedAt as number)}
-											<Show when={friend.streak >= 2}>
-												<TouchTooltip
-													triggerClass="streak-trigger"
-													contentClass="streak-popover"
-													trigger="🔥"
-													content={`${friend.streak}-day streak!`}
-												/>
-											</Show>
+								<button
+									class="friends-list-item-profile-trigger"
+									type="button"
+									onClick={() => props.onOpenProfileCards(friend.id)}
+								>
+									<div class="friends-list-item-content stack stack-sm">
+										<div class="friends-list-item-title item-title">
+											{friend.username}
 										</div>
-									</Show>
-								</div>
+										<Show
+											when={lastOyCreatedAt !== null}
+											fallback={
+												<Show when={props.loadingLastOy()}>
+													<div class="friends-list-item-subtitle item-subtitle">
+														Loading...
+													</div>
+												</Show>
+											}
+										>
+											<div class="friends-list-item-subtitle item-subtitle">
+												{lastOyDirection}{" "}
+												{formatRelativeTime(lastOyCreatedAt as number)}
+												<Show when={friend.streak >= 2}>
+													<TouchTooltip
+														triggerClass="streak-trigger"
+														contentClass="streak-popover"
+														trigger="🔥"
+														content={`${friend.streak}-day streak!`}
+													/>
+												</Show>
+											</div>
+										</Show>
+									</div>
+								</button>
 								<div class="friends-list-item-actions">
 									<AsyncButton
 										class="btn-oy"

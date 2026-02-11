@@ -75,6 +75,20 @@ export function registerOyRoutes(app: App) {
 			makeNotificationPayload: (oyId: number) => PushPayload;
 		},
 	) => {
+		const blockCheckResult = await c.get("db").query(
+			`
+					SELECT 1
+					FROM user_blocks
+					WHERE (blocker_user_id = $1 AND blocked_user_id = $2)
+						OR (blocker_user_id = $2 AND blocked_user_id = $1)
+					LIMIT 1
+				`,
+			[user.id, toUserId],
+		);
+		if (blockCheckResult.rows[0]) {
+			return c.json({ error: "Cannot send to this user" }, 403);
+		}
+
 		const areFriendsResult = await c
 			.get("db")
 			.query(

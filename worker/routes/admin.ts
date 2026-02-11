@@ -1,5 +1,5 @@
 import { requireAdmin } from "../lib";
-import type { App, AppContext } from "../types";
+import type { App, AppContext, BlockedUserRow, UserReportRow } from "../types";
 
 export function registerAdminRoutes(app: App) {
 	app.get("/api/admin/stats", async (c: AppContext) => {
@@ -17,6 +17,10 @@ export function registerAdminRoutes(app: App) {
 			deliveriesQuery,
 			usersCountQuery,
 			subscriptionsCountQuery,
+			openReportsCountQuery,
+			totalBlocksCountQuery,
+			recentReportsQuery,
+			recentBlocksQuery,
 		] = await Promise.all([
 			c.get("db").query(
 				`
@@ -60,6 +64,46 @@ export function registerAdminRoutes(app: App) {
 			),
 			c.get("db").query("SELECT COUNT(*) as count FROM users"),
 			c.get("db").query("SELECT COUNT(*) as count FROM push_subscriptions"),
+			c
+				.get("db")
+				.query(
+					"SELECT COUNT(*) as count FROM user_reports WHERE status = 'open'",
+				),
+			c.get("db").query("SELECT COUNT(*) as count FROM user_blocks"),
+			c.get("db").query<UserReportRow>(
+				`
+					SELECT
+						r.id,
+						r.reporter_user_id,
+						r.target_user_id,
+						reporter.username AS reporter_username,
+						target.username AS target_username,
+						r.reason,
+						r.details,
+						r.status,
+						r.created_at
+					FROM user_reports r
+					INNER JOIN users reporter ON reporter.id = r.reporter_user_id
+					INNER JOIN users target ON target.id = r.target_user_id
+					ORDER BY r.created_at DESC
+					LIMIT 100
+				`,
+			),
+			c.get("db").query<BlockedUserRow>(
+				`
+					SELECT
+						b.blocker_user_id,
+						b.blocked_user_id,
+						blocker.username AS blocker_username,
+						blocked.username AS blocked_username,
+						b.created_at
+					FROM user_blocks b
+					INNER JOIN users blocker ON blocker.id = b.blocker_user_id
+					INNER JOIN users blocked ON blocked.id = b.blocked_user_id
+					ORDER BY b.created_at DESC
+					LIMIT 100
+				`,
+			),
 		]);
 
 		const notificationsRow = notificationsQuery.rows[0] as
@@ -72,6 +116,12 @@ export function registerAdminRoutes(app: App) {
 			| { count?: number | null }
 			| undefined;
 		const subscriptionsCountRow = subscriptionsCountQuery.rows[0] as
+			| { count?: number | null }
+			| undefined;
+		const openReportsCountRow = openReportsCountQuery.rows[0] as
+			| { count?: number | null }
+			| undefined;
+		const totalBlocksCountRow = totalBlocksCountQuery.rows[0] as
 			| { count?: number | null }
 			| undefined;
 
@@ -90,6 +140,8 @@ export function registerAdminRoutes(app: App) {
 				: 0,
 			subscriptionsCount: Number(subscriptionsCountRow?.count ?? 0),
 			usersCount: Number(usersCountRow?.count ?? 0),
+			openReportsCount: Number(openReportsCountRow?.count ?? 0),
+			totalBlocksCount: Number(totalBlocksCountRow?.count ?? 0),
 		};
 
 		return c.json({
@@ -101,6 +153,24 @@ export function registerAdminRoutes(app: App) {
 				has_auth_methods: boolean;
 				push_subscriptions_count: number;
 			}>,
+			recentReports: recentReportsQuery.rows.map((row) => ({
+				id: row.id,
+				reporterUserId: row.reporter_user_id,
+				targetUserId: row.target_user_id,
+				reporterUsername: row.reporter_username,
+				targetUsername: row.target_username,
+				reason: row.reason,
+				details: row.details,
+				status: row.status,
+				createdAt: row.created_at,
+			})),
+			recentBlocks: recentBlocksQuery.rows.map((row) => ({
+				blockerUserId: row.blocker_user_id,
+				blockedUserId: row.blocked_user_id,
+				blockerUsername: row.blocker_username,
+				blockedUsername: row.blocked_username,
+				createdAt: row.created_at,
+			})),
 			generatedAt: now,
 		});
 	});

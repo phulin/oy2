@@ -1,0 +1,224 @@
+.friend-cards-screen {
+	min-height: 0;
+	flex: 1;
+}
+
+.friend-cards-status {
+	color: var(--text-light);
+	text-align: center;
+}
+
+.friend-cards-scroll {
+	display: flex;
+	flex-direction: column;
+	gap: 1rem;
+	overflow-y: auto;
+	padding-bottom: 2rem;
+	padding-top: 0.25rem;
+	scroll-snap-type: y mandatory;
+	scroll-padding-top: 0.25rem;
+	min-height: 0;
+	flex: 1;
+}
+
+.friend-profile-card {
+	scroll-snap-align: start;
+	border-radius: 24px;
+	padding: 1px;
+	background: linear-gradient(
+		140deg,
+		rgba(124, 58, 237, 0.6) 0%,
+		rgba(245, 158, 11, 0.5) 55%,
+		rgba(124, 58, 237, 0.3) 100%
+	);
+	box-shadow: 0 18px 46px rgba(0, 0, 0, 0.35);
+}
+
+.friend-profile-card-inner {
+	display: flex;
+	flex-direction: column;
+	gap: 1rem;
+	padding: 1.15rem;
+	border-radius: 23px;
+	background:
+		radial-gradient(
+			ellipse at 80% 15%,
+			rgba(245, 158, 11, 0.15),
+			transparent 55%
+		),
+		radial-gradient(
+			ellipse at 0% 100%,
+			rgba(124, 58, 237, 0.18),
+			transparent 60%
+		),
+		var(--bg-card);
+}
+
+.friend-profile-kicker {
+	font-size: 0.8rem;
+	text-transform: uppercase;
+	letter-spacing: 0.08em;
+	color: var(--text-light);
+}
+
+.friend-profile-identity h2 {
+	font-family: var(--font-display);
+	font-size: clamp(1.9rem, 7vw, 2.8rem);
+	line-height: 1;
+}
+
+.friend-profile-top-row {
+	display: flex;
+	justify-content: space-between;
+	align-items: flex-start;
+	gap: 1rem;
+}
+
+.friend-profile-last-oy-wrap {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-end;
+	gap: 0.32rem;
+	text-align: right;
+}
+
+.friend-profile-last-oy {
+	display: flex;
+	align-items: center;
+	gap: 0.55rem;
+	color: var(--text-light);
+	font-size: 1.05rem;
+	font-weight: 600;
+}
+
+.friend-profile-last-oy-wrap .friend-profile-last-oy {
+	justify-content: flex-end;
+}
+
+.friend-profile-last-oy-direction {
+	font-size: 0.92rem;
+}
+
+.friend-profile-streak {
+	color: var(--text);
+	font-size: 0.98rem;
+	font-weight: 700;
+}
+
+.friend-profile-metrics {
+	display: grid;
+	grid-template-columns: 1fr;
+	gap: 0.5rem;
+	list-style: none;
+	padding: 0;
+	margin: 0;
+}
+
+.friend-metric {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	gap: 1rem;
+	padding: 0.9rem 1.25rem;
+	border-radius: 14px;
+	background: var(--bg-secondary);
+	border: 1px solid var(--border);
+}
+
+.friend-metric span {
+	color: var(--text-light);
+	font-size: 0.9rem;
+}
+
+.friend-metric strong {
+	font-family: var(--font-display);
+	font-size: 1.9rem;
+	line-height: 1;
+	min-width: 2ch;
+	text-align: right;
+}
+
+.friend-profile-actions {
+	margin-top: 0.45rem;
+}
+
+.friend-danger {
+	color: #be123c;
+	border-color: rgba(190, 18, 60, 0.4);
+}
+
+.friend-report-trigger {
+	justify-self: start;
+	padding-left: 0;
+	color: var(--text-light);
+}
+
+.friend-report-panel {
+	margin-top: 0.75rem;
+	padding: 0.9rem;
+	border: 1px solid var(--border);
+	border-radius: 14px;
+	background: var(--bg-secondary);
+}
+
+.friend-report-label {
+	font-size: 0.85rem;
+	color: var(--text-light);
+}
+
+.friend-report-select,
+.friend-report-textarea {
+	width: 100%;
+	border: 1px solid var(--border);
+	border-radius: 10px;
+	padding: 0.6rem 0.75rem;
+	background: var(--bg-card);
+	color: var(--text);
+	font: inherit;
+}
+
+.friend-report-textarea {
+	resize: vertical;
+}
+
+.friend-confirm-overlay {
+	position: fixed;
+	inset: 0;
+	z-index: 60;
+	background: rgba(0, 0, 0, 0.45);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 1rem;
+}
+
+.friend-confirm-modal {
+	width: min(460px, 100%);
+}
+
+.friend-confirm-title {
+	font-family: var(--font-display);
+	font-size: 1.2rem;
+	margin-bottom: 0.4rem;
+}
+
+.friend-confirm-description {
+	color: var(--text-light);
+}
+
+.friend-confirm-actions {
+	display: flex;
+	justify-content: flex-end;
+	gap: 0.6rem;
+	margin-top: 1rem;
+}
+
+.friend-cards-sticky-header {
+	position: sticky;
+	top: 0;
+	z-index: 30;
+	background: color-mix(in srgb, var(--bg) 82%, transparent);
+	backdrop-filter: blur(8px);
+	padding-top: 0.1rem;
+	border-bottom: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
+}

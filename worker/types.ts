@@ -75,6 +75,38 @@ export type LastOyInfoRow = {
 	streak_start_date: number | null;
 };
 
+export type FriendProfileRow = {
+	id: number;
+	username: string;
+	friend_count: number;
+	lifetime_oys_sent: number;
+	lifetime_oys_received: number;
+	last_oy_type: string | null;
+	last_oy_created_at: number | null;
+	last_oy_from_user_id: number | null;
+	streak_start_date: number | null;
+};
+
+export type BlockedUserRow = {
+	blocker_user_id: number;
+	blocked_user_id: number;
+	blocker_username: string;
+	blocked_username: string;
+	created_at: number;
+};
+
+export type UserReportRow = {
+	id: number;
+	reporter_user_id: number;
+	target_user_id: number;
+	reporter_username: string;
+	target_username: string;
+	reason: string;
+	details: string | null;
+	status: string;
+	created_at: number;
+};
+
 export type PushSubscriptionRow = {
 	endpoint: string;
 	keys_p256dh: string;

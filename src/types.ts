@@ -10,6 +10,18 @@ export type Friend = {
 	username: string;
 };
 
+export type FriendProfile = {
+	id: number;
+	username: string;
+	friendCount: number;
+	lifetimeOysSent: number;
+	lifetimeOysReceived: number;
+	lastOyType: string | null;
+	lastOyCreatedAt: number | null;
+	lastOyFromUserId: number | null;
+	streak: number;
+};
+
 export type LastOyInfo = {
 	friend_id: number;
 	last_oy_type: string | null;

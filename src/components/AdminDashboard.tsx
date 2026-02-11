@@ -20,11 +20,35 @@ type AdminStats = {
 	deliverySuccessRate: number;
 	subscriptionsCount: number;
 	usersCount: number;
+	openReportsCount: number;
+	totalBlocksCount: number;
+};
+
+type AdminReport = {
+	id: number;
+	reporterUserId: number;
+	targetUserId: number;
+	reporterUsername: string;
+	targetUsername: string;
+	reason: string;
+	details: string | null;
+	status: string;
+	createdAt: number;
+};
+
+type AdminBlock = {
+	blockerUserId: number;
+	blockedUserId: number;
+	blockerUsername: string;
+	blockedUsername: string;
+	createdAt: number;
 };
 
 type AdminStatsResponse = {
 	stats: AdminStats;
 	activeUsers: AdminActiveUser[];
+	recentReports: AdminReport[];
+	recentBlocks: AdminBlock[];
 	generatedAt: number;
 };
 
@@ -121,6 +145,14 @@ export function AdminDashboard(props: AdminDashboardProps) {
 									{payload().stats.usersCount} users
 								</p>
 							</div>
+							<div class="admin-card card card-bordered">
+								<p class="admin-label">Open reports</p>
+								<p class="admin-value">{payload().stats.openReportsCount}</p>
+							</div>
+							<div class="admin-card card card-bordered">
+								<p class="admin-label">Total blocks</p>
+								<p class="admin-value">{payload().stats.totalBlocksCount}</p>
+							</div>
 						</div>
 
 						<div class="admin-section stack">
@@ -130,7 +162,7 @@ export function AdminDashboard(props: AdminDashboardProps) {
 									Updated {formatTimestamp(payload().generatedAt)}
 								</span>
 							</div>
-							<table class="admin-table">
+							<table class="admin-table admin-table--sessions">
 								<thead>
 									<tr>
 										<th>User</th>
@@ -175,6 +207,83 @@ export function AdminDashboard(props: AdminDashboardProps) {
 												</td>
 												<td>{activeUser.push_subscriptions_count}</td>
 												<td>{formatTimestamp(activeUser.last_seen)}</td>
+											</tr>
+										))}
+									</Show>
+								</tbody>
+							</table>
+						</div>
+
+						<div class="admin-section stack">
+							<div class="admin-section-header">
+								<h2>Recent reports</h2>
+							</div>
+							<table class="admin-table">
+								<thead>
+									<tr>
+										<th>ID</th>
+										<th>Reporter</th>
+										<th>Target</th>
+										<th>Reason</th>
+										<th>Status</th>
+										<th>Created</th>
+									</tr>
+								</thead>
+								<tbody>
+									<Show
+										when={payload().recentReports.length > 0}
+										fallback={
+											<tr>
+												<td colspan="6">No reports.</td>
+											</tr>
+										}
+									>
+										{payload().recentReports.map((report) => (
+											<tr>
+												<td>{report.id}</td>
+												<td>{report.reporterUsername}</td>
+												<td>{report.targetUsername}</td>
+												<td class="admin-reason-cell">
+													<strong>{report.reason}</strong>
+													<Show when={report.details}>
+														<p class="admin-inline-note">{report.details}</p>
+													</Show>
+												</td>
+												<td>{report.status}</td>
+												<td>{formatTimestamp(report.createdAt)}</td>
+											</tr>
+										))}
+									</Show>
+								</tbody>
+							</table>
+						</div>
+
+						<div class="admin-section stack">
+							<div class="admin-section-header">
+								<h2>Recent blocks</h2>
+							</div>
+							<table class="admin-table">
+								<thead>
+									<tr>
+										<th>Blocker</th>
+										<th>Blocked</th>
+										<th>Created</th>
+									</tr>
+								</thead>
+								<tbody>
+									<Show
+										when={payload().recentBlocks.length > 0}
+										fallback={
+											<tr>
+												<td colspan="3">No blocks.</td>
+											</tr>
+										}
+									>
+										{payload().recentBlocks.map((block) => (
+											<tr>
+												<td>{block.blockerUsername}</td>
+												<td>{block.blockedUsername}</td>
+												<td>{formatTimestamp(block.createdAt)}</td>
 											</tr>
 										))}
 									</Show>

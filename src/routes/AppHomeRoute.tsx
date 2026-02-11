@@ -1,4 +1,5 @@
 import { Tabs } from "@kobalte/core";
+import { useNavigate } from "@solidjs/router";
 import { createEffect } from "solid-js";
 import { useAppContext } from "../AppContext";
 import { AddFriendForm } from "../components/AddFriendForm";
@@ -12,6 +13,7 @@ import type { User } from "../types";
 const tabOrder = ["friends", "oys", "add"] as const;
 
 export function AppHomeRoute() {
+	const navigate = useNavigate();
 	const {
 		currentUser,
 		logout,
@@ -105,6 +107,9 @@ export function AppHomeRoute() {
 							}
 							onSendOy={sendOy}
 							onSendLo={sendLo}
+							onOpenProfileCards={(friendId) => {
+								navigate(`/friends/cards?focus=${friendId}`);
+							}}
 						/>
 					</Tabs.Content>
 

@@ -1,5 +1,4 @@
 import { Button } from "@kobalte/core/button";
-import { A } from "@solidjs/router";
 import {
 	createEffect,
 	createResource,
@@ -149,15 +148,6 @@ export function SettingsScreen(props: SettingsScreenProps) {
 
 	return (
 		<div class="settings-screen">
-			<header class="settings-header">
-				<h2 class="settings-title">
-					<A class="settings-back" href="/">
-						←
-					</A>
-					<span>Settings</span>
-				</h2>
-			</header>
-
 			<section class="settings-section">
 				<div class="settings-section-row">
 					<div>

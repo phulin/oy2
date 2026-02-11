@@ -794,6 +794,46 @@ export default function App(props: AppProps) {
 		}
 	}
 
+	function removeFriendFromLocalState(friendId: number) {
+		setFriends((prev) => {
+			const nextFriends = prev.filter((friend) => friend.id !== friendId);
+			localStorage.setItem(
+				cachedFriendsStorageKey,
+				JSON.stringify(nextFriends),
+			);
+			return nextFriends;
+		});
+		setLastOyInfo((prev) => {
+			const nextLastOy = prev.filter((info) => info.friend_id !== friendId);
+			localStorage.setItem(
+				cachedLastOyInfoStorageKey,
+				JSON.stringify(nextLastOy),
+			);
+			return nextLastOy;
+		});
+	}
+
+	async function unfriend(friendId: number) {
+		await api(`/api/friends/${friendId}`, { method: "DELETE" });
+		removeFriendFromLocalState(friendId);
+	}
+
+	async function blockUser(friendId: number) {
+		await api(`/api/friends/${friendId}/block`, { method: "POST" });
+		removeFriendFromLocalState(friendId);
+	}
+
+	async function reportUser(
+		friendId: number,
+		reason: string,
+		details?: string,
+	) {
+		await api(`/api/friends/${friendId}/report`, {
+			method: "POST",
+			body: JSON.stringify({ reason, details: details?.trim() || undefined }),
+		});
+	}
+
 	function toggleLocation(id: number) {
 		setOpenLocations((prev) => {
 			const next = new Set(prev);
@@ -1065,6 +1105,9 @@ export default function App(props: AppProps) {
 		handleSetupNotifications,
 		sendOy,
 		sendLo,
+		unfriend,
+		blockUser,
+		reportUser,
 		toggleLocation,
 		loadOysPage,
 		refresh,

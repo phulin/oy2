@@ -95,6 +95,25 @@ type PasskeyRow = {
 	device_name: string | null;
 };
 
+type UserBlockRow = {
+	blocker_user_id: number;
+	blocked_user_id: number;
+	created_at: number;
+};
+
+type UserReportRow = {
+	id: number;
+	reporter_user_id: number;
+	target_user_id: number;
+	reason: string;
+	details: string | null;
+	created_at: number;
+	status: string;
+	reviewed_by_user_id: number | null;
+	reviewed_at: number | null;
+	resolution_note: string | null;
+};
+
 type D1Result = {
 	success: boolean;
 	meta: { last_row_id: number; changes: number };
@@ -145,11 +164,14 @@ export class FakeD1Database {
 	notificationDeliveries: NotificationDeliveryRow[] = [];
 	sessions: SessionRow[] = [];
 	passkeys: PasskeyRow[] = [];
+	userBlocks: UserBlockRow[] = [];
+	userReports: UserReportRow[] = [];
 	nextUserId = 1;
 	nextOyId = 1;
 	nextNotificationId = 1;
 	nextNotificationDeliveryId = 1;
 	nextPasskeyId = 1;
+	nextUserReportId = 1;
 	lastInsertId = 0;
 
 	prepare(sql: string): D1PreparedStatement {
@@ -352,6 +374,25 @@ class FakeD1PreparedStatement implements D1PreparedStatement {
 			});
 			return { success: true, meta: { last_row_id: 0, changes: 1 } };
 		}
+		if (
+			sql.startsWith(
+				"DELETE FROM friendships WHERE (user_id = ? AND friend_id = ?) OR (user_id = ? AND friend_id = ?)",
+			)
+		) {
+			const [userId, friendId] = this.params as [number, number];
+			const before = this.db.friendships.length;
+			this.db.friendships = this.db.friendships.filter(
+				(row) =>
+					!(
+						(row.user_id === userId && row.friend_id === friendId) ||
+						(row.user_id === friendId && row.friend_id === userId)
+					),
+			);
+			return {
+				success: true,
+				meta: { last_row_id: 0, changes: before - this.db.friendships.length },
+			};
+		}
 		if (sql.startsWith("INSERT INTO last_oy_info")) {
 			// SQL inserts two rows: ($1, $2, $3, $4, $5, $1, $6), ($2, $1, $3, $4, $5, $1, $6)
 			// Params: fromUserId($1), toUserId($2), oyId($3), type($4), createdAt($5), startOfTodayNY($6), startOfYesterdayNY($7)
@@ -411,6 +452,25 @@ class FakeD1PreparedStatement implements D1PreparedStatement {
 				changes += 1;
 			}
 			return { success: true, meta: { last_row_id: 0, changes } };
+		}
+		if (
+			sql.startsWith(
+				"DELETE FROM last_oy_info WHERE (user_id = ? AND friend_id = ?) OR (user_id = ? AND friend_id = ?)",
+			)
+		) {
+			const [userId, friendId] = this.params as [number, number];
+			const before = this.db.lastOyInfo.length;
+			this.db.lastOyInfo = this.db.lastOyInfo.filter(
+				(row) =>
+					!(
+						(row.user_id === userId && row.friend_id === friendId) ||
+						(row.user_id === friendId && row.friend_id === userId)
+					),
+			);
+			return {
+				success: true,
+				meta: { last_row_id: 0, changes: before - this.db.lastOyInfo.length },
+			};
 		}
 		if (sql.startsWith("INSERT INTO oys")) {
 			const [fromUserId, toUserId, type, payload, createdAt] = this.params as [
@@ -560,6 +620,53 @@ class FakeD1PreparedStatement implements D1PreparedStatement {
 			});
 			return { success: true, meta: { last_row_id: 0, changes: 1 } };
 		}
+		if (
+			sql.startsWith(
+				"INSERT INTO user_blocks (blocker_user_id, blocked_user_id) VALUES",
+			)
+		) {
+			const [blockerUserId, blockedUserId] = this.params as [number, number];
+			const exists = this.db.userBlocks.some(
+				(row) =>
+					row.blocker_user_id === blockerUserId &&
+					row.blocked_user_id === blockedUserId,
+			);
+			if (!exists) {
+				this.db.userBlocks.push({
+					blocker_user_id: blockerUserId,
+					blocked_user_id: blockedUserId,
+					created_at: nowSeconds(),
+				});
+				return { success: true, meta: { last_row_id: 0, changes: 1 } };
+			}
+			return { success: true, meta: { last_row_id: 0, changes: 0 } };
+		}
+		if (
+			sql.startsWith(
+				"INSERT INTO user_reports (reporter_user_id, target_user_id, reason, details)",
+			)
+		) {
+			const [reporterUserId, targetUserId, reason, details] = this.params as [
+				number,
+				number,
+				string,
+				string | null,
+			];
+			const report: UserReportRow = {
+				id: this.db.nextUserReportId++,
+				reporter_user_id: reporterUserId,
+				target_user_id: targetUserId,
+				reason,
+				details: details ?? null,
+				created_at: nowSeconds(),
+				status: "open",
+				reviewed_by_user_id: null,
+				reviewed_at: null,
+				resolution_note: null,
+			};
+			this.db.userReports.push(report);
+			return { success: true, meta: { last_row_id: report.id, changes: 1 } };
+		}
 		if (sql.startsWith("INSERT INTO passkeys")) {
 			const [userId, credentialId, publicKey, counter, transports, deviceName] =
 				this.params as [
@@ -658,6 +765,16 @@ class FakeD1PreparedStatement implements D1PreparedStatement {
 			const user = this.db.users.find((row) => row.id === userId) ?? null;
 			return { results: user ? [user] : [] };
 		}
+		if (sql.startsWith("SELECT id, username FROM users WHERE id = ?")) {
+			const [userId] = this.params as [number];
+			const user = this.db.users.find((row) => row.id === userId) ?? null;
+			return { results: user ? [{ id: user.id, username: user.username }] : [] };
+		}
+		if (sql.startsWith("SELECT id FROM users WHERE id = ?")) {
+			const [userId] = this.params as [number];
+			const user = this.db.users.find((row) => row.id === userId) ?? null;
+			return { results: user ? [{ id: user.id }] : [] };
+		}
 		if (sql.startsWith("SELECT * FROM users WHERE LOWER(email) = ?")) {
 			const [email] = this.params as [string];
 			const user =
@@ -680,6 +797,20 @@ class FakeD1PreparedStatement implements D1PreparedStatement {
 				(row) => row.user_id === userId && row.friend_id === friendId,
 			);
 			return { results: exists ? [{ ok: 1 }] : [] };
+		}
+		if (
+			sql.startsWith(
+				"SELECT 1 FROM user_blocks WHERE (blocker_user_id = ? AND blocked_user_id = ?) OR (blocker_user_id = ? AND blocked_user_id = ?) LIMIT 1",
+			)
+		) {
+			const [userId, friendId] = this.params as [number, number];
+			const blocked = this.db.userBlocks.some(
+				(row) =>
+					(row.blocker_user_id === userId &&
+						row.blocked_user_id === friendId) ||
+					(row.blocker_user_id === friendId && row.blocked_user_id === userId),
+			);
+			return { results: blocked ? [{ ok: 1 }] : [] };
 		}
 		if (
 			sql.startsWith(
@@ -1000,6 +1131,63 @@ class FakeD1PreparedStatement implements D1PreparedStatement {
 		}
 		if (sql.startsWith("SELECT COUNT(*) as count FROM push_subscriptions")) {
 			return { results: [{ count: this.db.pushSubscriptions.length }] };
+		}
+		if (
+			sql.startsWith("SELECT COUNT(*) as count FROM user_reports WHERE status = 'open'")
+		) {
+			const count = this.db.userReports.filter(
+				(report) => report.status === "open",
+			).length;
+			return { results: [{ count }] };
+		}
+		if (sql.startsWith("SELECT COUNT(*) as count FROM user_blocks")) {
+			return { results: [{ count: this.db.userBlocks.length }] };
+		}
+		if (sql.startsWith("SELECT r.id, r.reporter_user_id, r.target_user_id")) {
+			const results = [...this.db.userReports]
+				.sort((a, b) => b.created_at - a.created_at)
+				.slice(0, 100)
+				.map((report) => {
+					const reporter = this.db.users.find(
+						(user) => user.id === report.reporter_user_id,
+					);
+					const target = this.db.users.find(
+						(user) => user.id === report.target_user_id,
+					);
+					return {
+						id: report.id,
+						reporter_user_id: report.reporter_user_id,
+						target_user_id: report.target_user_id,
+						reporter_username: reporter?.username ?? "",
+						target_username: target?.username ?? "",
+						reason: report.reason,
+						details: report.details,
+						status: report.status,
+						created_at: report.created_at,
+					};
+				});
+			return { results };
+		}
+		if (sql.startsWith("SELECT b.blocker_user_id, b.blocked_user_id")) {
+			const results = [...this.db.userBlocks]
+				.sort((a, b) => b.created_at - a.created_at)
+				.slice(0, 100)
+				.map((block) => {
+					const blocker = this.db.users.find(
+						(user) => user.id === block.blocker_user_id,
+					);
+					const blocked = this.db.users.find(
+						(user) => user.id === block.blocked_user_id,
+					);
+					return {
+						blocker_user_id: block.blocker_user_id,
+						blocked_user_id: block.blocked_user_id,
+						blocker_username: blocker?.username ?? "",
+						blocked_username: blocked?.username ?? "",
+						created_at: block.created_at,
+					};
+				});
+			return { results };
 		}
 		if (sql.startsWith("SELECT * FROM ( SELECT y.id")) {
 			const [

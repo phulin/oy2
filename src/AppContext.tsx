@@ -23,6 +23,13 @@ export type AppContextValue = {
 	handleSetupNotifications: () => Promise<void>;
 	sendOy: (toUserId: number) => Promise<void>;
 	sendLo: (toUserId: number) => Promise<void>;
+	unfriend: (friendId: number) => Promise<void>;
+	blockUser: (friendId: number) => Promise<void>;
+	reportUser: (
+		friendId: number,
+		reason: string,
+		details?: string,
+	) => Promise<void>;
 	toggleLocation: (id: number) => void;
 	loadOysPage: (options?: { reset?: boolean }) => Promise<void>;
 	refresh: () => Promise<void>;

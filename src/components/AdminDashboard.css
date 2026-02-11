@@ -163,10 +163,10 @@
 	border-top: 1px solid var(--border);
 }
 
-.admin-table th:nth-child(2),
-.admin-table th:nth-child(3),
-.admin-table td:nth-child(2),
-.admin-table td:nth-child(3) {
+.admin-table--sessions th:nth-child(2),
+.admin-table--sessions th:nth-child(3),
+.admin-table--sessions td:nth-child(2),
+.admin-table--sessions td:nth-child(3) {
 	text-align: right;
 }
 
@@ -197,6 +197,16 @@
 	text-align: center;
 	color: var(--text-light);
 	padding: 1rem;
+}
+
+.admin-reason-cell {
+	max-width: 280px;
+}
+
+.admin-inline-note {
+	font-size: 0.8rem;
+	color: var(--text-light);
+	margin-top: 0.3rem;
 }
 
 @media (max-width: 600px) {

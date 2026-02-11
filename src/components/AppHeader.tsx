@@ -8,14 +8,26 @@ import "./AppHeader.css";
 type AppHeaderProps = {
 	user: User;
 	onLogout: () => void;
+	class?: string;
+	backHref?: string;
 };
 
 export function AppHeader(props: AppHeaderProps) {
 	const [menuOpen, setMenuOpen] = createSignal(false);
+	const hasBackLink = Boolean(props.backHref);
+	const backHref = props.backHref ?? "/";
 
 	return (
-		<div class="app-header">
-			<div class="app-header-row">
+		<div class={`app-header ${props.class ?? ""}`.trim()}>
+			<div
+				class={`app-header-row ${hasBackLink ? "app-header-row-back" : ""}`.trim()}
+			>
+				{hasBackLink ? (
+					<A class="app-back-link" href={backHref}>
+						<span aria-hidden="true">←</span>
+						<span>Back</span>
+					</A>
+				) : null}
 				<h1 class="app-title">Oy</h1>
 				<button
 					class="app-user-trigger"
