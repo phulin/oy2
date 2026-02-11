@@ -1,5 +1,6 @@
 import { Button } from "@kobalte/core/button";
 import { createSignal, onMount, Show } from "solid-js";
+import { apiFetch } from "../utils";
 import { Screen } from "./Screen";
 import "./ButtonStyles.css";
 import "./FormControls.css";
@@ -27,7 +28,7 @@ export function ChooseUsernameScreen(props: ChooseUsernameScreenProps) {
 	onMount(async () => {
 		// Try OAuth pending first, then email pending
 		try {
-			const oauthResponse = await fetch("/api/auth/oauth/pending", {
+			const oauthResponse = await apiFetch("/api/auth/oauth/pending", {
 				credentials: "include",
 			});
 			if (oauthResponse.ok) {
@@ -44,7 +45,7 @@ export function ChooseUsernameScreen(props: ChooseUsernameScreenProps) {
 		}
 
 		try {
-			const emailResponse = await fetch("/api/auth/email/pending", {
+			const emailResponse = await apiFetch("/api/auth/email/pending", {
 				credentials: "include",
 			});
 			if (emailResponse.ok) {
@@ -78,7 +79,7 @@ export function ChooseUsernameScreen(props: ChooseUsernameScreenProps) {
 					? "/api/auth/email/complete"
 					: "/api/auth/oauth/complete";
 
-			const response = await fetch(endpoint, {
+			const response = await apiFetch(endpoint, {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({ username }),

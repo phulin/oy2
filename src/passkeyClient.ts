@@ -1,3 +1,12 @@
+import { Capacitor } from "@capacitor/core";
+import { WebAuthn } from "@gledly/capacitor-webauthn";
+import {
+	logPasskeyError,
+	logPasskeyEvent,
+	logPasskeyStart,
+} from "./passkeyDebug";
+import { apiFetch } from "./utils";
+
 type PasskeyRegisterOptions = {
 	challenge: string;
 	rp: { name: string; id: string };
@@ -43,6 +52,9 @@ function getDeviceName(): string {
 }
 
 function ensurePasskeySupport() {
+	if (Capacitor.isNativePlatform()) {
+		return;
+	}
 	if (!window.PublicKeyCredential) {
 		throw new Error("Passkeys are not supported on this device");
 	}
@@ -59,9 +71,10 @@ function ensurePasskeySupport() {
 }
 
 export async function registerPasskey(): Promise<void> {
+	const startedAt = logPasskeyStart("register");
 	ensurePasskeySupport();
 
-	const optionsResponse = await fetch("/api/auth/passkey/register/options", {
+	const optionsResponse = await apiFetch("/api/auth/passkey/register/options", {
 		method: "POST",
 		headers: { "Content-Type": "application/json" },
 		credentials: "include",
@@ -72,39 +85,78 @@ export async function registerPasskey(): Promise<void> {
 	}
 
 	const options = (await optionsResponse.json()) as PasskeyRegisterOptions;
+	logPasskeyEvent("register", "options.loaded", {
+		rpId: options.rp.id,
+		timeout: options.timeout,
+		excludeCredentialsCount: options.excludeCredentials.length,
+	});
 
-	const credential = (await navigator.credentials.create({
-		publicKey: {
-			challenge: base64UrlDecode(options.challenge).buffer as ArrayBuffer,
-			rp: options.rp,
-			user: {
-				id: base64UrlDecode(options.user.id).buffer as ArrayBuffer,
-				name: options.user.name,
-				displayName: options.user.displayName,
-			},
-			pubKeyCredParams: options.pubKeyCredParams,
-			timeout: options.timeout,
-			attestation: options.attestation,
-			authenticatorSelection: options.authenticatorSelection,
-			excludeCredentials: options.excludeCredentials.map((c) => ({
-				type: c.type as "public-key",
-				id: base64UrlDecode(c.id).buffer as ArrayBuffer,
-			})),
-		},
-	})) as PublicKeyCredential | null;
+	let registrationPayload: {
+		id: string;
+		rawId: string;
+		type: string;
+		response: {
+			clientDataJSON: string;
+			attestationObject: string;
+			transports: string[];
+		};
+	};
+	try {
+		if (Capacitor.isNativePlatform()) {
+			const { available } = await WebAuthn.isAvailable();
+			if (!available) {
+				throw new Error("Passkeys are not available on this device");
+			}
 
-	if (!credential) {
-		throw new Error("Credential creation cancelled");
-	}
+			const credential = await WebAuthn.startRegistration({
+				challenge: options.challenge,
+				rp: options.rp,
+				user: options.user,
+				pubKeyCredParams: options.pubKeyCredParams,
+				timeout: options.timeout,
+				attestation: options.attestation,
+				authenticatorSelection: options.authenticatorSelection,
+				excludeCredentials: options.excludeCredentials,
+			});
 
-	const response = credential.response as AuthenticatorAttestationResponse;
+			registrationPayload = {
+				id: credential.id,
+				rawId: credential.rawId,
+				type: credential.type,
+				response: {
+					clientDataJSON: credential.response.clientDataJSON,
+					attestationObject: credential.response.attestationObject,
+					transports: ["internal"],
+				},
+			};
+		} else {
+			const credential = (await navigator.credentials.create({
+				publicKey: {
+					challenge: base64UrlDecode(options.challenge).buffer as ArrayBuffer,
+					rp: options.rp,
+					user: {
+						id: base64UrlDecode(options.user.id).buffer as ArrayBuffer,
+						name: options.user.name,
+						displayName: options.user.displayName,
+					},
+					pubKeyCredParams: options.pubKeyCredParams,
+					timeout: options.timeout,
+					attestation: options.attestation,
+					authenticatorSelection: options.authenticatorSelection,
+					excludeCredentials: options.excludeCredentials.map((c) => ({
+						type: c.type as "public-key",
+						id: base64UrlDecode(c.id).buffer as ArrayBuffer,
+					})),
+				},
+			})) as PublicKeyCredential | null;
 
-	const verifyResponse = await fetch("/api/auth/passkey/register/verify", {
-		method: "POST",
-		headers: { "Content-Type": "application/json" },
-		credentials: "include",
-		body: JSON.stringify({
-			credential: {
+			if (!credential) {
+				logPasskeyEvent("register", "credential.null");
+				throw new Error("Credential creation cancelled");
+			}
+
+			const response = credential.response as AuthenticatorAttestationResponse;
+			registrationPayload = {
 				id: credential.id,
 				rawId: base64UrlEncode(credential.rawId),
 				type: credential.type,
@@ -113,13 +165,28 @@ export async function registerPasskey(): Promise<void> {
 					attestationObject: base64UrlEncode(response.attestationObject),
 					transports: response.getTransports?.() || ["internal"],
 				},
-			},
+			};
+		}
+	} catch (err) {
+		logPasskeyError("register", startedAt, err);
+		throw err;
+	}
+
+	const verifyResponse = await apiFetch("/api/auth/passkey/register/verify", {
+		method: "POST",
+		headers: { "Content-Type": "application/json" },
+		credentials: "include",
+		body: JSON.stringify({
+			credential: registrationPayload,
 			deviceName: getDeviceName(),
 		}),
 	});
 
 	if (!verifyResponse.ok) {
 		const data = (await verifyResponse.json()) as { error?: string };
+		logPasskeyEvent("register", "verify.failed", data);
 		throw new Error(data.error || "Registration failed");
 	}
+
+	logPasskeyEvent("register", "verify.success");
 }

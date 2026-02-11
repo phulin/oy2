@@ -4,3 +4,6 @@ project(':capacitor-android').projectDir = new File('../node_modules/@capacitor/
 
 include ':capgo-capacitor-social-login'
 project(':capgo-capacitor-social-login').projectDir = new File('../node_modules/@capgo/capacitor-social-login/android')
+
+include ':gledly-capacitor-webauthn'
+project(':gledly-capacitor-webauthn').projectDir = new File('../node_modules/@gledly/capacitor-webauthn/android')

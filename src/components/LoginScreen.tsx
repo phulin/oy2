@@ -1,7 +1,14 @@
 import { Capacitor } from "@capacitor/core";
 import { SocialLogin } from "@capgo/capacitor-social-login";
+import { WebAuthn } from "@gledly/capacitor-webauthn";
 import { A } from "@solidjs/router";
 import { createSignal, onMount, Show } from "solid-js";
+import {
+	logPasskeyError,
+	logPasskeyEvent,
+	logPasskeyStart,
+} from "../passkeyDebug";
+import { apiFetch } from "../utils";
 import { Screen } from "./Screen";
 import "./ButtonStyles.css";
 import "./FormControls.css";
@@ -16,7 +23,6 @@ type LoginScreenProps = {
 
 export function LoginScreen(props: LoginScreenProps) {
 	const [mode, setMode] = createSignal<"home" | "pick_method">("home");
-	const [showInstall, setShowInstall] = createSignal(false);
 	const [signingIn, setSigningIn] = createSignal(false);
 	const [passkeyError, setPasskeyError] = createSignal<string | null>(null);
 	const [username, setUsername] = createSignal("");
@@ -26,11 +32,6 @@ export function LoginScreen(props: LoginScreenProps) {
 	const isNative = Capacitor.isNativePlatform();
 
 	onMount(() => {
-		const isStandalone =
-			window.matchMedia("(display-mode: standalone)").matches ||
-			(navigator as Navigator & { standalone?: boolean }).standalone === true;
-
-		setShowInstall(!isStandalone);
 		void props.onTryPasskey();
 	});
 
@@ -78,7 +79,7 @@ export function LoginScreen(props: LoginScreenProps) {
 		setChecking(true);
 
 		try {
-			const response = await fetch("/api/auth/username/check", {
+			const response = await apiFetch("/api/auth/username/check", {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({ username: value }),
@@ -123,7 +124,7 @@ export function LoginScreen(props: LoginScreenProps) {
 				body.username = signupUsername;
 			}
 
-			const response = await fetch("/api/auth/oauth/google/native", {
+			const response = await apiFetch("/api/auth/oauth/google/native", {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				credentials: "include",
@@ -174,12 +175,15 @@ export function LoginScreen(props: LoginScreenProps) {
 	}
 
 	async function handlePasskeyLogin() {
-		if (!window.PublicKeyCredential) {
+		const startedAt = logPasskeyStart("login");
+		if (!Capacitor.isNativePlatform() && !window.PublicKeyCredential) {
 			setPasskeyError("Passkeys are not supported on this device");
+			logPasskeyEvent("login", "unsupported.public-key-credential");
 			return;
 		}
-		if (!window.isSecureContext) {
+		if (!Capacitor.isNativePlatform() && !window.isSecureContext) {
 			setPasskeyError("Passkeys require a secure (HTTPS) connection.");
+			logPasskeyEvent("login", "unsupported.insecure-context");
 			return;
 		}
 
@@ -187,7 +191,7 @@ export function LoginScreen(props: LoginScreenProps) {
 		setPasskeyError(null);
 
 		try {
-			const optionsResponse = await fetch("/api/auth/passkey/auth/options", {
+			const optionsResponse = await apiFetch("/api/auth/passkey/auth/options", {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				credentials: "include",
@@ -204,52 +208,98 @@ export function LoginScreen(props: LoginScreenProps) {
 				timeout: number;
 				userVerification: UserVerificationRequirement;
 			};
+			logPasskeyEvent("login", "options.loaded", {
+				rpId: options.rpId,
+				timeout: options.timeout,
+			});
 
-			const credential = (await navigator.credentials.get({
-				publicKey: {
-					challenge: base64UrlDecode(options.challenge).buffer as ArrayBuffer,
+			let authPayload: {
+				id: string;
+				rawId: string;
+				type: string;
+				response: {
+					clientDataJSON: string;
+					authenticatorData: string;
+					signature: string;
+					userHandle: string | null;
+				};
+			};
+
+			if (Capacitor.isNativePlatform()) {
+				const { available } = await WebAuthn.isAvailable();
+				if (!available) {
+					throw new Error("Passkeys are not available on this device");
+				}
+				const credential = await WebAuthn.startAuthentication({
+					challenge: options.challenge,
 					rpId: options.rpId,
 					timeout: options.timeout,
 					userVerification: options.userVerification,
 					allowCredentials: [],
-				},
-			})) as PublicKeyCredential | null;
+				});
+				authPayload = {
+					id: credential.id,
+					rawId: credential.rawId,
+					type: credential.type,
+					response: {
+						clientDataJSON: credential.response.clientDataJSON,
+						authenticatorData: credential.response.authenticatorData,
+						signature: credential.response.signature,
+						userHandle: credential.response.userHandle ?? null,
+					},
+				};
+			} else {
+				const credential = (await navigator.credentials.get({
+					publicKey: {
+						challenge: base64UrlDecode(options.challenge).buffer as ArrayBuffer,
+						rpId: options.rpId,
+						timeout: options.timeout,
+						userVerification: options.userVerification,
+						allowCredentials: [],
+					},
+				})) as PublicKeyCredential | null;
 
-			if (!credential) {
-				throw new Error("Passkey login cancelled");
+				if (!credential) {
+					logPasskeyEvent("login", "credential.null");
+					throw new Error("Passkey login cancelled");
+				}
+
+				const response = credential.response as AuthenticatorAssertionResponse;
+				authPayload = {
+					id: credential.id,
+					rawId: base64UrlEncode(credential.rawId),
+					type: credential.type,
+					response: {
+						clientDataJSON: base64UrlEncode(response.clientDataJSON),
+						authenticatorData: base64UrlEncode(response.authenticatorData),
+						signature: base64UrlEncode(response.signature),
+						userHandle: response.userHandle
+							? base64UrlEncode(response.userHandle)
+							: null,
+					},
+				};
 			}
 
-			const response = credential.response as AuthenticatorAssertionResponse;
-
-			const verifyResponse = await fetch("/api/auth/passkey/auth/verify", {
+			const verifyResponse = await apiFetch("/api/auth/passkey/auth/verify", {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				credentials: "include",
 				body: JSON.stringify({
 					authId: options.authId,
-					credential: {
-						id: credential.id,
-						rawId: base64UrlEncode(credential.rawId),
-						type: credential.type,
-						response: {
-							clientDataJSON: base64UrlEncode(response.clientDataJSON),
-							authenticatorData: base64UrlEncode(response.authenticatorData),
-							signature: base64UrlEncode(response.signature),
-							userHandle: response.userHandle
-								? base64UrlEncode(response.userHandle)
-								: null,
-						},
-					},
+					credential: authPayload,
 				}),
 			});
 
 			if (!verifyResponse.ok) {
 				const data = (await verifyResponse.json()) as { error?: string };
+				logPasskeyEvent("login", "verify.failed", data);
 				throw new Error(data.error || "Passkey login failed");
 			}
 
+			logPasskeyEvent("login", "verify.success");
 			window.location.href = "/";
 		} catch (err) {
+			logPasskeyError("login", startedAt, err);
 			if ((err as Error).name === "NotAllowedError") {
 				setPasskeyError("Passkey login cancelled.");
 			} else {
@@ -426,20 +476,6 @@ export function LoginScreen(props: LoginScreenProps) {
 				{googleError() && <p class="form-error">{googleError()}</p>}
 			</Show>
 
-			{showInstall() && (
-				<section class="login-install">
-					<h2 class="login-install-title">
-						Important: Install Oy to home screen
-					</h2>
-					<h3 class="login-install-subtitle">
-						You'll need this for notifications!
-					</h3>
-					<ul class="login-install-list">
-						<li>iPhone: tap Share, then "Add to Home Screen".</li>
-						<li>Android: tap the menu, then "Install app".</li>
-					</ul>
-				</section>
-			)}
 			<footer class="login-legal">
 				<A class="login-legal-link" href="/terms">
 					Terms

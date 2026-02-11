@@ -5,7 +5,7 @@ const config: CapacitorConfig = {
   appName: 'Oy',
   webDir: 'dist/client',
   server: {
-    url: 'https://oyme.site',
+    hostname: 'oyme.site',
     iosScheme: 'https',
     androidScheme: 'https'
   },

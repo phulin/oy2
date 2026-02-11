@@ -1,5 +1,6 @@
 import { Button } from "@kobalte/core/button";
 import { createSignal, Show } from "solid-js";
+import { apiFetch } from "../utils";
 import { Screen } from "./Screen";
 import { VerifyCodeScreen } from "./VerifyCodeScreen";
 import "./ButtonStyles.css";
@@ -34,7 +35,7 @@ export function EmailLoginScreen(props: EmailLoginScreenProps) {
 		username: string,
 	): Promise<EmailLoginResult | null> {
 		try {
-			const response = await fetch("/api/auth/email/complete", {
+			const response = await apiFetch("/api/auth/email/complete", {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({ username }),
@@ -68,7 +69,7 @@ export function EmailLoginScreen(props: EmailLoginScreenProps) {
 		setSending(true);
 
 		try {
-			const response = await fetch("/api/auth/email/send-code", {
+			const response = await apiFetch("/api/auth/email/send-code", {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({ email: emailValue }),
@@ -105,7 +106,7 @@ export function EmailLoginScreen(props: EmailLoginScreenProps) {
 		setVerifying(true);
 
 		try {
-			const response = await fetch("/api/auth/email/verify", {
+			const response = await apiFetch("/api/auth/email/verify", {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({
@@ -159,7 +160,7 @@ export function EmailLoginScreen(props: EmailLoginScreenProps) {
 		setResending(true);
 
 		try {
-			const response = await fetch("/api/auth/email/send-code", {
+			const response = await apiFetch("/api/auth/email/send-code", {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({ email: email().trim().toLowerCase() }),

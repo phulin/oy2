@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { getCookie } from "hono/cookie";
+import { cors } from "hono/cors";
 import { Client } from "pg";
 import { registerAdminRoutes } from "./routes/admin";
 import { registerAuthRoutes } from "./routes/auth";
@@ -17,6 +18,21 @@ const app = new Hono<{
 	Bindings: Bindings;
 	Variables: AppVariables;
 }>();
+
+app.use(
+	"*",
+	cors({
+		origin: [
+			"https://oyme.site",
+			"capacitor://oyme.site",
+			"http://localhost",
+			"http://127.0.0.1",
+		],
+		allowHeaders: ["Content-Type", "X-Session-Token"],
+		allowMethods: ["GET", "POST", "DELETE", "OPTIONS"],
+		credentials: true,
+	}),
+);
 
 app.use("*", async (c: AppContext, next) => {
 	if (!c.get("db")) {

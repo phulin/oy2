@@ -17,6 +17,11 @@ import { EmailLoginScreen } from "./components/EmailLoginScreen";
 import { LoginScreen } from "./components/LoginScreen";
 import { addOyToast, OyToastContainer } from "./components/OyToast";
 import { PasskeySetupScreen } from "./components/PasskeySetupScreen";
+import {
+	logPasskeyError,
+	logPasskeyEvent,
+	logPasskeyStart,
+} from "./passkeyDebug";
 import type {
 	Friend,
 	FriendWithLastOy,
@@ -25,7 +30,7 @@ import type {
 	OysCursor,
 	User,
 } from "./types";
-import { onAppVisible, urlBase64ToUint8Array } from "./utils";
+import { apiFetch, onAppVisible, urlBase64ToUint8Array } from "./utils";
 import "./App.css";
 
 const urlParams = new URLSearchParams(window.location.search);
@@ -149,7 +154,7 @@ export default function App(props: AppProps) {
 		const headers = new Headers(options.headers || {});
 		headers.set("Content-Type", "application/json");
 
-		const response = await fetch(endpoint, {
+		const response = await apiFetch(endpoint, {
 			...options,
 			headers,
 			credentials: "include",
@@ -415,7 +420,13 @@ export default function App(props: AppProps) {
 
 	// Try zero-click passkey authentication
 	async function tryPasskeyAuth(): Promise<boolean> {
+		const startedAt = logPasskeyStart("autofill");
+		if (Capacitor.isNativePlatform()) {
+			logPasskeyEvent("autofill", "unsupported.native-platform");
+			return false;
+		}
 		if (!window.PublicKeyCredential) {
+			logPasskeyEvent("autofill", "unsupported.public-key-credential");
 			return false;
 		}
 
@@ -424,11 +435,12 @@ export default function App(props: AppProps) {
 			const available =
 				await PublicKeyCredential.isConditionalMediationAvailable?.();
 			if (!available) {
+				logPasskeyEvent("autofill", "unsupported.conditional-mediation");
 				return false;
 			}
 
 			// Get authentication options
-			const optionsResponse = await fetch("/api/auth/passkey/auth/options", {
+			const optionsResponse = await apiFetch("/api/auth/passkey/auth/options", {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				credentials: "include",
@@ -445,6 +457,10 @@ export default function App(props: AppProps) {
 				timeout: number;
 				userVerification: UserVerificationRequirement;
 			};
+			logPasskeyEvent("autofill", "options.loaded", {
+				rpId: options.rpId,
+				timeout: options.timeout,
+			});
 
 			// Try to get credential with conditional mediation
 			const credential = (await navigator.credentials.get({
@@ -459,13 +475,14 @@ export default function App(props: AppProps) {
 			})) as PublicKeyCredential | null;
 
 			if (!credential) {
+				logPasskeyEvent("autofill", "credential.null");
 				return false;
 			}
 
 			const response = credential.response as AuthenticatorAssertionResponse;
 
 			// Verify with server
-			const verifyResponse = await fetch("/api/auth/passkey/auth/verify", {
+			const verifyResponse = await apiFetch("/api/auth/passkey/auth/verify", {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				credentials: "include",
@@ -488,6 +505,7 @@ export default function App(props: AppProps) {
 			});
 
 			if (!verifyResponse.ok) {
+				logPasskeyEvent("autofill", "verify.failed");
 				return false;
 			}
 
@@ -497,7 +515,8 @@ export default function App(props: AppProps) {
 				navigate("/", { replace: true });
 			}
 			return true;
-		} catch {
+		} catch (err) {
+			logPasskeyError("autofill", startedAt, err);
 			return false;
 		}
 	}
