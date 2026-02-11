@@ -42,8 +42,9 @@ jurisdictions, for example your racial or ethnic origins, sexual
 orientation, and religious beliefs. We do not process sensitive personal
 information.
 
-Do we collect any information from third parties? We do not collect any
-information from third parties.
+Do we collect any information from third parties? We may collect basic
+user information such as email addresses and unique identifiers from
+third-party providers (e.g. Apple, Google) for authentication purposes.
 
 How do we process your information? We process your information to
 provide, improve, and administer our Services, communicate with you, for
@@ -122,7 +123,6 @@ collect depends on the context of your interactions with us and the
 Services, the choices you make, and the products and features you use.
 The personal information we collect may include the following:
 
-- phone numbers
 - email addresses
 - location information
 
@@ -183,17 +183,12 @@ and store your information.
 We may use cookies and similar tracking technologies (like web beacons
 and pixels) to gather information when you interact with our Services.
 Some online tracking technologies help us maintain the security of our
-Services and your account , prevent crashes, fix bugs, save your
+Services and your account, prevent crashes, fix bugs, save your
 preferences, and assist with basic site functions.
 
 We also permit third parties and service providers to use online
-tracking technologies on our Services for analytics and advertising,
-including to help manage and display advertisements, to tailor
-advertisements to your interests, or to send abandoned shopping cart
-reminders (depending on your communication preferences). The third
-parties and service providers use their technology to provide
-advertising about products and services tailored to your interests which
-may appear either on our Services or on other websites.
+tracking technologies on our Services for analytics and service
+delivery.
 
 To the extent these online tracking technologies are deemed to be a
 "sale"/"sharing" (which includes targeted advertising, as defined under

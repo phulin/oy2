@@ -24,6 +24,9 @@ export function AppHomeRoute() {
 		lastOyInfo,
 		sendOy,
 		sendLo,
+		locationPermissionNotice,
+		clearLocationPermissionNotice,
+		retrySendLoAfterPermissionDenied,
 		oys,
 		openLocations,
 		toggleLocation,
@@ -107,6 +110,9 @@ export function AppHomeRoute() {
 							}
 							onSendOy={sendOy}
 							onSendLo={sendLo}
+							locationPermissionNotice={locationPermissionNotice()}
+							onDismissLocationPermissionNotice={clearLocationPermissionNotice}
+							onRetryLocationPermission={retrySendLoAfterPermissionDenied}
 							onOpenProfileCards={(friendId) => {
 								navigate(`/friends/cards?focus=${friendId}`);
 							}}

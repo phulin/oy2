@@ -49,3 +49,51 @@
 	flex-direction: column;
 	min-height: 0;
 }
+
+.app-location-explainer-overlay {
+	position: fixed;
+	inset: 0;
+	z-index: 80;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 1rem;
+	background: rgba(0, 0, 0, 0.45);
+}
+
+.app-location-explainer-modal {
+	width: min(460px, 100%);
+}
+
+.app-location-explainer-title {
+	font-family: var(--font-display);
+	font-size: 1.2rem;
+	margin-bottom: 0.5rem;
+}
+
+.app-location-explainer-text {
+	color: var(--text-light);
+}
+
+.app-location-explainer-target {
+	margin-top: 0.5rem;
+	font-size: 0.95rem;
+	font-weight: 600;
+	color: var(--text);
+}
+
+.app-location-explainer-actions {
+	display: flex;
+	justify-content: flex-end;
+	gap: 0.6rem;
+	margin-top: 1rem;
+}
+
+.app-location-explainer-continue {
+	width: auto;
+	padding: 0.75rem 1rem;
+	font-size: 0.95rem;
+	box-shadow:
+		0 3px 0 #5b21b6,
+		0 6px 18px var(--primary-glow);
+}

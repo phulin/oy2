@@ -2,6 +2,11 @@ import type { Accessor, Setter } from "solid-js";
 import { createContext, useContext } from "solid-js";
 import type { Friend, FriendWithLastOy, LastOyInfo, Oy, User } from "./types";
 
+export type LocationPermissionNotice = {
+	friendId: number;
+	friendUsername: string | null;
+};
+
 export type AppContextValue = {
 	currentUser: Accessor<User | null>;
 	friends: Accessor<Friend[]>;
@@ -23,6 +28,9 @@ export type AppContextValue = {
 	handleSetupNotifications: () => Promise<void>;
 	sendOy: (toUserId: number) => Promise<void>;
 	sendLo: (toUserId: number) => Promise<void>;
+	locationPermissionNotice: Accessor<LocationPermissionNotice | null>;
+	clearLocationPermissionNotice: () => void;
+	retrySendLoAfterPermissionDenied: () => void;
 	unfriend: (friendId: number) => Promise<void>;
 	blockUser: (friendId: number) => Promise<void>;
 	reportUser: (

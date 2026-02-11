@@ -11,6 +11,7 @@ import {
 	onMount,
 	Show,
 } from "solid-js";
+import type { LocationPermissionNotice } from "./AppContext";
 import { AppContext } from "./AppContext";
 import { ChooseUsernameScreen } from "./components/ChooseUsernameScreen";
 import { EmailLoginScreen } from "./components/EmailLoginScreen";
@@ -50,6 +51,7 @@ const cachedUserStorageKey = "cachedUser";
 const cachedFriendsStorageKey = "cachedFriends";
 const cachedLastOyInfoStorageKey = "cachedLastOyInfo";
 const passkeySetupSkipStorageKey = "passkeySetupSkipped";
+const locationExplainerSeenStorageKey = "locationExplainerSeen";
 const googleWebClientId = import.meta.env.VITE_GOOGLE_WEB_CLIENT_ID;
 const googleIosClientId = import.meta.env.VITE_GOOGLE_IOS_CLIENT_ID;
 const appleNativeClientId = import.meta.env.VITE_APPLE_NATIVE_CLIENT_ID;
@@ -125,6 +127,12 @@ export default function App(props: AppProps) {
 	const [refreshing, setRefreshing] = createSignal(false);
 	const [hasMoreOys, setHasMoreOys] = createSignal(true);
 	const [oysCursor, setOysCursor] = createSignal<OysCursor | null>(null);
+	const [showLocationExplainer, setShowLocationExplainer] = createSignal(false);
+	const [locationExplainerTargetId, setLocationExplainerTargetId] =
+		createSignal<number | null>(null);
+	const [locationPermissionNotice, setLocationPermissionNotice] =
+		createSignal<LocationPermissionNotice | null>(null);
+	let locationExplainerResolver: ((accepted: boolean) => void) | null = null;
 	let pendingExpandOyId: number | null =
 		parsedOyId !== null && Number.isFinite(parsedOyId) ? parsedOyId : null;
 	let pendingExpandType: string | null = requestedExpand;
@@ -144,6 +152,13 @@ export default function App(props: AppProps) {
 				streak: info?.streak ?? 0,
 			};
 		});
+	});
+	const locationExplainerFriend = createMemo(() => {
+		const targetId = locationExplainerTargetId();
+		if (targetId === null) {
+			return null;
+		}
+		return friends().find((friend) => friend.id === targetId) ?? null;
 	});
 
 	async function api<T>(
@@ -747,7 +762,46 @@ export default function App(props: AppProps) {
 		});
 	}
 
+	function clearLocationPermissionNotice() {
+		setLocationPermissionNotice(null);
+	}
+
+	function retrySendLoAfterPermissionDenied() {
+		const notice = locationPermissionNotice();
+		if (!notice) {
+			return;
+		}
+		void sendLo(notice.friendId);
+	}
+
+	function closeLocationExplainer(accepted: boolean) {
+		setShowLocationExplainer(false);
+		setLocationExplainerTargetId(null);
+		if (accepted) {
+			localStorage.setItem(locationExplainerSeenStorageKey, "1");
+		}
+		const resolve = locationExplainerResolver;
+		locationExplainerResolver = null;
+		resolve?.(accepted);
+	}
+
+	async function confirmLocationExplainer(toUserId: number) {
+		if (localStorage.getItem(locationExplainerSeenStorageKey) === "1") {
+			return true;
+		}
+		if (locationExplainerResolver) {
+			return false;
+		}
+		setLocationExplainerTargetId(toUserId);
+		setShowLocationExplainer(true);
+		return new Promise<boolean>((resolve) => {
+			locationExplainerResolver = resolve;
+		});
+	}
+
 	async function sendLo(toUserId: number) {
+		setLocationPermissionNotice(null);
+
 		const registration = swRegistration();
 		if (registration) {
 			ensurePushSubscription(registration).catch((err) => {
@@ -756,6 +810,11 @@ export default function App(props: AppProps) {
 		}
 
 		try {
+			const proceedWithLocation = await confirmLocationExplainer(toUserId);
+			if (!proceedWithLocation) {
+				return;
+			}
+
 			const position = await getCurrentPosition({
 				enableHighAccuracy: true,
 				timeout: 10000,
@@ -805,6 +864,19 @@ export default function App(props: AppProps) {
 				return nextInfo;
 			});
 		} catch (err) {
+			if (
+				typeof err === "object" &&
+				err !== null &&
+				"code" in err &&
+				(err as { code: number }).code === 1
+			) {
+				const friend = friends().find((item) => item.id === toUserId) ?? null;
+				setLocationPermissionNotice({
+					friendId: toUserId,
+					friendUsername: friend?.username ?? null,
+				});
+				return;
+			}
 			alert((err as Error).message);
 		}
 	}
@@ -1130,6 +1202,9 @@ export default function App(props: AppProps) {
 		handleSetupNotifications,
 		sendOy,
 		sendLo,
+		locationPermissionNotice,
+		clearLocationPermissionNotice,
+		retrySendLoAfterPermissionDenied,
 		unfriend,
 		blockUser,
 		reportUser,
@@ -1199,6 +1274,50 @@ export default function App(props: AppProps) {
 						</AppContext.Provider>
 					</Show>
 				</Show>
+			</Show>
+			<Show when={showLocationExplainer()}>
+				<div class="app-location-explainer-overlay" role="presentation">
+					<div
+						class="app-location-explainer-modal card"
+						role="dialog"
+						aria-modal="true"
+						aria-labelledby="app-location-explainer-title"
+					>
+						<h3
+							id="app-location-explainer-title"
+							class="app-location-explainer-title"
+						>
+							Share your location for Lo
+						</h3>
+						<p class="app-location-explainer-text">
+							Lo shares your current location only with the friend you choose.
+							We do not use location for tracking or ads.
+						</p>
+						<Show when={locationExplainerFriend()}>
+							{(friend) => (
+								<p class="app-location-explainer-target">
+									This Lo will be shared with @{friend().username}.
+								</p>
+							)}
+						</Show>
+						<div class="app-location-explainer-actions">
+							<button
+								class="btn-secondary"
+								type="button"
+								onClick={() => closeLocationExplainer(false)}
+							>
+								Not now
+							</button>
+							<button
+								class="btn-primary app-location-explainer-continue"
+								type="button"
+								onClick={() => closeLocationExplainer(true)}
+							>
+								Continue
+							</button>
+						</div>
+					</div>
+				</div>
 			</Show>
 		</>
 	);

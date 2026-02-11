@@ -1,4 +1,5 @@
 import { createMemo, createSignal, For, onCleanup, Show } from "solid-js";
+import type { LocationPermissionNotice } from "../AppContext";
 import type { FriendWithLastOy } from "../types";
 import { formatTime, onAppVisible } from "../utils";
 import { AsyncButton } from "./AsyncButton";
@@ -13,6 +14,9 @@ type FriendsListProps = {
 	loadingLastOy: () => boolean;
 	onSendOy: (friendId: number) => Promise<void>;
 	onSendLo: (friendId: number) => Promise<void>;
+	locationPermissionNotice: LocationPermissionNotice | null;
+	onDismissLocationPermissionNotice: () => void;
+	onRetryLocationPermission: () => void;
 	onOpenProfileCards: (friendId: number) => void;
 };
 
@@ -36,6 +40,46 @@ export function FriendsList(props: FriendsListProps) {
 
 	return (
 		<div class="friends-list stack">
+			<Show when={props.locationPermissionNotice}>
+				{(notice) => (
+					<div
+						class="friends-location-notice card"
+						role="alert"
+						aria-live="polite"
+					>
+						<p class="friends-location-notice-title">
+							Location access is off for Lo.
+						</p>
+						<p class="friends-location-notice-copy">
+							Allow location for Oy to send Lo
+							<Show when={notice().friendUsername}>
+								{(username) => ` to @${username()}`}
+							</Show>
+							.
+						</p>
+						<p class="friends-location-notice-help">
+							Open iPhone Settings {"->"} Privacy & Security {"->"} Location
+							Services {"->"} Oy and choose While Using the App.
+						</p>
+						<div class="friends-location-notice-actions">
+							<button
+								class="btn-secondary"
+								type="button"
+								onClick={props.onDismissLocationPermissionNotice}
+							>
+								Dismiss
+							</button>
+							<button
+								class="btn-secondary"
+								type="button"
+								onClick={props.onRetryLocationPermission}
+							>
+								Retry Lo
+							</button>
+						</div>
+					</div>
+				)}
+			</Show>
 			<Show
 				when={props.friends.length > 0}
 				fallback={

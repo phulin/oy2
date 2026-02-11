@@ -37,10 +37,10 @@ This file tracks App Store readiness work with current implementation status.
 
 ## 4) Location Permission Compliance
 
-- [ ] Add `NSLocationWhenInUseUsageDescription` to `/ios/App/App/Info.plist`.
-- [ ] Add first-time location explainer screen/modal before `Lo` permission request in `/src/App.tsx`.
-- [ ] Add denied-permission UX and retry/help path in `/src/App.tsx` and `/src/components/FriendsList.tsx` (Lo action flow).
-- [ ] Confirm copy accurately matches actual usage (friend-to-friend location sharing only).
+- [x] Add `NSLocationWhenInUseUsageDescription` to `/ios/App/App/Info.plist`.
+- [x] Add first-time location explainer screen/modal before `Lo` permission request in `/src/App.tsx`.
+- [x] Add denied-permission UX and retry/help path in `/src/App.tsx` and `/src/components/FriendsList.tsx` (Lo action flow).
+- [x] Confirm copy accurately matches actual usage (friend-to-friend location sharing only).
 
 ## 5) Submission Readiness
 

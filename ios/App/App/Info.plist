@@ -58,5 +58,7 @@
 			</array>
 		</dict>
 	</array>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Oy uses your location only when you send Lo to share your current location with a friend you choose.</string>
 </dict>
 </plist>
