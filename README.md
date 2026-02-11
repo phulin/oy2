@@ -57,6 +57,7 @@ VAPID_SUBJECT=mailto:admin@example.com
 RESEND_API_KEY=your_resend_key
 GOOGLE_MAPS_API_KEY=your_google_maps_key
 APPLE_CLIENT_ID=your_apple_client_id
+APPLE_NATIVE_CLIENT_ID=your_ios_bundle_id
 APPLE_TEAM_ID=your_apple_team_id
 APPLE_KEY_ID=your_apple_key_id
 APPLE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----"
@@ -104,6 +105,7 @@ npx wrangler secret put VAPID_SUBJECT
 npx wrangler secret put RESEND_API_KEY
 npx wrangler secret put GOOGLE_MAPS_API_KEY
 npx wrangler secret put APPLE_CLIENT_ID
+npx wrangler secret put APPLE_NATIVE_CLIENT_ID
 npx wrangler secret put APPLE_TEAM_ID
 npx wrangler secret put APPLE_KEY_ID
 npx wrangler secret put APPLE_PRIVATE_KEY

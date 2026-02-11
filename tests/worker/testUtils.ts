@@ -1705,6 +1705,7 @@ export function createTestEnv() {
 		VAPID_PRIVATE_KEY: "test-private",
 		VAPID_SUBJECT: "mailto:test@example.com",
 		APPLE_CLIENT_ID: "apple-client",
+		APPLE_NATIVE_CLIENT_ID: "apple-native-client",
 		APPLE_TEAM_ID: "apple-team",
 		APPLE_KEY_ID: "apple-key",
 		APPLE_PRIVATE_KEY: "-----BEGIN PRIVATE KEY-----\nAAA=\n-----END PRIVATE KEY-----",

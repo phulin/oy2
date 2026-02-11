@@ -199,19 +199,16 @@
 	flex-shrink: 0;
 }
 
+.oauth-google,
 .oauth-apple {
-	background: #000;
-	color: #fff;
-}
-
-.oauth-google {
 	background: #fff;
 	color: #333;
 	border: 1px solid #ddd;
 }
 
 @media (prefers-color-scheme: dark) {
-	.oauth-google {
+	.oauth-google,
+	.oauth-apple {
 		background: #202124;
 		color: #e8eaed;
 		border-color: #3c4043;

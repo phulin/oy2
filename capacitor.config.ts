@@ -11,10 +11,12 @@ const config: CapacitorConfig = {
   },
   plugins: {
     SocialLogin: {
-      google: true,
-      apple: false,
-      facebook: false,
-      twitter: false,
+      providers: {
+        google: true,
+        apple: true,
+        facebook: false,
+        twitter: false,
+      },
     },
   },
 };

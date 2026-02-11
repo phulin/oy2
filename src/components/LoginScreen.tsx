@@ -29,11 +29,24 @@ export function LoginScreen(props: LoginScreenProps) {
 	const [usernameError, setUsernameError] = createSignal<string | null>(null);
 	const [checking, setChecking] = createSignal(false);
 	const [googleError, setGoogleError] = createSignal<string | null>(null);
+	const [appleError, setAppleError] = createSignal<string | null>(null);
 	const isNative = Capacitor.isNativePlatform();
 
 	onMount(() => {
 		void props.onTryPasskey();
 	});
+
+	function decodeJwtPayload(token: string): Record<string, unknown> | null {
+		const parts = token.split(".");
+		if (parts.length !== 3) return null;
+		const base64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+		const padding = "=".repeat((4 - (base64.length % 4)) % 4);
+		try {
+			return JSON.parse(atob(base64 + padding)) as Record<string, unknown>;
+		} catch {
+			return null;
+		}
+	}
 
 	function base64UrlEncode(buffer: ArrayBuffer): string {
 		const bytes = new Uint8Array(buffer);
@@ -118,6 +131,13 @@ export function LoginScreen(props: LoginScreenProps) {
 				setGoogleError("Google sign-in did not return an ID token.");
 				return;
 			}
+			const payload = decodeJwtPayload(idToken);
+			console.log("[oauth][google][native] token payload", {
+				aud: payload?.aud,
+				iss: payload?.iss,
+				sub: payload?.sub,
+				origin: window.location.origin,
+			});
 
 			const body: { idToken: string; username?: string } = { idToken };
 			if (signupUsername) {
@@ -135,6 +155,11 @@ export function LoginScreen(props: LoginScreenProps) {
 				| { user: unknown; needsPasskeySetup?: boolean }
 				| { needsUsername: true }
 				| { error: string };
+			console.log("[oauth][google][native] response", {
+				status: response.status,
+				ok: response.ok,
+				data,
+			});
 
 			if (!response.ok) {
 				setGoogleError((data as { error: string }).error || "Login failed");
@@ -161,12 +186,103 @@ export function LoginScreen(props: LoginScreenProps) {
 		}
 	}
 
+	async function handleNativeAppleLogin(
+		signupUsername?: string,
+	): Promise<void> {
+		setAppleError(null);
+		try {
+			const res = await SocialLogin.login({
+				provider: "apple",
+				options: { scopes: ["email", "name"] },
+			});
+
+			const result = res.result as {
+				idToken?: string | null;
+				profile?: { givenName?: string | null; familyName?: string | null };
+			};
+			const idToken = result.idToken;
+			if (!idToken) {
+				setAppleError("Apple sign-in did not return an ID token.");
+				return;
+			}
+			const payload = decodeJwtPayload(idToken);
+			console.log("[oauth][apple][native] token payload", {
+				aud: payload?.aud,
+				iss: payload?.iss,
+				sub: payload?.sub,
+				origin: window.location.origin,
+			});
+
+			const fullName = [result.profile?.givenName, result.profile?.familyName]
+				.filter(Boolean)
+				.join(" ");
+			const body: { idToken: string; username?: string; name?: string } = {
+				idToken,
+			};
+			if (signupUsername) {
+				body.username = signupUsername;
+			}
+			if (fullName) {
+				body.name = fullName;
+			}
+
+			const response = await apiFetch("/api/auth/oauth/apple/native", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				credentials: "include",
+				body: JSON.stringify(body),
+			});
+
+			const data = (await response.json()) as
+				| { user: unknown; needsPasskeySetup?: boolean }
+				| { needsUsername: true }
+				| { error: string };
+			console.log("[oauth][apple][native] response", {
+				status: response.status,
+				ok: response.ok,
+				data,
+			});
+
+			if (!response.ok) {
+				setAppleError((data as { error: string }).error || "Login failed");
+				return;
+			}
+
+			if ("needsUsername" in data && data.needsUsername) {
+				window.location.href = "/?choose_username=1";
+				return;
+			}
+
+			if ("needsPasskeySetup" in data && data.needsPasskeySetup) {
+				window.location.href = "/?passkey_setup=1";
+				return;
+			}
+
+			window.location.href = "/";
+		} catch (err) {
+			const msg = (err as Error).message || "";
+			if (msg.includes("cancel") || msg.includes("Cancel")) {
+				return;
+			}
+			setAppleError(msg || "Apple sign-in failed");
+		}
+	}
+
 	function proceedWithGoogle() {
 		const value = username().trim();
 		if (isNative) {
 			void handleNativeGoogleLogin(value);
 		} else {
 			window.location.href = `/api/auth/oauth/google?username=${encodeURIComponent(value)}`;
+		}
+	}
+
+	function proceedWithApple() {
+		const value = username().trim();
+		if (isNative) {
+			void handleNativeAppleLogin(value);
+		} else {
+			window.location.href = `/api/auth/oauth/apple?username=${encodeURIComponent(value)}`;
 		}
 	}
 
@@ -345,6 +461,18 @@ export function LoginScreen(props: LoginScreenProps) {
 		</svg>
 	);
 
+	const AppleIcon = () => (
+		<svg
+			class="oauth-icon"
+			viewBox="0 0 24 24"
+			fill="currentColor"
+			aria-hidden="true"
+		>
+			<path d="M16.365 12.36c-.014-2.32 1.895-3.433 1.982-3.486-1.082-1.58-2.768-1.797-3.368-1.82-1.433-.145-2.799.846-3.529.846-.728 0-1.852-.825-3.045-.803-1.567.022-3.012.91-3.817 2.313-1.628 2.824-.414 7.001 1.17 9.29.774 1.117 1.694 2.372 2.905 2.328 1.167-.046 1.607-.754 3.018-.754 1.412 0 1.809.754 3.04.73 1.26-.021 2.057-1.139 2.825-2.26.89-1.299 1.256-2.556 1.278-2.622-.028-.011-2.446-.939-2.459-3.762z" />
+			<path d="M14.008 5.516c.644-.78 1.078-1.867.96-2.947-.928.037-2.052.618-2.717 1.396-.597.688-1.122 1.79-.98 2.842 1.036.08 2.093-.527 2.737-1.291z" />
+		</svg>
+	);
+
 	return (
 		<Screen>
 			<h1 class="login-logo">Oy</h1>
@@ -358,6 +486,15 @@ export function LoginScreen(props: LoginScreenProps) {
 						<h2 class="signup-heading">Sign up as {username().trim()}</h2>
 
 						<div class="signup-buttons">
+							<button
+								type="button"
+								class="oauth-button oauth-apple"
+								onClick={proceedWithApple}
+							>
+								<AppleIcon />
+								Continue with Apple
+							</button>
+
 							<button
 								type="button"
 								class="oauth-button oauth-google"
@@ -435,6 +572,20 @@ export function LoginScreen(props: LoginScreenProps) {
 				<div class="signin-buttons">
 					<button
 						type="button"
+						class="signin-button oauth-apple"
+						onClick={() => {
+							if (isNative) {
+								void handleNativeAppleLogin();
+							} else {
+								window.location.href = "/api/auth/oauth/apple";
+							}
+						}}
+					>
+						<AppleIcon />
+						Sign in with Apple
+					</button>
+					<button
+						type="button"
 						class="signin-button oauth-google"
 						onClick={() => {
 							if (isNative) {
@@ -474,6 +625,7 @@ export function LoginScreen(props: LoginScreenProps) {
 				</div>
 				{passkeyError() && <p class="form-error">{passkeyError()}</p>}
 				{googleError() && <p class="form-error">{googleError()}</p>}
+				{appleError() && <p class="form-error">{appleError()}</p>}
 			</Show>
 
 			<footer class="login-legal">

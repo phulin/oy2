@@ -1,6 +1,8 @@
 import { Capacitor } from "@capacitor/core";
 
-const nativeApiOrigin = "https://oyme.site";
+const nativeApiOrigin = Capacitor.DEBUG
+	? "https://dev.oyme.site"
+	: "https://oyme.site";
 
 export function resolveApiUrl(path: string): string {
 	if (Capacitor.isNativePlatform() && path.startsWith("/api/")) {

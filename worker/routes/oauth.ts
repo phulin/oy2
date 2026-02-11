@@ -57,68 +57,17 @@ function base64UrlDecodeBytes(value: string): Uint8Array {
 	return bytes;
 }
 
-// Apple Sign-In: Generate client_secret JWT
-async function _generateAppleClientSecret(c: AppContext): Promise<string> {
-	const now = Math.floor(Date.now() / 1000);
-	const header = { alg: "ES256", kid: c.env.APPLE_KEY_ID };
-	const payload = {
-		iss: c.env.APPLE_TEAM_ID,
-		iat: now,
-		exp: now + 86400 * 180, // 6 months
-		aud: "https://appleid.apple.com",
-		sub: c.env.APPLE_CLIENT_ID,
-	};
-
-	const encodedHeader = btoa(JSON.stringify(header))
-		.replace(/\+/g, "-")
-		.replace(/\//g, "_")
-		.replace(/=+$/, "");
-	const encodedPayload = btoa(JSON.stringify(payload))
-		.replace(/\+/g, "-")
-		.replace(/\//g, "_")
-		.replace(/=+$/, "");
-
-	const signingInput = `${encodedHeader}.${encodedPayload}`;
-
-	// Import Apple private key (PEM format)
-	const pemContents = c.env.APPLE_PRIVATE_KEY.replace(
-		/-----BEGIN PRIVATE KEY-----|-----END PRIVATE KEY-----|\n/g,
-		"",
-	);
-	const keyData = Uint8Array.from(atob(pemContents), (c) => c.charCodeAt(0));
-
-	const key = await crypto.subtle.importKey(
-		"pkcs8",
-		keyData,
-		{ name: "ECDSA", namedCurve: "P-256" },
-		false,
-		["sign"],
-	);
-
-	const signature = await crypto.subtle.sign(
-		{ name: "ECDSA", hash: "SHA-256" },
-		key,
-		new TextEncoder().encode(signingInput),
-	);
-
-	// Convert DER signature to raw format for JWT
-	const sigArray = new Uint8Array(signature);
-	const encodedSig = btoa(String.fromCharCode(...sigArray))
-		.replace(/\+/g, "-")
-		.replace(/\//g, "_")
-		.replace(/=+$/, "");
-
-	return `${signingInput}.${encodedSig}`;
-}
-
 // Verify Apple ID token
 async function verifyAppleIdToken(
-	c: AppContext,
 	idToken: string,
+	expectedAudiences: string[],
 ): Promise<{ sub: string; email?: string } | null> {
 	try {
 		const parts = idToken.split(".");
-		if (parts.length !== 3) return null;
+		if (parts.length !== 3) {
+			console.warn("[oauth][apple] invalid token format");
+			return null;
+		}
 
 		const header = JSON.parse(base64UrlDecodeString(parts[0])) as {
 			alg?: string;
@@ -132,15 +81,31 @@ async function verifyAppleIdToken(
 			aud?: string | string[];
 		};
 
-		if (!header.kid || header.alg !== "RS256") return null;
+		if (!header.kid || header.alg !== "RS256") {
+			console.warn("[oauth][apple] invalid token header", {
+				kid: header.kid,
+				alg: header.alg,
+			});
+			return null;
+		}
 
 		const jwksResponse = await fetch("https://appleid.apple.com/auth/keys");
-		if (!jwksResponse.ok) return null;
+		if (!jwksResponse.ok) {
+			console.warn("[oauth][apple] failed to load jwks", {
+				status: jwksResponse.status,
+			});
+			return null;
+		}
 		const jwks = (await jwksResponse.json()) as {
 			keys?: Array<JsonWebKey & { kid?: string }>;
 		};
 		const jwk = jwks.keys?.find((key) => key.kid === header.kid);
-		if (!jwk) return null;
+		if (!jwk) {
+			console.warn("[oauth][apple] kid not found in jwks", {
+				kid: header.kid,
+			});
+			return null;
+		}
 
 		const key = await crypto.subtle.importKey(
 			"jwk",
@@ -159,17 +124,44 @@ async function verifyAppleIdToken(
 			signatureBuffer,
 			signedData,
 		);
-		if (!valid) return null;
+		if (!valid) {
+			console.warn("[oauth][apple] invalid signature");
+			return null;
+		}
 
 		// Verify issuer and expiry
-		if (payload.iss !== "https://appleid.apple.com") return null;
-		if (!payload.exp || payload.exp < Date.now() / 1000) return null;
-		if (!payload.sub) return null;
+		if (payload.iss !== "https://appleid.apple.com") {
+			console.warn("[oauth][apple] invalid issuer", { iss: payload.iss });
+			return null;
+		}
+		if (!payload.exp || payload.exp < Date.now() / 1000) {
+			console.warn("[oauth][apple] token expired", { exp: payload.exp });
+			return null;
+		}
+		if (!payload.sub) {
+			console.warn("[oauth][apple] missing sub");
+			return null;
+		}
 		const aud = payload.aud;
-		const clientId = c.env.APPLE_CLIENT_ID;
+		if (!aud) {
+			console.warn("[oauth][apple] missing aud");
+			return null;
+		}
 		if (Array.isArray(aud)) {
-			if (!aud.includes(clientId)) return null;
-		} else if (aud !== clientId) {
+			if (!aud.some((value) => expectedAudiences.includes(value))) {
+				console.warn("[oauth][apple] audience mismatch", {
+					tokenAud: aud,
+					expectedAudiences,
+					sub: payload.sub,
+				});
+				return null;
+			}
+		} else if (!expectedAudiences.includes(aud)) {
+			console.warn("[oauth][apple] audience mismatch", {
+				tokenAud: aud,
+				expectedAudiences,
+				sub: payload.sub,
+			});
 			return null;
 		}
 
@@ -189,7 +181,12 @@ async function verifyGoogleIdToken(
 		const response = await fetch(
 			`https://oauth2.googleapis.com/tokeninfo?id_token=${idToken}`,
 		);
-		if (!response.ok) return null;
+		if (!response.ok) {
+			console.warn("[oauth][google] tokeninfo request failed", {
+				status: response.status,
+			});
+			return null;
+		}
 
 		const payload = (await response.json()) as {
 			aud: string;
@@ -199,7 +196,14 @@ async function verifyGoogleIdToken(
 		};
 
 		// Verify audience
-		if (payload.aud !== clientId) return null;
+		if (payload.aud !== clientId) {
+			console.warn("[oauth][google] audience mismatch", {
+				tokenAud: payload.aud,
+				expectedClientId: clientId,
+				sub: payload.sub,
+			});
+			return null;
+		}
 
 		return { sub: payload.sub, email: payload.email, name: payload.name };
 	} catch {
@@ -260,20 +264,25 @@ async function tryCreateOAuthUser(
 }
 
 export function registerOAuthRoutes(app: App) {
+	const webAppleClientId = (c: AppContext) => c.env.APPLE_CLIENT_ID;
+	const nativeAppleClientId = (c: AppContext) =>
+		c.env.APPLE_NATIVE_CLIENT_ID || c.env.APPLE_CLIENT_ID;
+
 	// Apple Sign-In redirect
 	app.get("/api/auth/oauth/apple", async (c: AppContext) => {
 		const state = await generateState();
 		const origin = getOrigin(c);
+		const signupUsername = c.req.query("username") || undefined;
 
 		// Store state with provider and origin
 		await c.env.OY2.put(
 			`${OAUTH_STATE_PREFIX}${state}`,
-			JSON.stringify({ provider: "apple", origin }),
+			JSON.stringify({ provider: "apple", origin, username: signupUsername }),
 			{ expirationTtl: 600 },
 		);
 
 		const params = new URLSearchParams({
-			client_id: c.env.APPLE_CLIENT_ID,
+			client_id: webAppleClientId(c),
 			redirect_uri: `${origin}/api/auth/oauth/callback`,
 			response_type: "code id_token",
 			response_mode: "form_post",
@@ -352,7 +361,7 @@ export function registerOAuthRoutes(app: App) {
 				return c.redirect("/?error=missing_token");
 			}
 
-			const verified = await verifyAppleIdToken(c, idToken);
+			const verified = await verifyAppleIdToken(idToken, [webAppleClientId(c)]);
 			if (!verified) {
 				return c.redirect("/?error=invalid_token");
 			}
@@ -746,6 +755,103 @@ export function registerOAuthRoutes(app: App) {
 	// Native Google Sign-In: return client ID for plugin initialization
 	app.get("/api/auth/oauth/google/config", (c: AppContext) => {
 		return c.json({ clientId: c.env.GOOGLE_CLIENT_ID });
+	});
+
+	// Native Apple Sign-In: return client ID for plugin initialization
+	app.get("/api/auth/oauth/apple/config", (c: AppContext) => {
+		return c.json({
+			clientId: nativeAppleClientId(c),
+		});
+	});
+
+	// Native Apple Sign-In: accept ID token directly (no redirect flow)
+	app.post("/api/auth/oauth/apple/native", async (c: AppContext) => {
+		const { idToken, username, name } = (await c.req.json()) as {
+			idToken?: string;
+			username?: string;
+			name?: string;
+		};
+
+		if (!idToken) {
+			return c.json({ error: "Missing idToken" }, 400);
+		}
+
+		const verified = await verifyAppleIdToken(idToken, [
+			nativeAppleClientId(c),
+		]);
+		if (!verified) {
+			return c.json({ error: "Invalid ID token" }, 401);
+		}
+
+		// Check if user already exists with this Apple identity
+		const existingUser = await c
+			.get("db")
+			.query<User>(
+				"SELECT * FROM users WHERE oauth_provider = $1 AND oauth_sub = $2",
+				["apple", verified.sub],
+			);
+
+		if (existingUser.rows[0]) {
+			const user = existingUser.rows[0];
+			const sessionToken = await createSession(c, user);
+			setSessionCookie(c, sessionToken);
+			updateLastSeen(c, user.id);
+
+			const passkeys = await c
+				.get("db")
+				.query("SELECT id FROM passkeys WHERE user_id = $1 LIMIT 1", [user.id]);
+
+			return c.json({
+				user: authUserPayload(user),
+				needsPasskeySetup: passkeys.rows.length === 0,
+			});
+		}
+
+		// New user with username provided — try to create
+		if (username) {
+			const user = await tryCreateOAuthUser(
+				c,
+				username,
+				"apple",
+				verified.sub,
+				verified.email,
+			);
+
+			if (user) {
+				const sessionToken = await createSession(c, user);
+				setSessionCookie(c, sessionToken);
+				updateLastSeen(c, user.id);
+				return c.json({
+					user: authUserPayload(user),
+					needsPasskeySetup: true,
+				});
+			}
+
+			return c.json({ error: "Username already taken" }, 409);
+		}
+
+		// New user, no username — store pending and let client handle username selection
+		const pendingId = await generateState();
+		await c.env.OY2.put(
+			`${OAUTH_PENDING_PREFIX}${pendingId}`,
+			JSON.stringify({
+				provider: "apple",
+				sub: verified.sub,
+				email: verified.email,
+				name,
+			}),
+			{ expirationTtl: 600 },
+		);
+
+		setCookie(c, "oauth_pending", pendingId, {
+			httpOnly: true,
+			secure: true,
+			sameSite: "Strict",
+			path: "/",
+			maxAge: 600,
+		});
+
+		return c.json({ needsUsername: true });
 	});
 
 	// Native Google Sign-In: accept ID token directly (no redirect flow)

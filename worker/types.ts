@@ -18,6 +18,7 @@ export type Bindings = {
 	OY2: KVNamespace;
 	// OAuth
 	APPLE_CLIENT_ID: string;
+	APPLE_NATIVE_CLIENT_ID?: string;
 	APPLE_TEAM_ID: string;
 	APPLE_KEY_ID: string;
 	APPLE_PRIVATE_KEY: string;

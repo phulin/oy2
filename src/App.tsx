@@ -50,10 +50,9 @@ const cachedUserStorageKey = "cachedUser";
 const cachedFriendsStorageKey = "cachedFriends";
 const cachedLastOyInfoStorageKey = "cachedLastOyInfo";
 const passkeySetupSkipStorageKey = "passkeySetupSkipped";
-const googleWebClientId =
-	"132817325553-3q6etn99vumoi40caul2bk2855a7h2hd.apps.googleusercontent.com";
-const googleIosClientId =
-	"132817325553-b4sn74mq1t6ijbig5mbsrnq68518tk3g.apps.googleusercontent.com";
+const googleWebClientId = import.meta.env.VITE_GOOGLE_WEB_CLIENT_ID;
+const googleIosClientId = import.meta.env.VITE_GOOGLE_IOS_CLIENT_ID;
+const appleNativeClientId = import.meta.env.VITE_APPLE_NATIVE_CLIENT_ID;
 
 type AuthStep =
 	| "initial"
@@ -849,12 +848,22 @@ export default function App(props: AppProps) {
 	onMount(async () => {
 		if (Capacitor.isNativePlatform()) {
 			try {
+				console.log("[oauth][init] social login config", {
+					googleWebClientId,
+					googleIosClientId,
+					googleIosServerClientId: googleWebClientId,
+					appleNativeClientId,
+				});
+
 				await SocialLogin.initialize({
 					google: {
 						webClientId: googleWebClientId,
 						iOSClientId: googleIosClientId,
 						iOSServerClientId: googleWebClientId,
 						mode: "online",
+					},
+					apple: {
+						clientId: appleNativeClientId,
 					},
 				});
 			} catch (err) {
