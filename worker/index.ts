@@ -5,6 +5,7 @@ import { registerAdminRoutes } from "./routes/admin";
 import { registerAuthRoutes } from "./routes/auth";
 import { registerEmailRoutes } from "./routes/email";
 import { registerFriendRoutes } from "./routes/friends";
+import { registerMiscRoutes } from "./routes/misc";
 import { registerOAuthRoutes } from "./routes/oauth";
 import { registerOyRoutes } from "./routes/oys";
 import { registerPasskeyRoutes } from "./routes/passkey";
@@ -70,6 +71,7 @@ app.use("*", async (c: AppContext, next) => {
 	await next();
 });
 
+registerMiscRoutes(app);
 registerAuthRoutes(app);
 registerOAuthRoutes(app);
 registerEmailRoutes(app);

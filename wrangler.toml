@@ -8,10 +8,11 @@ preview_urls = true
 mode = "smart"
 
 [assets]
-run_worker_first = ["/api/*"]
+run_worker_first = ["/api/*", "/.well-known/*"]
 not_found_handling = "single-page-application"
 
 [vars]
+APPLE_TEAM_ID = "W36EA63J6V"
 RP_NAME = "Oy"
 WEBAUTHN_ORIGIN = "https://oyme.site"
 WEBAUTHN_RP_ID = "oyme.site"
@@ -37,6 +38,7 @@ id = "3dff6009997c423ead2cea611dc58cb3"
 name = "oy2-dev"
 
 [env.dev.vars]
+APPLE_TEAM_ID = "W36EA63J6V"
 RP_NAME = "Oy"
 WEBAUTHN_ORIGIN = "https://dev.oyme.site"
 WEBAUTHN_RP_ID = "dev.oyme.site"
