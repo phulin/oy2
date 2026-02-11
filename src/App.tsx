@@ -93,7 +93,9 @@ export default function App(props: AppProps) {
 			? "passkey_setup"
 			: "initial";
 	const [authStep, setAuthStep] = createSignal<AuthStep>(initialAuthStep);
-	const [signupUsername, setSignupUsername] = createSignal<string | undefined>();
+	const [signupUsername, setSignupUsername] = createSignal<
+		string | undefined
+	>();
 	const [friends, setFriends] = createSignal<Friend[]>(initialCachedFriends);
 	const [lastOyInfo, setLastOyInfo] = createSignal<LastOyInfo[]>(
 		initialCachedLastOyInfo,

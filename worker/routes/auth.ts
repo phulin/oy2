@@ -20,7 +20,9 @@ export function registerAuthRoutes(app: App) {
 
 	app.post("/api/auth/username/check", async (c: AppContext) => {
 		const { username } = await c.req.json();
-		const trimmed = String(username || "").trim().toLowerCase();
+		const trimmed = String(username || "")
+			.trim()
+			.toLowerCase();
 
 		const formatError = validateUsername(trimmed);
 		if (formatError) {
@@ -39,9 +41,7 @@ export function registerAuthRoutes(app: App) {
 
 		const existing = await c
 			.get("db")
-			.query<User>("SELECT * FROM users WHERE LOWER(username) = $1", [
-				trimmed,
-			]);
+			.query<User>("SELECT * FROM users WHERE LOWER(username) = $1", [trimmed]);
 
 		if (existing.rows.length > 0) {
 			const user = existing.rows[0];
@@ -50,9 +50,7 @@ export function registerAuthRoutes(app: App) {
 			const hasEmail = !!user.email;
 			const passkeys = await c
 				.get("db")
-				.query("SELECT id FROM passkeys WHERE user_id = $1 LIMIT 1", [
-					user.id,
-				]);
+				.query("SELECT id FROM passkeys WHERE user_id = $1 LIMIT 1", [user.id]);
 			const hasPasskey = passkeys.rows.length > 0;
 
 			if (hasOauth || hasEmail || hasPasskey) {
