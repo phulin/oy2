@@ -1,5 +1,6 @@
 import { Button } from "@kobalte/core/button";
 import { For, type JSX, onMount, Show } from "solid-js";
+import { appLogoText } from "../branding";
 import { Screen } from "./Screen";
 import "./ButtonStyles.css";
 import "./FormControls.css";
@@ -43,7 +44,7 @@ export function VerifyCodeScreen(props: VerifyCodeScreenProps) {
 
 	return (
 		<Screen>
-			<h1 class="login-logo">Oy</h1>
+			<h1 class="login-logo">{appLogoText}</h1>
 			<p class="login-tagline">{props.title}</p>
 			<Show when={props.subtitle}>
 				{(subtitle) => (

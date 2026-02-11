@@ -53,4 +53,38 @@ describe("push subscriptions", () => {
 		assert.equal(unsubJson.success, true);
 		assert.equal(db.pushSubscriptions.length, 0);
 	});
+
+	it("subscribes and unsubscribes native tokens", async () => {
+		const { env, db } = createTestEnv();
+		const user = seedUser(db, { username: "NativePushy" });
+		seedSession(db, user.id, "native-push-token");
+
+		const { res, json } = await jsonRequest(env, "/api/push/native/subscribe", {
+			method: "POST",
+			headers: { "x-session-token": "native-push-token" },
+			body: { token: "native-token-1", platform: "ios" },
+		});
+		assert.equal(res.status, 200);
+		assert.equal(json.success, true);
+		assert.equal(
+			db.pushSubscriptions.filter((sub) => sub.platform !== "web").length,
+			1,
+		);
+
+		const { res: unsubRes, json: unsubJson } = await jsonRequest(
+			env,
+			"/api/push/native/unsubscribe",
+			{
+				method: "POST",
+				headers: { "x-session-token": "native-push-token" },
+				body: { token: "native-token-1" },
+			},
+		);
+		assert.equal(unsubRes.status, 200);
+		assert.equal(unsubJson.success, true);
+		assert.equal(
+			db.pushSubscriptions.filter((sub) => sub.platform !== "web").length,
+			0,
+		);
+	});
 });

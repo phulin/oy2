@@ -1,5 +1,6 @@
 import { A } from "@solidjs/router";
 import { createResource } from "solid-js";
+import { appLogoText } from "../branding";
 import "./PrivacyPolicyScreen.css";
 
 async function loadPrivacyPolicy() {
@@ -16,7 +17,7 @@ export function PrivacyPolicyScreen() {
 				<A class="privacy-back" href="/">
 					&lt; Back
 				</A>
-				<span class="privacy-logo">Oy</span>
+				<span class="privacy-logo">{appLogoText}</span>
 				<span class="privacy-spacer" aria-hidden="true" />
 			</header>
 			<pre class="privacy-content">{policy()}</pre>

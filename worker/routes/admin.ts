@@ -1,4 +1,5 @@
 import { requireAdmin } from "../lib";
+import { checkNativePushHealthWithOptions } from "../push";
 import type { App, AppContext, BlockedUserRow, UserReportRow } from "../types";
 
 export function registerAdminRoutes(app: App) {
@@ -172,6 +173,23 @@ export function registerAdminRoutes(app: App) {
 				createdAt: row.created_at,
 			})),
 			generatedAt: now,
+		});
+	});
+
+	app.get("/api/admin/push/health", async (c: AppContext) => {
+		const adminCheck = requireAdmin(c);
+		if (!adminCheck.ok) {
+			return c.json(adminCheck.response, adminCheck.status);
+		}
+
+		const health = await checkNativePushHealthWithOptions(c.env, {
+			requestUrl: c.req.url,
+		});
+		return c.json({
+			ok: health.fcm.ok || health.apns.ok,
+			fcm: health.fcm,
+			apns: health.apns,
+			generatedAt: Math.floor(Date.now() / 1000),
 		});
 	});
 }

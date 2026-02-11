@@ -1,4 +1,4 @@
-import { sendPushNotification } from "./push";
+import { sendNativePushNotification, sendPushNotification } from "./push";
 import type {
 	AppContext,
 	Bindings,
@@ -10,6 +10,21 @@ import type {
 const PUSH_MAX_ATTEMPTS = 3;
 const PUSH_BACKOFF_MS = 250;
 const PUSH_BACKOFF_MULTIPLIER = 2;
+
+type PushAttempt = {
+	endpoint: string;
+	attempt: number;
+	success: boolean;
+	statusCode?: number;
+	errorMessage?: string;
+};
+
+type PushSendResult = {
+	delivered: boolean;
+	statusCode?: number;
+	permanentFailure: boolean;
+	attempts: PushAttempt[];
+};
 
 const delay = (ms: number) =>
 	new Promise((resolve) => {
@@ -71,46 +86,86 @@ export function computeStreakLength({
 	return daysSinceStart + (hasOyToday ? 1 : 0);
 }
 
+async function sendSinglePush(
+	env: Bindings,
+	subscription: PushSubscriptionRow,
+	payload: PushPayload,
+	options?: { requestUrl?: string },
+) {
+	if (subscription.platform === "web") {
+		return sendPushNotification(
+			env,
+			{
+				endpoint: subscription.endpoint as string,
+				expirationTime: null,
+				keys: {
+					p256dh: subscription.keys_p256dh as string,
+					auth: subscription.keys_auth as string,
+				},
+			},
+			payload,
+		);
+	}
+	return sendNativePushNotification(
+		env,
+		subscription.platform,
+		subscription.native_token as string,
+		payload,
+		{ requestUrl: options?.requestUrl },
+	);
+}
+
 async function sendPushWithRetry(
 	env: Bindings,
-	subscription: {
-		endpoint: string;
-		expirationTime: number | null;
-		keys: { p256dh: string; auth: string };
-	},
+	subscription: PushSubscriptionRow,
 	payload: PushPayload,
-) {
+	options?: { requestUrl?: string },
+): Promise<PushSendResult> {
 	let lastStatusCode: number | undefined;
-	const attempts: {
-		endpoint: string;
-		attempt: number;
-		success: boolean;
-		statusCode?: number;
-		errorMessage?: string;
-	}[] = [];
+	let permanentFailure = false;
+	const identifier =
+		subscription.platform === "web"
+			? subscription.endpoint
+			: subscription.native_token;
+	if (!identifier) {
+		return {
+			delivered: false,
+			statusCode: undefined,
+			permanentFailure: true,
+			attempts: [],
+		};
+	}
+
+	const attempts: PushAttempt[] = [];
 	for (let attempt = 1; attempt <= PUSH_MAX_ATTEMPTS; attempt += 1) {
 		try {
-			const response = await sendPushNotification(env, subscription, payload);
+			const response = await sendSinglePush(
+				env,
+				subscription,
+				payload,
+				options,
+			);
 			attempts.push({
-				endpoint: subscription.endpoint,
+				endpoint: identifier,
 				attempt,
 				success: true,
 				statusCode: response.status,
 			});
-			return { delivered: true, attempts };
+			return { delivered: true, permanentFailure: false, attempts };
 		} catch (err) {
 			const statusCode = (err as { statusCode?: number }).statusCode;
+			permanentFailure = Boolean((err as { permanent?: boolean }).permanent);
 			lastStatusCode = statusCode;
 			const errorMessage = err instanceof Error ? err.message : String(err);
 			attempts.push({
-				endpoint: subscription.endpoint,
+				endpoint: identifier,
 				attempt,
 				success: false,
 				statusCode,
 				errorMessage,
 			});
-			if (statusCode === 410) {
-				return { delivered: false, statusCode, attempts };
+			if (permanentFailure) {
+				return { delivered: false, statusCode, permanentFailure, attempts };
 			}
 			if (attempt < PUSH_MAX_ATTEMPTS) {
 				const backoff =
@@ -120,7 +175,12 @@ async function sendPushWithRetry(
 		}
 	}
 
-	return { delivered: false, statusCode: lastStatusCode, attempts };
+	return {
+		delivered: false,
+		statusCode: lastStatusCode,
+		permanentFailure,
+		attempts,
+	};
 }
 
 export async function sendPushNotifications(
@@ -133,18 +193,9 @@ export async function sendPushNotifications(
 	try {
 		const { env } = c;
 		const results = await Promise.all(
-			subscriptions.map((sub) => {
-				const subscription = {
-					endpoint: sub.endpoint,
-					expirationTime: null,
-					keys: {
-						p256dh: sub.keys_p256dh,
-						auth: sub.keys_auth,
-					},
-				};
-
-				return sendPushWithRetry(env, subscription, payload);
-			}),
+			subscriptions.map((sub) =>
+				sendPushWithRetry(env, sub, payload, { requestUrl: c.req.url }),
+			),
 		);
 
 		const queries: Array<Promise<unknown>> = [];
@@ -174,16 +225,34 @@ export async function sendPushNotifications(
 			}
 
 			if (!result.delivered) {
-				console.error("Failed to send push:", result.statusCode);
-				if (result.statusCode === 410) {
-					queries.push(
-						c
-							.get("db")
-							.query(
-								"DELETE FROM push_subscriptions WHERE user_id = $1 AND endpoint = $2",
-								[toUserId, sub.endpoint],
-							),
-					);
+				const lastAttempt = result.attempts[result.attempts.length - 1];
+				console.error("Failed to send push", {
+					platform: sub.platform,
+					target: sub.platform === "web" ? sub.endpoint : sub.native_token,
+					statusCode: result.statusCode ?? null,
+					lastError: lastAttempt?.errorMessage ?? null,
+					attempts: result.attempts.length,
+				});
+				if (result.permanentFailure) {
+					if (sub.platform === "web") {
+						queries.push(
+							c
+								.get("db")
+								.query(
+									"DELETE FROM push_subscriptions WHERE user_id = $1 AND endpoint = $2",
+									[toUserId, sub.endpoint],
+								),
+						);
+					} else {
+						queries.push(
+							c
+								.get("db")
+								.query(
+									"DELETE FROM push_subscriptions WHERE user_id = $1 AND native_token = $2",
+									[toUserId, sub.native_token],
+								),
+						);
+					}
 				}
 			}
 		}
@@ -285,7 +354,7 @@ async function fetchPushSubscriptions(c: AppContext, userId: number) {
 		.get("dbNoCache")
 		.query<PushSubscriptionRow>(
 			`
-      SELECT endpoint, keys_p256dh, keys_auth
+      SELECT platform, endpoint, keys_p256dh, keys_auth, native_token
       FROM push_subscriptions
       WHERE user_id = $1
     `,

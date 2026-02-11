@@ -1,5 +1,6 @@
 import { Button } from "@kobalte/core/button";
 import { createSignal, onMount, Show } from "solid-js";
+import { appLogoText } from "../branding";
 import { apiFetch } from "../utils";
 import { Screen } from "./Screen";
 import "./ButtonStyles.css";
@@ -114,7 +115,7 @@ export function ChooseUsernameScreen(props: ChooseUsernameScreenProps) {
 
 	return (
 		<Screen>
-			<h1 class="login-logo">Oy</h1>
+			<h1 class="login-logo">{appLogoText}</h1>
 			<p class="login-tagline">Choose your username</p>
 
 			<Show when={pendingInfo()}>

@@ -1,6 +1,7 @@
 import { Button } from "@kobalte/core/button";
 import { A } from "@solidjs/router";
 import { createSignal } from "solid-js";
+import { appLogoText } from "../branding";
 import type { User } from "../types";
 import "./ButtonStyles.css";
 import "./AppHeader.css";
@@ -28,7 +29,7 @@ export function AppHeader(props: AppHeaderProps) {
 						<span>Back</span>
 					</A>
 				) : null}
-				<h1 class="app-title">Oy</h1>
+				<h1 class="app-title">{appLogoText}</h1>
 				<button
 					class="app-user-trigger"
 					type="button"

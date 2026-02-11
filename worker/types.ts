@@ -25,6 +25,12 @@ export type Bindings = {
 	GOOGLE_CLIENT_ID: string;
 	GOOGLE_CLIENT_SECRET: string;
 	GOOGLE_MAPS_API_KEY: string;
+	// Native push delivery
+	FCM_SERVICE_ACCOUNT_JSON?: string;
+	FCM_PROJECT_ID?: string;
+	FCM_CLIENT_EMAIL?: string;
+	FCM_PRIVATE_KEY?: string;
+	APNS_USE_SANDBOX?: string;
 	// Email
 	RESEND_API_KEY: string;
 	// WebAuthn
@@ -109,9 +115,11 @@ export type UserReportRow = {
 };
 
 export type PushSubscriptionRow = {
-	endpoint: string;
-	keys_p256dh: string;
-	keys_auth: string;
+	platform: "web" | "ios" | "android";
+	endpoint: string | null;
+	keys_p256dh: string | null;
+	keys_auth: string | null;
+	native_token: string | null;
 };
 
 export type PushPayload = {

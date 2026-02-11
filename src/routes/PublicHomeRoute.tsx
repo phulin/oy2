@@ -1,4 +1,5 @@
 import { A } from "@solidjs/router";
+import { appLogoText } from "../branding";
 import { Screen } from "../components/Screen";
 import "../components/ButtonStyles.css";
 import "./PublicHomeRoute.css";
@@ -8,7 +9,7 @@ export function PublicHomeRoute() {
 		<Screen>
 			<div class="public-home">
 				<header class="public-home-hero">
-					<h1 class="public-home-logo">Oy</h1>
+					<h1 class="public-home-logo">{appLogoText}</h1>
 					<h1 class="public-home-title">
 						A tiny check-in that keeps friendships warm.
 					</h1>

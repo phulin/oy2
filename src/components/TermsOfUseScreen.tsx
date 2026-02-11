@@ -1,5 +1,6 @@
 import { A } from "@solidjs/router";
 import { createResource } from "solid-js";
+import { appLogoText } from "../branding";
 import "./TermsOfUseScreen.css";
 
 async function loadTermsOfUse() {
@@ -16,7 +17,7 @@ export function TermsOfUseScreen() {
 				<A class="terms-back" href="/">
 					&lt; Back
 				</A>
-				<span class="terms-logo">Oy</span>
+				<span class="terms-logo">{appLogoText}</span>
 				<span class="terms-spacer" aria-hidden="true" />
 			</header>
 			<pre class="terms-content">{terms()}</pre>

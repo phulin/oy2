@@ -1,5 +1,6 @@
 import { Button } from "@kobalte/core/button";
 import { createSignal, Show } from "solid-js";
+import { appLogoText } from "../branding";
 import { apiFetch } from "../utils";
 import { Screen } from "./Screen";
 import { VerifyCodeScreen } from "./VerifyCodeScreen";
@@ -190,7 +191,7 @@ export function EmailLoginScreen(props: EmailLoginScreenProps) {
 			when={step() === "code"}
 			fallback={
 				<Screen>
-					<h1 class="login-logo">Oy</h1>
+					<h1 class="login-logo">{appLogoText}</h1>
 					<p class="login-tagline">Sign in with email</p>
 					<p class="login-tagline login-tagline-secondary">
 						We'll send you a verification code

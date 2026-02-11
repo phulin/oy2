@@ -51,9 +51,11 @@ type OyRow = {
 
 type PushSubscriptionRow = {
 	user_id: number;
-	endpoint: string;
-	keys_p256dh: string;
-	keys_auth: string;
+	platform: "web" | "ios" | "android";
+	endpoint: string | null;
+	keys_p256dh: string | null;
+	keys_auth: string | null;
+	native_token: string | null;
 	created_at: number;
 };
 
@@ -605,10 +607,36 @@ class FakeD1PreparedStatement implements D1PreparedStatement {
 			};
 		}
 		if (sql.startsWith("DELETE FROM push_subscriptions WHERE endpoint = ?")) {
-			const [endpoint] = this.params as [string];
+			const [endpoint, userId] = this.params as [string, number?];
 			const before = this.db.pushSubscriptions.length;
 			this.db.pushSubscriptions = this.db.pushSubscriptions.filter(
-				(row) => row.endpoint !== endpoint,
+				(row) =>
+					userId === undefined
+						? row.endpoint !== endpoint
+						: !(row.endpoint === endpoint && row.user_id !== userId),
+			);
+			return {
+				success: true,
+				meta: {
+					last_row_id: 0,
+					changes: before - this.db.pushSubscriptions.length,
+				},
+				};
+			}
+		if (
+			sql.startsWith(
+				"DELETE FROM push_subscriptions WHERE user_id = ? AND endpoint = ? AND platform = 'web'",
+			)
+		) {
+			const [userId, endpoint] = this.params as [number, string];
+			const before = this.db.pushSubscriptions.length;
+			this.db.pushSubscriptions = this.db.pushSubscriptions.filter(
+				(row) =>
+					!(
+						row.user_id === userId &&
+						row.platform === "web" &&
+						row.endpoint === endpoint
+					),
 			);
 			return {
 				success: true,
@@ -618,11 +646,33 @@ class FakeD1PreparedStatement implements D1PreparedStatement {
 				},
 			};
 		}
-		if (sql.startsWith("DELETE FROM push_subscriptions WHERE user_id = ?")) {
-			const [userId, endpoint] = this.params as [number, string];
+		if (
+			sql.startsWith(
+				"DELETE FROM push_subscriptions WHERE native_token = ? AND user_id != ?",
+			)
+		) {
+			const [token, userId] = this.params as [string, number];
 			const before = this.db.pushSubscriptions.length;
 			this.db.pushSubscriptions = this.db.pushSubscriptions.filter(
-				(row) => !(row.user_id === userId && row.endpoint === endpoint),
+				(row) => !(row.native_token === token && row.user_id !== userId),
+			);
+			return {
+				success: true,
+				meta: {
+					last_row_id: 0,
+					changes: before - this.db.pushSubscriptions.length,
+				},
+			};
+		}
+		if (
+			sql.startsWith(
+				"DELETE FROM push_subscriptions WHERE user_id = ? AND native_token = ?",
+			)
+		) {
+			const [userId, token] = this.params as [number, string];
+			const before = this.db.pushSubscriptions.length;
+			this.db.pushSubscriptions = this.db.pushSubscriptions.filter(
+				(row) => !(row.user_id === userId && row.native_token === token),
 			);
 			return {
 				success: true,
@@ -633,23 +683,42 @@ class FakeD1PreparedStatement implements D1PreparedStatement {
 			};
 		}
 		if (sql.startsWith("INSERT INTO push_subscriptions")) {
-			const [userId, endpoint, p256dh, auth] = this.params as [
-				number,
-				string,
-				string,
-				string,
-			];
-			this.db.pushSubscriptions = this.db.pushSubscriptions.filter(
-				(row) => !(row.user_id === userId && row.endpoint === endpoint),
-			);
-			this.db.pushSubscriptions.push({
-				user_id: userId,
-				endpoint,
-				keys_p256dh: p256dh,
-				keys_auth: auth,
-				created_at: nowSeconds(),
-			});
-			return { success: true, meta: { last_row_id: 0, changes: 1 } };
+			if (this.params.length === 4) {
+				const [userId, endpoint, p256dh, auth] = this.params as [
+					number,
+					string,
+					string,
+					string,
+				];
+				this.db.pushSubscriptions.push({
+					user_id: userId,
+					platform: "web",
+					endpoint,
+					keys_p256dh: p256dh,
+					keys_auth: auth,
+					native_token: null,
+					created_at: nowSeconds(),
+				});
+				return { success: true, meta: { last_row_id: 0, changes: 1 } };
+			}
+			if (this.params.length === 3) {
+				const [userId, platform, token] = this.params as [
+					number,
+					"ios" | "android",
+					string,
+				];
+				this.db.pushSubscriptions.push({
+					user_id: userId,
+					platform,
+					endpoint: null,
+					keys_p256dh: null,
+					keys_auth: null,
+					native_token: token,
+					created_at: nowSeconds(),
+				});
+				return { success: true, meta: { last_row_id: 0, changes: 1 } };
+			}
+			throw new Error(`Unsupported push subscription params: ${this.params.length}`);
 		}
 		if (
 			sql.startsWith(
@@ -1127,14 +1196,31 @@ class FakeD1PreparedStatement implements D1PreparedStatement {
 				.sort((a, b) => a.username.localeCompare(b.username));
 			return { results };
 		}
-		if (sql.startsWith("SELECT endpoint, keys_p256dh, keys_auth")) {
+		if (
+			sql.startsWith(
+				"SELECT platform, endpoint, keys_p256dh, keys_auth, native_token",
+			)
+		) {
 			const [userId] = this.params as [number];
 			const results = this.db.pushSubscriptions
 				.filter((row) => row.user_id === userId)
 				.map((row) => ({
+					platform: row.platform,
 					endpoint: row.endpoint,
 					keys_p256dh: row.keys_p256dh,
 					keys_auth: row.keys_auth,
+					native_token: row.native_token,
+				}));
+			return { results };
+		}
+		if (sql.startsWith("SELECT endpoint, keys_p256dh, keys_auth")) {
+			const [userId] = this.params as [number];
+			const results = this.db.pushSubscriptions
+				.filter((row) => row.user_id === userId && row.platform === "web")
+				.map((row) => ({
+					endpoint: row.endpoint as string,
+					keys_p256dh: row.keys_p256dh as string,
+					keys_auth: row.keys_auth as string,
 				}));
 			return { results };
 		}

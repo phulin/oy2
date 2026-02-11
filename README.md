@@ -111,7 +111,19 @@ npx wrangler secret put APPLE_KEY_ID
 npx wrangler secret put APPLE_PRIVATE_KEY
 npx wrangler secret put GOOGLE_CLIENT_ID
 npx wrangler secret put GOOGLE_CLIENT_SECRET
+npx wrangler secret put FCM_SERVICE_ACCOUNT_JSON
 ```
+
+And set non-secret vars in `wrangler.toml`:
+
+- `FCM_PROJECT_ID` (if not using `FCM_SERVICE_ACCOUNT_JSON`)
+- `APNS_USE_SANDBOX` (optional override; if unset, localhost uses sandbox and deployed domains use production)
+
+APNs delivery reuses Apple OAuth vars:
+- key id: `APPLE_KEY_ID`
+- team id: `APPLE_TEAM_ID`
+- private key: `APPLE_PRIVATE_KEY`
+- topic/bundle id: `APPLE_NATIVE_CLIENT_ID` (fallback `APPLE_CLIENT_ID`)
 
 2. Run remote migrations:
 
@@ -143,7 +155,7 @@ oy2/
 ├── worker/
 │   ├── routes/                  # Hono API routes
 │   ├── index.ts                 # Worker entry
-│   └── push.ts                  # Web Push helpers
+│   └── push.ts                  # Push delivery helpers (web + native)
 ├── migrations-pg/               # Postgres migrations
 ├── backup-worker/               # Export/backup worker
 ├── scripts/                     # Tooling (migrations, VAPID, etc.)
@@ -190,11 +202,14 @@ oy2/
 
 - `POST /api/push/subscribe`
 - `POST /api/push/unsubscribe`
+- `POST /api/push/native/subscribe`
+- `POST /api/push/native/unsubscribe`
 - `GET /api/push/vapid-public-key`
 
 ### Admin
 
 - `GET /api/admin/stats`
+- `GET /api/admin/push/health`
 
 ## Database Schema
 

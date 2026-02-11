@@ -3,6 +3,7 @@ import { SocialLogin } from "@capgo/capacitor-social-login";
 import { WebAuthn } from "@gledly/capacitor-webauthn";
 import { A } from "@solidjs/router";
 import { createSignal, onMount, Show } from "solid-js";
+import { appLogoText } from "../branding";
 import {
 	logPasskeyError,
 	logPasskeyEvent,
@@ -35,18 +36,6 @@ export function LoginScreen(props: LoginScreenProps) {
 	onMount(() => {
 		void props.onTryPasskey();
 	});
-
-	function decodeJwtPayload(token: string): Record<string, unknown> | null {
-		const parts = token.split(".");
-		if (parts.length !== 3) return null;
-		const base64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
-		const padding = "=".repeat((4 - (base64.length % 4)) % 4);
-		try {
-			return JSON.parse(atob(base64 + padding)) as Record<string, unknown>;
-		} catch {
-			return null;
-		}
-	}
 
 	function base64UrlEncode(buffer: ArrayBuffer): string {
 		const bytes = new Uint8Array(buffer);
@@ -131,13 +120,6 @@ export function LoginScreen(props: LoginScreenProps) {
 				setGoogleError("Google sign-in did not return an ID token.");
 				return;
 			}
-			const payload = decodeJwtPayload(idToken);
-			console.log("[oauth][google][native] token payload", {
-				aud: payload?.aud,
-				iss: payload?.iss,
-				sub: payload?.sub,
-				origin: window.location.origin,
-			});
 
 			const body: { idToken: string; username?: string } = { idToken };
 			if (signupUsername) {
@@ -155,11 +137,6 @@ export function LoginScreen(props: LoginScreenProps) {
 				| { user: unknown; needsPasskeySetup?: boolean }
 				| { needsUsername: true }
 				| { error: string };
-			console.log("[oauth][google][native] response", {
-				status: response.status,
-				ok: response.ok,
-				data,
-			});
 
 			if (!response.ok) {
 				setGoogleError((data as { error: string }).error || "Login failed");
@@ -205,13 +182,6 @@ export function LoginScreen(props: LoginScreenProps) {
 				setAppleError("Apple sign-in did not return an ID token.");
 				return;
 			}
-			const payload = decodeJwtPayload(idToken);
-			console.log("[oauth][apple][native] token payload", {
-				aud: payload?.aud,
-				iss: payload?.iss,
-				sub: payload?.sub,
-				origin: window.location.origin,
-			});
 
 			const fullName = [result.profile?.givenName, result.profile?.familyName]
 				.filter(Boolean)
@@ -237,11 +207,6 @@ export function LoginScreen(props: LoginScreenProps) {
 				| { user: unknown; needsPasskeySetup?: boolean }
 				| { needsUsername: true }
 				| { error: string };
-			console.log("[oauth][apple][native] response", {
-				status: response.status,
-				ok: response.ok,
-				data,
-			});
 
 			if (!response.ok) {
 				setAppleError((data as { error: string }).error || "Login failed");
@@ -475,7 +440,7 @@ export function LoginScreen(props: LoginScreenProps) {
 
 	return (
 		<Screen>
-			<h1 class="login-logo">Oy</h1>
+			<h1 class="login-logo">{appLogoText}</h1>
 			<p class="login-tagline">The simplest social media app</p>
 
 			<Show

@@ -18,6 +18,11 @@ APPLE_TEAM_ID = "W36EA63J6V"
 RP_NAME = "Oy"
 WEBAUTHN_ORIGIN = "https://oyme.site"
 WEBAUTHN_RP_ID = "oyme.site"
+# Native push (non-secret config)
+# APNs uses APPLE_NATIVE_CLIENT_ID as the topic/bundle id.
+# If unset, sandbox is auto-enabled for localhost/127.0.0.1 requests only.
+# APNS_USE_SANDBOX = "false"
+# FCM_PROJECT_ID = "your-fcm-project-id"
 
 [[routes]]
 pattern = "oyme.site"
@@ -46,6 +51,11 @@ APPLE_TEAM_ID = "W36EA63J6V"
 RP_NAME = "Oy"
 WEBAUTHN_ORIGIN = "https://dev.oyme.site"
 WEBAUTHN_RP_ID = "dev.oyme.site"
+# Native push (non-secret config)
+# APNs uses APPLE_NATIVE_CLIENT_ID as the topic/bundle id.
+# If unset, sandbox is auto-enabled for localhost/127.0.0.1 requests only.
+# APNS_USE_SANDBOX = "true"
+# FCM_PROJECT_ID = "your-fcm-project-id"
 
 [[env.dev.routes]]
 pattern = "dev.oyme.site"

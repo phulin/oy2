@@ -84,17 +84,42 @@ CREATE INDEX IF NOT EXISTS idx_oys_from_user_created_at_id
   ON oys(from_user_id, created_at DESC, id DESC);
 
 CREATE TABLE IF NOT EXISTS push_subscriptions (
+  id SERIAL PRIMARY KEY,
   user_id INTEGER NOT NULL,
-  endpoint TEXT NOT NULL,
-  keys_p256dh TEXT NOT NULL,
-  keys_auth TEXT NOT NULL,
+  platform TEXT NOT NULL DEFAULT 'web' CHECK (platform IN ('web', 'ios', 'android')),
+  endpoint TEXT,
+  keys_p256dh TEXT,
+  keys_auth TEXT,
+  native_token TEXT,
   created_at INTEGER DEFAULT EXTRACT(EPOCH FROM NOW())::INTEGER,
-  PRIMARY KEY (user_id, endpoint),
+  CHECK (
+    (
+      platform = 'web' AND
+      endpoint IS NOT NULL AND
+      keys_p256dh IS NOT NULL AND
+      keys_auth IS NOT NULL AND
+      native_token IS NULL
+    ) OR (
+      platform IN ('ios', 'android') AND
+      native_token IS NOT NULL AND
+      endpoint IS NULL AND
+      keys_p256dh IS NULL AND
+      keys_auth IS NULL
+    )
+  ),
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
-CREATE INDEX IF NOT EXISTS idx_push_subscriptions_endpoint
-  ON push_subscriptions(endpoint);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_push_subscriptions_endpoint
+  ON push_subscriptions(endpoint)
+  WHERE endpoint IS NOT NULL;
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_push_subscriptions_native_token
+  ON push_subscriptions(native_token)
+  WHERE native_token IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_push_subscriptions_user
+  ON push_subscriptions(user_id);
 
 CREATE TABLE IF NOT EXISTS notifications (
   id SERIAL PRIMARY KEY,

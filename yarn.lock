@@ -1361,12 +1361,39 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@capacitor/geolocation@npm:^8.1.0":
+  version: 8.1.0
+  resolution: "@capacitor/geolocation@npm:8.1.0"
+  dependencies:
+    "@capacitor/synapse": "npm:^1.0.4"
+  peerDependencies:
+    "@capacitor/core": ">=8.0.0"
+  checksum: 10c0/e067c3ff56cf3a413510b802b3dcf69a6cf34df6b7c7fe49300f77450c346ab8b58850d3493037436ee4189a94cf5ddf40a9f57e47e6afdaae6d58cc13a464d3
+  languageName: node
+  linkType: hard
+
 "@capacitor/ios@npm:^8.0.2":
   version: 8.0.2
   resolution: "@capacitor/ios@npm:8.0.2"
   peerDependencies:
     "@capacitor/core": ^8.0.0
   checksum: 10c0/ba412e4cc819b5abdc64627bf99a837cdb687af5def9ceae357699570f27f537efe264e2db3c89133fa69ae144df71add6e2b343c4f0511715bfdba2f478b94d
+  languageName: node
+  linkType: hard
+
+"@capacitor/push-notifications@npm:^8.0.0":
+  version: 8.0.0
+  resolution: "@capacitor/push-notifications@npm:8.0.0"
+  peerDependencies:
+    "@capacitor/core": ">=8.0.0"
+  checksum: 10c0/84e20ae18733cd283eb30a77bd1c650adc064544e5b1c57a60e00ee9783388591385bef92ef1ccca3553c2da080d0fa8bf6e9cd94eedddc512091b93d3c584c7
+  languageName: node
+  linkType: hard
+
+"@capacitor/synapse@npm:^1.0.4":
+  version: 1.0.4
+  resolution: "@capacitor/synapse@npm:1.0.4"
+  checksum: 10c0/83f37d06ebdb4234596f123417043aae8b0fd3b5905d399fe8bb7f1d7c3352c8449bef093793b01a0b3c4a59208ac27aec5b1ed7cf5e399c5c3004cc0ca74646
   languageName: node
   linkType: hard
 
@@ -7107,7 +7134,9 @@ __metadata:
     "@capacitor/assets": "npm:^3.0.5"
     "@capacitor/cli": "npm:^8.0.2"
     "@capacitor/core": "npm:^8.0.2"
+    "@capacitor/geolocation": "npm:^8.1.0"
     "@capacitor/ios": "npm:^8.0.2"
+    "@capacitor/push-notifications": "npm:^8.0.0"
     "@capgo/capacitor-social-login": "npm:^8.3.0"
     "@cloudflare/vite-plugin": "npm:^1.21.1"
     "@cloudflare/workers-types": "npm:^4.20260120.0"

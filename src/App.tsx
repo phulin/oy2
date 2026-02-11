@@ -1,5 +1,7 @@
 import { registerSW } from "virtual:pwa-register";
-import { Capacitor } from "@capacitor/core";
+import { Capacitor, type PluginListenerHandle } from "@capacitor/core";
+import { Geolocation as CapacitorGeolocation } from "@capacitor/geolocation";
+import { PushNotifications } from "@capacitor/push-notifications";
 import { SocialLogin } from "@capgo/capacitor-social-login";
 import { useNavigate } from "@solidjs/router";
 import type { JSX } from "solid-js";
@@ -119,6 +121,10 @@ export default function App(props: AppProps) {
 	);
 	const [swRegistration, setSwRegistration] =
 		createSignal<ServiceWorkerRegistration | null>(null);
+	const [nativePushToken, setNativePushToken] = createSignal<string | null>(
+		null,
+	);
+	const [, setNativePushRegistrationError] = createSignal<string | null>(null);
 	const parsedOyId = requestedOyId ? Number(requestedOyId) : null;
 	const [loadingOys, setLoadingOys] = createSignal(false);
 	const [loadingMoreOys, setLoadingMoreOys] = createSignal(false);
@@ -182,6 +188,153 @@ export default function App(props: AppProps) {
 		return response.json() as Promise<T>;
 	}
 
+	function getNativePushPlatform() {
+		const platform = Capacitor.getPlatform();
+		if (platform === "ios" || platform === "android") {
+			return platform;
+		}
+		return null;
+	}
+
+	async function subscribeNativePushToken(token: string) {
+		const platform = getNativePushPlatform();
+		if (!platform) {
+			return;
+		}
+
+		await api("/api/push/native/subscribe", {
+			method: "POST",
+			body: JSON.stringify({ token, platform }),
+		});
+	}
+
+	async function unsubscribeNativePushToken(token: string) {
+		await api("/api/push/native/unsubscribe", {
+			method: "POST",
+			body: JSON.stringify({ token }),
+		});
+	}
+
+	function getErrorMessage(error: unknown) {
+		if (error instanceof Error) {
+			return error.message;
+		}
+		if (typeof error === "string") {
+			return error;
+		}
+		if (typeof error === "object" && error !== null) {
+			const maybeMessage = (error as { message?: unknown }).message;
+			if (typeof maybeMessage === "string" && maybeMessage.trim().length > 0) {
+				return maybeMessage;
+			}
+			try {
+				const serialized = JSON.stringify(error);
+				if (serialized && serialized !== "{}") {
+					return serialized;
+				}
+			} catch (_err) {}
+		}
+		return "Unknown error";
+	}
+
+	function getNativePushSetupHint() {
+		const platform = Capacitor.getPlatform();
+		if (platform === "android") {
+			return "Check Firebase setup (google-services.json + FCM sender config).";
+		}
+		if (platform === "ios") {
+			return "Use a physical device and verify Push Notifications capability/provisioning.";
+		}
+		return "Verify native push configuration.";
+	}
+
+	async function ensureNativePushRegistration() {
+		if (!Capacitor.isNativePlatform()) {
+			return false;
+		}
+		if (!Capacitor.isPluginAvailable("PushNotifications")) {
+			throw new Error("PushNotifications plugin unavailable");
+		}
+
+		const permissionState = await PushNotifications.checkPermissions().then(
+			(result) =>
+				result.receive === "prompt"
+					? PushNotifications.requestPermissions().then(
+							(requestResult) => requestResult.receive,
+						)
+					: result.receive,
+		);
+
+		if (permissionState !== "granted") {
+			return false;
+		}
+
+		const existingToken = nativePushToken();
+		if (existingToken) {
+			if (currentUser()) {
+				await subscribeNativePushToken(existingToken);
+			}
+			return true;
+		}
+
+		let registrationHandle: PluginListenerHandle | null = null;
+		let registrationErrorHandle: PluginListenerHandle | null = null;
+
+		const cleanup = async () => {
+			await Promise.all([
+				registrationHandle?.remove(),
+				registrationErrorHandle?.remove(),
+			]);
+		};
+
+		try {
+			const registrationResult = new Promise<string>((resolve, reject) => {
+				const timeout = window.setTimeout(() => {
+					reject(new Error("Push registration timed out"));
+				}, 10000);
+
+				const resolveWithCleanup = (token: string) => {
+					window.clearTimeout(timeout);
+					resolve(token);
+				};
+				const rejectWithCleanup = (reason: unknown) => {
+					window.clearTimeout(timeout);
+					reject(reason);
+				};
+
+				void Promise.all([
+					PushNotifications.addListener("registration", (token) => {
+						resolveWithCleanup(token.value);
+					}).then((handle) => {
+						registrationHandle = handle;
+					}),
+					PushNotifications.addListener("registrationError", (err) => {
+						rejectWithCleanup(err);
+					}).then((handle) => {
+						registrationErrorHandle = handle;
+					}),
+				]).catch((err) => {
+					rejectWithCleanup(err);
+				});
+			});
+
+			await PushNotifications.register();
+			const token = await registrationResult;
+			setNativePushRegistrationError(null);
+			setNativePushToken(token);
+			if (currentUser()) {
+				await subscribeNativePushToken(token);
+			}
+			return true;
+		} catch (err) {
+			const message = `${getErrorMessage(err)}. ${getNativePushSetupHint()}`;
+			setNativePushRegistrationError(message);
+			throw new Error(message);
+		} finally {
+			await cleanup();
+		}
+	}
+
 	async function ensurePushSubscription(
 		registration: ServiceWorkerRegistration,
 	) {
@@ -222,6 +375,18 @@ export default function App(props: AppProps) {
 
 	async function registerServiceWorker() {
 		if (!("serviceWorker" in navigator)) {
+			return;
+		}
+
+		if (Capacitor.isNativePlatform()) {
+			const registrations = await navigator.serviceWorker.getRegistrations();
+			await Promise.all(
+				registrations.map((registration) => registration.unregister()),
+			);
+			if ("caches" in window) {
+				const cacheKeys = await caches.keys();
+				await Promise.all(cacheKeys.map((cacheKey) => caches.delete(cacheKey)));
+			}
 			return;
 		}
 
@@ -648,6 +813,10 @@ export default function App(props: AppProps) {
 				console.error("Push unsubscribe failed:", err);
 			});
 		}
+		const token = nativePushToken();
+		if (token && Capacitor.isNativePlatform()) {
+			unsubscribeNativePushToken(token).catch(() => {});
+		}
 	}
 
 	async function deleteAccount() {
@@ -660,9 +829,34 @@ export default function App(props: AppProps) {
 				console.error("Push unsubscribe failed:", err);
 			});
 		}
+		const token = nativePushToken();
+		if (token && Capacitor.isNativePlatform()) {
+			unsubscribeNativePushToken(token).catch(() => {});
+		}
 	}
 
 	async function handleSetupNotifications() {
+		if (Capacitor.isNativePlatform()) {
+			try {
+				const enabled = await ensureNativePushRegistration();
+				addOyToast({
+					id: Date.now(),
+					title: "Notifications",
+					body: enabled
+						? "Push notifications enabled!"
+						: "Notifications permission was not granted.",
+				});
+			} catch (err) {
+				const errorMessage = getErrorMessage(err);
+				addOyToast({
+					id: Date.now(),
+					title: "Notifications",
+					body: `Failed to enable notifications: ${errorMessage}`,
+				});
+			}
+			return;
+		}
+
 		const registration = swRegistration();
 		if (!registration) {
 			addOyToast({
@@ -753,6 +947,15 @@ export default function App(props: AppProps) {
 	}
 
 	function getCurrentPosition(options?: PositionOptions) {
+		if (Capacitor.isNativePlatform()) {
+			if (!Capacitor.isPluginAvailable("Geolocation")) {
+				return Promise.reject(
+					new Error("Native geolocation plugin unavailable on this build"),
+				);
+			}
+			return CapacitorGeolocation.getCurrentPosition(options);
+		}
+
 		return new Promise<GeolocationPosition>((resolve, reject) => {
 			if (!navigator.geolocation) {
 				reject(new Error("Geolocation not supported"));
@@ -936,13 +1139,6 @@ export default function App(props: AppProps) {
 	onMount(async () => {
 		if (Capacitor.isNativePlatform()) {
 			try {
-				console.log("[oauth][init] social login config", {
-					googleWebClientId,
-					googleIosClientId,
-					googleIosServerClientId: googleWebClientId,
-					appleNativeClientId,
-				});
-
 				await SocialLogin.initialize({
 					google: {
 						webClientId: googleWebClientId,
@@ -995,6 +1191,55 @@ export default function App(props: AppProps) {
 		if (!currentUser()) {
 			setLoadingFriends(false);
 		}
+	});
+
+	onMount(() => {
+		if (
+			!Capacitor.isNativePlatform() ||
+			!Capacitor.isPluginAvailable("PushNotifications")
+		) {
+			return;
+		}
+
+		const listenerHandles: PluginListenerHandle[] = [];
+
+		const setupListeners = async () => {
+			listenerHandles.push(
+				await PushNotifications.addListener("registration", (token) => {
+					setNativePushToken(token.value);
+				}),
+			);
+			listenerHandles.push(
+				await PushNotifications.addListener("registrationError", (err) => {
+					setNativePushRegistrationError(getErrorMessage(err));
+				}),
+			);
+			listenerHandles.push(
+				await PushNotifications.addListener("pushNotificationReceived", () => {
+					if (currentUser()) {
+						void refreshWithoutAnimation();
+					}
+				}),
+			);
+			listenerHandles.push(
+				await PushNotifications.addListener(
+					"pushNotificationActionPerformed",
+					() => {
+						if (currentUser()) {
+							void refreshWithoutAnimation();
+						}
+					},
+				),
+			);
+		};
+
+		void setupListeners().catch(() => {});
+
+		onCleanup(() => {
+			for (const handle of listenerHandles) {
+				void handle.remove();
+			}
+		});
 	});
 
 	onMount(() => {
@@ -1173,6 +1418,20 @@ export default function App(props: AppProps) {
 				console.error("Push subscription refresh failed:", err);
 			});
 		}
+	});
+
+	createEffect(() => {
+		const token = nativePushToken();
+		if (
+			!token ||
+			!currentUser() ||
+			!Capacitor.isNativePlatform() ||
+			!Capacitor.isPluginAvailable("PushNotifications")
+		) {
+			return;
+		}
+
+		subscribeNativePushToken(token).catch(() => {});
 	});
 
 	createEffect(() => {
