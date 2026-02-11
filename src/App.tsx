@@ -68,6 +68,15 @@ type AuthStep =
 	| "choose_username"
 	| "passkey_setup";
 
+type IncomingPushPayload = {
+	type?: string;
+	notificationId?: number;
+	title?: string;
+	body?: string;
+	createdAt?: number;
+	fromUserId?: number;
+};
+
 // Check URL params for OAuth callback state
 const needsChooseUsername = urlParams.get("choose_username") === "1";
 const needsPasskeySetup = urlParams.get("passkey_setup") === "1";
@@ -145,6 +154,123 @@ export default function App(props: AppProps) {
 		parsedOyId !== null && Number.isFinite(parsedOyId) ? parsedOyId : null;
 	let pendingExpandType: string | null = requestedExpand;
 	const seenNotificationLimit = 100;
+	const seenNotificationIdsRaw = localStorage.getItem("seenNotificationIds");
+	const seenNotificationIds = seenNotificationIdsRaw
+		? (JSON.parse(seenNotificationIdsRaw) as number[])
+		: [];
+	const seenNotificationSet = new Set(seenNotificationIds);
+
+	const rememberNotification = (notificationId: number) => {
+		if (seenNotificationSet.has(notificationId)) {
+			return false;
+		}
+		seenNotificationSet.add(notificationId);
+		seenNotificationIds.push(notificationId);
+		if (seenNotificationIds.length > seenNotificationLimit) {
+			seenNotificationIds.splice(
+				0,
+				seenNotificationIds.length - seenNotificationLimit,
+			);
+		}
+		localStorage.setItem(
+			"seenNotificationIds",
+			JSON.stringify(seenNotificationIds),
+		);
+		return true;
+	};
+
+	const parsePushPayload = (value: unknown): IncomingPushPayload | null => {
+		if (!value || typeof value !== "object") {
+			return null;
+		}
+		const raw = value as Record<string, unknown>;
+		const notificationId = Number(raw.notificationId);
+		const createdAt = Number(raw.createdAt);
+		const fromUserId = Number(raw.fromUserId);
+		return {
+			type: typeof raw.type === "string" ? raw.type : undefined,
+			notificationId: Number.isFinite(notificationId)
+				? notificationId
+				: undefined,
+			title: typeof raw.title === "string" ? raw.title : undefined,
+			body: typeof raw.body === "string" ? raw.body : undefined,
+			createdAt: Number.isFinite(createdAt) ? createdAt : undefined,
+			fromUserId: Number.isFinite(fromUserId) ? fromUserId : undefined,
+		};
+	};
+
+	const handleIncomingPushPayload = (
+		payload: IncomingPushPayload,
+		options: {
+			onPlaySound?: () => void;
+		},
+	) => {
+		if (payload.type !== "oy" && payload.type !== "lo") {
+			return;
+		}
+		if (
+			payload.notificationId &&
+			!rememberNotification(payload.notificationId)
+		) {
+			return;
+		}
+		const fromUserId = payload.fromUserId;
+		const createdAt = payload.createdAt;
+		if (
+			currentUser() &&
+			typeof fromUserId === "number" &&
+			typeof createdAt === "number"
+		) {
+			setLastOyInfo((prev) => {
+				const next = prev.map((info) =>
+					info.friend_id === fromUserId
+						? {
+								...info,
+								last_oy_type: payload.type ?? null,
+								last_oy_created_at: createdAt,
+								last_oy_from_user_id: fromUserId,
+							}
+						: info,
+				);
+				const hasExisting = next.some((info) => info.friend_id === fromUserId);
+				const nextList = hasExisting
+					? next
+					: [
+							...next,
+							{
+								friend_id: fromUserId,
+								last_oy_type: payload.type ?? null,
+								last_oy_created_at: createdAt,
+								last_oy_from_user_id: fromUserId,
+								streak: 0,
+							},
+						];
+				const sorted = [...nextList].sort(
+					(a, b) => (b.last_oy_created_at ?? -1) - (a.last_oy_created_at ?? -1),
+				);
+				localStorage.setItem(
+					cachedLastOyInfoStorageKey,
+					JSON.stringify(sorted),
+				);
+				return sorted;
+			});
+		}
+		options.onPlaySound?.();
+
+		if (
+			payload.type === "oy" &&
+			payload.notificationId &&
+			payload.title &&
+			payload.body &&
+			currentUser()
+		) {
+			addOyToast({
+				id: payload.notificationId,
+				title: payload.title,
+				body: payload.body,
+			});
+		}
+	};
 
 	const friendsWithLastOy = createMemo<FriendWithLastOy[]>(() => {
 		const infoByFriendId = new Map(
@@ -1239,16 +1365,27 @@ export default function App(props: AppProps) {
 				}),
 			);
 			listenerHandles.push(
-				await PushNotifications.addListener("pushNotificationReceived", () => {
-					if (currentUser()) {
-						void refreshWithoutAnimation();
-					}
-				}),
+				await PushNotifications.addListener(
+					"pushNotificationReceived",
+					(event) => {
+						const payload = parsePushPayload(event.data);
+						if (payload) {
+							handleIncomingPushPayload(payload, {});
+						}
+						if (currentUser()) {
+							void refreshWithoutAnimation();
+						}
+					},
+				),
 			);
 			listenerHandles.push(
 				await PushNotifications.addListener(
 					"pushNotificationActionPerformed",
-					() => {
+					(event) => {
+						const payload = parsePushPayload(event.notification?.data);
+						if (payload) {
+							handleIncomingPushPayload(payload, {});
+						}
 						if (currentUser()) {
 							void refreshWithoutAnimation();
 						}
@@ -1277,7 +1414,7 @@ export default function App(props: AppProps) {
 	});
 
 	onMount(() => {
-		if (!("serviceWorker" in navigator)) {
+		if (Capacitor.isNativePlatform() || !("serviceWorker" in navigator)) {
 			return;
 		}
 
@@ -1318,114 +1455,18 @@ export default function App(props: AppProps) {
 			document.addEventListener("touchstart", gestureHandler);
 			document.addEventListener("keydown", gestureHandler);
 		};
-		const seenNotificationIdsRaw = localStorage.getItem("seenNotificationIds");
-		const seenNotificationIds = seenNotificationIdsRaw
-			? (JSON.parse(seenNotificationIdsRaw) as number[])
-			: [];
-		const seenNotificationSet = new Set(seenNotificationIds);
-
-		const rememberNotification = (notificationId: number) => {
-			if (seenNotificationSet.has(notificationId)) {
-				return false;
-			}
-			seenNotificationSet.add(notificationId);
-			seenNotificationIds.push(notificationId);
-			if (seenNotificationIds.length > seenNotificationLimit) {
-				seenNotificationIds.splice(
-					0,
-					seenNotificationIds.length - seenNotificationLimit,
-				);
-			}
-			localStorage.setItem(
-				"seenNotificationIds",
-				JSON.stringify(seenNotificationIds),
-			);
-			return true;
-		};
-
 		const onMessage = (event: MessageEvent) => {
-			const payload = event.data?.payload as
-				| {
-						type?: string;
-						notificationId?: number;
-						title?: string;
-						body?: string;
-						createdAt?: number;
-						fromUserId?: number;
-				  }
-				| undefined;
-			if (payload?.type !== "oy" && payload?.type !== "lo") {
+			const payload = parsePushPayload(event.data?.payload);
+			if (!payload) {
 				return;
 			}
-			if (
-				payload.notificationId &&
-				!rememberNotification(payload.notificationId)
-			) {
-				return;
-			}
-			const createdAt = payload.createdAt;
-			const fromUserId = payload.fromUserId;
-			if (
-				currentUser() &&
-				typeof fromUserId === "number" &&
-				typeof createdAt === "number" &&
-				Number.isFinite(createdAt)
-			) {
-				setLastOyInfo((prev) => {
-					const next = prev.map((info) =>
-						info.friend_id === fromUserId
-							? {
-									...info,
-									last_oy_type: payload.type ?? null,
-									last_oy_created_at: createdAt,
-									last_oy_from_user_id: fromUserId,
-								}
-							: info,
-					);
-					const hasExisting = next.some(
-						(info) => info.friend_id === fromUserId,
-					);
-					const nextList = hasExisting
-						? next
-						: [
-								...next,
-								{
-									friend_id: fromUserId,
-									last_oy_type: payload.type ?? null,
-									last_oy_created_at: createdAt,
-									last_oy_from_user_id: fromUserId,
-									streak: 0,
-								},
-							];
-					const sorted = [...nextList].sort(
-						(a, b) =>
-							(b.last_oy_created_at ?? -1) - (a.last_oy_created_at ?? -1),
-					);
-					localStorage.setItem(
-						cachedLastOyInfoStorageKey,
-						JSON.stringify(sorted),
-					);
-					return sorted;
-				});
-			}
-			void oyAudio.play().catch(() => {
-				ensureAudioUnlocked();
+			handleIncomingPushPayload(payload, {
+				onPlaySound: () => {
+					void oyAudio.play().catch(() => {
+						ensureAudioUnlocked();
+					});
+				},
 			});
-
-			// Show toast notification for oys only
-			if (
-				payload.type === "oy" &&
-				payload.notificationId &&
-				payload.title &&
-				payload.body &&
-				currentUser()
-			) {
-				addOyToast({
-					id: payload.notificationId,
-					title: payload.title,
-					body: payload.body,
-				});
-			}
 		};
 
 		navigator.serviceWorker.addEventListener("message", onMessage);
