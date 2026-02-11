@@ -33,6 +33,7 @@
 		"@capacitor/android": "^8.0.2",
 		"@capacitor/core": "^8.0.2",
 		"@capacitor/ios": "^8.0.2",
+		"@capgo/capacitor-social-login": "^8.3.0",
 		"@kobalte/core": "^0.13.11",
 		"@simplewebauthn/server": "^13.2.2",
 		"@solidjs/router": "^0.15.4",

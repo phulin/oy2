@@ -742,4 +742,96 @@ export function registerOAuthRoutes(app: App) {
 
 		return c.json({ provider, email, name });
 	});
+
+	// Native Google Sign-In: return client ID for plugin initialization
+	app.get("/api/auth/oauth/google/config", (c: AppContext) => {
+		return c.json({ clientId: c.env.GOOGLE_CLIENT_ID });
+	});
+
+	// Native Google Sign-In: accept ID token directly (no redirect flow)
+	app.post("/api/auth/oauth/google/native", async (c: AppContext) => {
+		const { idToken, username } = (await c.req.json()) as {
+			idToken?: string;
+			username?: string;
+		};
+
+		if (!idToken) {
+			return c.json({ error: "Missing idToken" }, 400);
+		}
+
+		const verified = await verifyGoogleIdToken(idToken, c.env.GOOGLE_CLIENT_ID);
+		if (!verified) {
+			return c.json({ error: "Invalid ID token" }, 401);
+		}
+
+		// Check if user already exists with this Google identity
+		const existingUser = await c
+			.get("db")
+			.query<User>(
+				"SELECT * FROM users WHERE oauth_provider = $1 AND oauth_sub = $2",
+				["google", verified.sub],
+			);
+
+		if (existingUser.rows[0]) {
+			const user = existingUser.rows[0];
+			const sessionToken = await createSession(c, user);
+			setSessionCookie(c, sessionToken);
+			updateLastSeen(c, user.id);
+
+			const passkeys = await c
+				.get("db")
+				.query("SELECT id FROM passkeys WHERE user_id = $1 LIMIT 1", [user.id]);
+
+			return c.json({
+				user: authUserPayload(user),
+				needsPasskeySetup: passkeys.rows.length === 0,
+			});
+		}
+
+		// New user with username provided — try to create
+		if (username) {
+			const user = await tryCreateOAuthUser(
+				c,
+				username,
+				"google",
+				verified.sub,
+				verified.email,
+			);
+
+			if (user) {
+				const sessionToken = await createSession(c, user);
+				setSessionCookie(c, sessionToken);
+				updateLastSeen(c, user.id);
+				return c.json({
+					user: authUserPayload(user),
+					needsPasskeySetup: true,
+				});
+			}
+
+			return c.json({ error: "Username already taken" }, 409);
+		}
+
+		// New user, no username — store pending and let client handle username selection
+		const pendingId = await generateState();
+		await c.env.OY2.put(
+			`${OAUTH_PENDING_PREFIX}${pendingId}`,
+			JSON.stringify({
+				provider: "google",
+				sub: verified.sub,
+				email: verified.email,
+				name: verified.name,
+			}),
+			{ expirationTtl: 600 },
+		);
+
+		setCookie(c, "oauth_pending", pendingId, {
+			httpOnly: true,
+			secure: true,
+			sameSite: "Strict",
+			path: "/",
+			maxAge: 600,
+		});
+
+		return c.json({ needsUsername: true });
+	});
 }

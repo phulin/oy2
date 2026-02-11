@@ -1,4 +1,6 @@
 import { registerSW } from "virtual:pwa-register";
+import { Capacitor } from "@capacitor/core";
+import { SocialLogin } from "@capgo/capacitor-social-login";
 import { useNavigate } from "@solidjs/router";
 import type { JSX } from "solid-js";
 import {
@@ -43,6 +45,10 @@ const cachedUserStorageKey = "cachedUser";
 const cachedFriendsStorageKey = "cachedFriends";
 const cachedLastOyInfoStorageKey = "cachedLastOyInfo";
 const passkeySetupSkipStorageKey = "passkeySetupSkipped";
+const googleWebClientId =
+	"132817325553-3q6etn99vumoi40caul2bk2855a7h2hd.apps.googleusercontent.com";
+const googleIosClientId =
+	"132817325553-b4sn74mq1t6ijbig5mbsrnq68518tk3g.apps.googleusercontent.com";
 
 type AuthStep =
 	| "initial"
@@ -766,6 +772,21 @@ export default function App(props: AppProps) {
 	}
 
 	onMount(async () => {
+		if (Capacitor.isNativePlatform()) {
+			try {
+				await SocialLogin.initialize({
+					google: {
+						webClientId: googleWebClientId,
+						iOSClientId: googleIosClientId,
+						iOSServerClientId: googleWebClientId,
+						mode: "online",
+					},
+				});
+			} catch (err) {
+				console.error("Failed to initialize SocialLogin:", err);
+			}
+		}
+
 		await registerServiceWorker();
 		setLoadingFriends(true);
 		setBooting(false);

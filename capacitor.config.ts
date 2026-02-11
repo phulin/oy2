@@ -8,7 +8,15 @@ const config: CapacitorConfig = {
     url: 'https://oyme.site',
     iosScheme: 'https',
     androidScheme: 'https'
-  }
+  },
+  plugins: {
+    SocialLogin: {
+      google: true,
+      apple: false,
+      facebook: false,
+      twitter: false,
+    },
+  },
 };
 
 export default config;

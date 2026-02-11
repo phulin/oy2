@@ -1370,6 +1370,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@capgo/capacitor-social-login@npm:^8.3.0":
+  version: 8.3.0
+  resolution: "@capgo/capacitor-social-login@npm:8.3.0"
+  peerDependencies:
+    "@capacitor/core": ">=8.0.0"
+  checksum: 10c0/aa178b40a71b9f5cbad166c5646cc7837f75e81884a6be53ccd4f5c0d657c60b4df18787e3ab5cfcc0311ad53078285b88fc40dee5c92d0c3fc07a4167a74e28
+  languageName: node
+  linkType: hard
+
 "@cloudflare/kv-asset-handler@npm:0.4.2":
   version: 0.4.2
   resolution: "@cloudflare/kv-asset-handler@npm:0.4.2"
@@ -7083,6 +7092,7 @@ __metadata:
     "@capacitor/cli": "npm:^8.0.2"
     "@capacitor/core": "npm:^8.0.2"
     "@capacitor/ios": "npm:^8.0.2"
+    "@capgo/capacitor-social-login": "npm:^8.3.0"
     "@cloudflare/vite-plugin": "npm:^1.21.1"
     "@cloudflare/workers-types": "npm:^4.20260120.0"
     "@kobalte/core": "npm:^0.13.11"

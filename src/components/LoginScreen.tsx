@@ -1,3 +1,5 @@
+import { Capacitor } from "@capacitor/core";
+import { SocialLogin } from "@capgo/capacitor-social-login";
 import { A } from "@solidjs/router";
 import { createSignal, onMount, Show } from "solid-js";
 import { Screen } from "./Screen";
@@ -20,6 +22,8 @@ export function LoginScreen(props: LoginScreenProps) {
 	const [username, setUsername] = createSignal("");
 	const [usernameError, setUsernameError] = createSignal<string | null>(null);
 	const [checking, setChecking] = createSignal(false);
+	const [googleError, setGoogleError] = createSignal<string | null>(null);
+	const isNative = Capacitor.isNativePlatform();
 
 	onMount(() => {
 		const isStandalone =
@@ -98,9 +102,71 @@ export function LoginScreen(props: LoginScreenProps) {
 		}
 	}
 
+	async function handleNativeGoogleLogin(
+		signupUsername?: string,
+	): Promise<void> {
+		setGoogleError(null);
+		try {
+			const res = await SocialLogin.login({
+				provider: "google",
+				options: {},
+			});
+
+			const idToken = (res.result as { idToken?: string | null }).idToken;
+			if (!idToken) {
+				setGoogleError("Google sign-in did not return an ID token.");
+				return;
+			}
+
+			const body: { idToken: string; username?: string } = { idToken };
+			if (signupUsername) {
+				body.username = signupUsername;
+			}
+
+			const response = await fetch("/api/auth/oauth/google/native", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				credentials: "include",
+				body: JSON.stringify(body),
+			});
+
+			const data = (await response.json()) as
+				| { user: unknown; needsPasskeySetup?: boolean }
+				| { needsUsername: true }
+				| { error: string };
+
+			if (!response.ok) {
+				setGoogleError((data as { error: string }).error || "Login failed");
+				return;
+			}
+
+			if ("needsUsername" in data && data.needsUsername) {
+				window.location.href = "/?choose_username=1";
+				return;
+			}
+
+			if ("needsPasskeySetup" in data && data.needsPasskeySetup) {
+				window.location.href = "/?passkey_setup=1";
+				return;
+			}
+
+			window.location.href = "/";
+		} catch (err) {
+			const msg = (err as Error).message || "";
+			if (msg.includes("cancel") || msg.includes("Cancel")) {
+				return;
+			}
+			setGoogleError(msg || "Google sign-in failed");
+		}
+	}
+
 	function proceedWithGoogle() {
 		const value = username().trim();
-		window.location.href = `/api/auth/oauth/google?username=${encodeURIComponent(value)}`;
+		if (isNative) {
+			void handleNativeGoogleLogin(value);
+		} else {
+			window.location.href = `/api/auth/oauth/google?username=${encodeURIComponent(value)}`;
+		}
 	}
 
 	function proceedWithEmail() {
@@ -321,7 +387,11 @@ export function LoginScreen(props: LoginScreenProps) {
 						type="button"
 						class="signin-button oauth-google"
 						onClick={() => {
-							window.location.href = "/api/auth/oauth/google";
+							if (isNative) {
+								void handleNativeGoogleLogin();
+							} else {
+								window.location.href = "/api/auth/oauth/google";
+							}
 						}}
 					>
 						<GoogleIcon />
@@ -353,6 +423,7 @@ export function LoginScreen(props: LoginScreenProps) {
 					</button>
 				</div>
 				{passkeyError() && <p class="form-error">{passkeyError()}</p>}
+				{googleError() && <p class="form-error">{googleError()}</p>}
 			</Show>
 
 			{showInstall() && (
