@@ -573,12 +573,11 @@ export default function App(props: AppProps) {
 			});
 	}
 
-	async function loadFriends({ noCache = false }: { noCache?: boolean } = {}) {
+	async function loadFriends() {
 		setLoadingFriends(true);
 		try {
-			const query = noCache ? "?no-cache=true" : "";
 			const { friends: data } = await api<{ friends: Friend[] }>(
-				`/api/friends${query}`,
+				"/api/friends?no-cache=true",
 			);
 			const nextFriends = data || [];
 			setFriends(nextFriends);
@@ -633,13 +632,7 @@ export default function App(props: AppProps) {
 		}
 	}
 
-	async function loadOysPage({
-		reset = false,
-		noCache = false,
-	}: {
-		reset?: boolean;
-		noCache?: boolean;
-	} = {}) {
+	async function loadOysPage({ reset = false }: { reset?: boolean } = {}) {
 		if (!reset && (loadingMoreOys() || !hasMoreOys())) {
 			return;
 		}
@@ -656,9 +649,7 @@ export default function App(props: AppProps) {
 				params.set("before", String(cursor.before));
 				params.set("beforeId", String(cursor.beforeId));
 			}
-			if (noCache) {
-				params.set("no-cache", "true");
-			}
+			params.set("no-cache", "true");
 			const query = params.toString() ? `?${params.toString()}` : "";
 			const { oys: oysData, nextCursor } = await api<{
 				oys: Oy[];
@@ -708,9 +699,9 @@ export default function App(props: AppProps) {
 		}
 		try {
 			await Promise.all([
-				loadFriends({ noCache: true }),
+				loadFriends(),
 				loadLastOyInfo({ noCache: true }),
-				loadOysPage({ reset: true, noCache: true }),
+				loadOysPage({ reset: true }),
 			]);
 		} finally {
 			if (showLoadingAnimation) {
