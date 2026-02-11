@@ -1,5 +1,6 @@
 import { deleteCookie } from "hono/cookie";
 import { authUserPayload, validateUsername } from "../lib";
+import { validateCleanUsername } from "../moderation";
 import type { App, AppContext, User } from "../types";
 
 const DELETE_RATE_PREFIX = "account_delete_rate:";
@@ -35,6 +36,10 @@ export function registerAuthRoutes(app: App) {
 		const formatError = validateUsername(trimmed);
 		if (formatError) {
 			return c.json({ available: false, error: formatError }, 400);
+		}
+		const moderationError = validateCleanUsername(trimmed);
+		if (moderationError) {
+			return c.json({ available: false, error: moderationError }, 400);
 		}
 
 		if (!/^[a-zA-Z0-9_]+$/.test(trimmed)) {

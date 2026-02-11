@@ -17,14 +17,14 @@ This file tracks App Store readiness work with current implementation status.
 - [x] Add block/report API endpoints (implemented as friend-level routes):
   - `POST /api/friends/:friendId/block`
   - `POST /api/friends/:friendId/report`
-- [ ] Add unblock endpoint (if required for policy/product), e.g. `DELETE /api/users/block/:id`.
-- [ ] Enforce block rules in friend search/suggestions in `/worker/routes/users.ts`.
-- [ ] Enforce block rules in fetch Oys path in `/worker/routes/oys.ts` (send path is already enforced).
+- [x] Add unblock endpoint (if required for policy/product), e.g. `DELETE /api/users/block/:id`.
+- [x] Enforce block rules in friend search/suggestions in `/worker/routes/users.ts`.
+- [x] Enforce block rules in fetch Oys path in `/worker/routes/oys.ts` (send path is already enforced).
 - [x] Add friend-level block/report actions to UI (implemented in `/src/components/FriendProfileCardsScreen.tsx`).
-- [ ] Add Oy-level report/block actions to UI in `/src/components/OysList.tsx`.
+- [x] Keep block/report actions on `/src/components/FriendProfileCardsScreen.tsx` (no Oy-level block/report actions required).
 - [x] Add report queue/admin tooling in `/src/components/AdminDashboard.tsx` and `/worker/routes/admin.ts`.
-- [ ] Add minimal abusive-username/content filter server-side in `/worker/routes/auth.ts` and relevant write endpoints.
-- [ ] Add/expand worker tests for block/report behavior in `/tests/worker`.
+- [x] Add minimal abusive-username/content filter server-side in `/worker/routes/auth.ts` and relevant write endpoints.
+- [x] Add/expand worker tests for block/report behavior in `/tests/worker`.
 
 ## 3) Sign in with Apple
 

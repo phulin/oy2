@@ -256,6 +256,12 @@ export function registerOyRoutes(app: App) {
       INNER JOIN users u_from ON y.from_user_id = u_from.id
       INNER JOIN users u_to ON y.to_user_id = u_to.id
       WHERE y.to_user_id = $1
+        AND NOT EXISTS (
+          SELECT 1
+          FROM user_blocks b
+          WHERE (b.blocker_user_id = $1 AND b.blocked_user_id = y.from_user_id)
+            OR (b.blocker_user_id = y.from_user_id AND b.blocked_user_id = $1)
+        )
         AND (
           $2 = 0
           OR y.created_at < $3
@@ -273,6 +279,12 @@ export function registerOyRoutes(app: App) {
       INNER JOIN users u_to ON y.to_user_id = u_to.id
       WHERE y.from_user_id = $7
         AND y.to_user_id != $8
+        AND NOT EXISTS (
+          SELECT 1
+          FROM user_blocks b
+          WHERE (b.blocker_user_id = $7 AND b.blocked_user_id = y.to_user_id)
+            OR (b.blocker_user_id = y.to_user_id AND b.blocked_user_id = $7)
+        )
         AND (
           $9 = 0
           OR y.created_at < $10

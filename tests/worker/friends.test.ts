@@ -132,4 +132,27 @@ describe("friends", () => {
 		assert.equal(body.lastOyInfo.length, 1);
 		assert.equal(body.lastOyInfo[0].streak, 0);
 	});
+
+	it("rejects reports with disallowed language", async () => {
+		const { env, db } = createTestEnv();
+		const user = seedUser(db, { username: "Main" });
+		const friend = seedUser(db, { username: "Pal" });
+		seedSession(db, user.id, "report-filter-token");
+
+		const { res, json } = await jsonRequest(
+			env,
+			`/api/friends/${friend.id}/report`,
+			{
+				method: "POST",
+				headers: { "x-session-token": "report-filter-token" },
+				body: {
+					reason: "fuck",
+					details: "contains slur",
+				},
+			},
+		);
+
+		assert.equal(res.status, 400);
+		assert.equal(json.error, "Report contains disallowed language");
+	});
 });

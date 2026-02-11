@@ -119,6 +119,12 @@
 	text-decoration: none;
 }
 
+.settings-link-button {
+	text-decoration: none;
+	display: inline-flex;
+	align-items: center;
+}
+
 .settings-danger {
 	border-color: color-mix(in srgb, #c62828 45%, var(--border));
 }

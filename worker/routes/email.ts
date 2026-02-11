@@ -1,5 +1,6 @@
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { authUserPayload, createSession, updateLastSeen } from "../lib";
+import { validateCleanUsername } from "../moderation";
 import type { App, AppContext, User } from "../types";
 
 const EMAIL_CODE_PREFIX = "email_code:";
@@ -283,6 +284,10 @@ export function registerEmailRoutes(app: App) {
 
 		if (!trimmedUsername) {
 			return c.json({ error: "Username is required" }, 400);
+		}
+		const moderationError = validateCleanUsername(trimmedUsername);
+		if (moderationError) {
+			return c.json({ error: moderationError }, 400);
 		}
 
 		// Check if username exists

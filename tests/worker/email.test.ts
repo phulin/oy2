@@ -80,6 +80,35 @@ describe("email auth", () => {
 		assert.equal(db.users[0].email, email);
 	});
 
+	it("rejects profane usernames during email registration completion", async () => {
+		const { env, kv } = createTestEnv();
+		const email = "new2@example.com";
+		await kv.put(
+			`email_code:${email}`,
+			JSON.stringify({ code: "111222", attempts: 0 }),
+		);
+
+		const { res } = await jsonRequest(env, "/api/auth/email/verify", {
+			method: "POST",
+			body: { email, code: "111222" },
+		});
+		const pendingId = getCookieValue(res, "email_pending");
+		assert.ok(pendingId);
+
+		const { res: completeRes, json } = await jsonRequest(
+			env,
+			"/api/auth/email/complete",
+			{
+				method: "POST",
+				headers: { cookie: `email_pending=${pendingId}` },
+				body: { username: "shitname" },
+			},
+		);
+
+		assert.equal(completeRes.status, 400);
+		assert.equal(json.error, "Username contains disallowed language");
+	});
+
 	it("links email for authenticated users", async (t) => {
 		const { env, kv, db } = createTestEnv();
 		const user = seedUser(db, { username: "Emailer" });

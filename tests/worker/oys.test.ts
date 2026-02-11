@@ -212,4 +212,36 @@ describe("oys and los", () => {
 		assert.equal(pagedBody.oys.length, 30);
 		assert.ok(pagedBody.nextCursor);
 	});
+
+	it("excludes oys between blocked users from fetch results", async () => {
+		const { env, db } = createTestEnv();
+		const me = seedUser(db, { username: "Viewer" });
+		const other = seedUser(db, { username: "BlockedUser" });
+		seedSession(db, me.id, "oys-block-token");
+
+		seedOy(db, {
+			fromUserId: other.id,
+			toUserId: me.id,
+			type: "oy",
+			createdAt: 200,
+		});
+		seedOy(db, {
+			fromUserId: me.id,
+			toUserId: other.id,
+			type: "oy",
+			createdAt: 210,
+		});
+
+		await jsonRequest(env, `/api/friends/${other.id}/block`, {
+			method: "POST",
+			headers: { "x-session-token": "oys-block-token" },
+		});
+
+		const { res, json } = await jsonRequest(env, "/api/oys", {
+			headers: { "x-session-token": "oys-block-token" },
+		});
+		const body = json as { oys: Array<unknown> };
+		assert.equal(res.status, 200);
+		assert.equal(body.oys.length, 0);
+	});
 });

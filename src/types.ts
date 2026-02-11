@@ -10,6 +10,12 @@ export type Friend = {
 	username: string;
 };
 
+export type BlockedUser = {
+	id: number;
+	username: string;
+	blocked_at: number;
+};
+
 export type FriendProfile = {
 	id: number;
 	username: string;

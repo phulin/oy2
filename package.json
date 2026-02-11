@@ -40,6 +40,7 @@
 		"@solidjs/router": "^0.15.4",
 		"hono": "^4.11.4",
 		"leaflet": "^1.9.4",
+		"obscenity": "^0.4.6",
 		"pg": "^8.17.2",
 		"solid-js": "^1.9.10"
 	},

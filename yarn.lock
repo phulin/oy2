@@ -7059,6 +7059,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"obscenity@npm:^0.4.6":
+  version: 0.4.6
+  resolution: "obscenity@npm:0.4.6"
+  checksum: 10c0/f5f87023a6e8493ba2e4c8b55736087eda0421b2eef0032965aadc211a289654cd370443d5c70c97cf98c5c4de24e8f11fa8ca49e67954d259ec045bc6a3d211
+  languageName: node
+  linkType: hard
+
 "once@npm:^1.3.0, once@npm:^1.3.1, once@npm:^1.4.0":
   version: 1.4.0
   resolution: "once@npm:1.4.0"
@@ -7113,6 +7120,7 @@ __metadata:
     "@types/pg": "npm:^8.16.0"
     hono: "npm:^4.11.4"
     leaflet: "npm:^1.9.4"
+    obscenity: "npm:^0.4.6"
     pg: "npm:^8.17.2"
     solid-js: "npm:^1.9.10"
     tsx: "npm:^4.21.0"

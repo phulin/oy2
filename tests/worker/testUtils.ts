@@ -674,6 +674,25 @@ class FakeD1PreparedStatement implements D1PreparedStatement {
 		}
 		if (
 			sql.startsWith(
+				"DELETE FROM user_blocks WHERE blocker_user_id = ? AND blocked_user_id = ?",
+			)
+		) {
+			const [blockerUserId, blockedUserId] = this.params as [number, number];
+			const before = this.db.userBlocks.length;
+			this.db.userBlocks = this.db.userBlocks.filter(
+				(row) =>
+					!(
+						row.blocker_user_id === blockerUserId &&
+						row.blocked_user_id === blockedUserId
+					),
+			);
+			return {
+				success: true,
+				meta: { last_row_id: 0, changes: before - this.db.userBlocks.length },
+			};
+		}
+		if (
+			sql.startsWith(
 				"INSERT INTO user_reports (reporter_user_id, target_user_id, reason, details)",
 			)
 		) {
@@ -894,20 +913,35 @@ class FakeD1PreparedStatement implements D1PreparedStatement {
 			sql.startsWith(
 				"SELECT id, username FROM users WHERE username COLLATE NOCASE LIKE ?",
 			) ||
-			sql.startsWith("SELECT id, username FROM users WHERE username ILIKE ?")
+			sql.startsWith("SELECT id, username FROM users WHERE username ILIKE ?") ||
+			(sql.startsWith("SELECT u.id, u.username FROM users u") &&
+				sql.includes("u.username ILIKE ?"))
 		) {
 			const [pattern] = this.params as [string];
 			const needle = pattern.replace(/%/g, "").toLowerCase();
+			const me = (this.params[1] as number | undefined) ?? null;
 			const results = this.db.users
 				.filter((user) => user.username.toLowerCase().includes(needle))
+				.filter((candidate) => {
+					if (me === null) {
+						return true;
+					}
+					if (candidate.id === me) {
+						return false;
+					}
+					return !this.db.userBlocks.some(
+						(block) =>
+							(block.blocker_user_id === me &&
+								block.blocked_user_id === candidate.id) ||
+							(block.blocker_user_id === candidate.id &&
+								block.blocked_user_id === me),
+					);
+				})
 				.slice(0, 20)
 				.map((user) => ({ id: user.id, username: user.username }));
 			return { results };
 		}
-		if (
-			sql.startsWith("WITH current_friends AS") &&
-			sql.includes("ranked_mutuals")
-		) {
+		if (sql.includes("ranked_mutuals AS")) {
 			const [userId, ...candidateIds] = this.params as number[];
 			const friendIds = new Set(
 				this.db.friendships
@@ -915,12 +949,29 @@ class FakeD1PreparedStatement implements D1PreparedStatement {
 					.map((row) => row.friend_id),
 			);
 			const candidateSet = new Set(candidateIds);
+			const blockedIds = new Set(
+				this.db.userBlocks.flatMap((row) => {
+					if (row.blocker_user_id === userId) {
+						return [row.blocked_user_id];
+					}
+					if (row.blocked_user_id === userId) {
+						return [row.blocker_user_id];
+					}
+					return [];
+				}),
+			);
 			const mutualsMap = new Map<number, string[]>();
 			for (const row of this.db.friendships) {
 				if (!candidateSet.has(row.user_id)) {
 					continue;
 				}
+				if (blockedIds.has(row.user_id)) {
+					continue;
+				}
 				if (!friendIds.has(row.friend_id)) {
+					continue;
+				}
+				if (blockedIds.has(row.friend_id)) {
 					continue;
 				}
 				const mutualUser = this.db.users.find((u) => u.id === row.friend_id);
@@ -946,19 +997,33 @@ class FakeD1PreparedStatement implements D1PreparedStatement {
 						return a.candidate_id - b.candidate_id;
 					}
 					return a.mutual_username.localeCompare(b.mutual_username);
-				});
+			});
 			return { results };
 		}
-		if (sql.startsWith("WITH current_friends AS")) {
+		if (sql.includes("mutual_counts AS")) {
 			const [userId] = this.params as [number];
 			const friendIds = new Set(
 				this.db.friendships
 					.filter((row) => row.user_id === userId)
 					.map((row) => row.friend_id),
 			);
+			const blockedIds = new Set(
+				this.db.userBlocks.flatMap((row) => {
+					if (row.blocker_user_id === userId) {
+						return [row.blocked_user_id];
+					}
+					if (row.blocked_user_id === userId) {
+						return [row.blocker_user_id];
+					}
+					return [];
+				}),
+			);
 			const mutualCounts = new Map<number, number>();
 			for (const row of this.db.friendships) {
 				if (row.user_id === userId) {
+					continue;
+				}
+				if (blockedIds.has(row.user_id) || blockedIds.has(row.friend_id)) {
 					continue;
 				}
 				if (!friendIds.has(row.friend_id)) {
@@ -978,7 +1043,12 @@ class FakeD1PreparedStatement implements D1PreparedStatement {
 					(row): row is { id: number; username: string; mutuals: number } =>
 						Boolean(row),
 				)
-				.filter((row) => row.id !== userId && !friendIds.has(row.id))
+				.filter(
+					(row) =>
+						row.id !== userId &&
+						!friendIds.has(row.id) &&
+						!blockedIds.has(row.id),
+				)
 				.sort((a, b) => {
 					if (b.mutuals !== a.mutuals) {
 						return b.mutuals - a.mutuals;
@@ -1220,6 +1290,28 @@ class FakeD1PreparedStatement implements D1PreparedStatement {
 				});
 			return { results };
 		}
+		if (sql.startsWith("SELECT u.id, u.username, b.created_at AS blocked_at")) {
+			const [userId] = this.params as [number];
+			const results = this.db.userBlocks
+				.filter((row) => row.blocker_user_id === userId)
+				.map((row) => {
+					const blockedUser = this.db.users.find(
+						(user) => user.id === row.blocked_user_id,
+					);
+					return {
+						id: row.blocked_user_id,
+						username: blockedUser?.username ?? "",
+						blocked_at: row.created_at,
+					};
+				})
+				.sort((a, b) => {
+					if (b.blocked_at !== a.blocked_at) {
+						return b.blocked_at - a.blocked_at;
+					}
+					return a.username.localeCompare(b.username);
+				});
+			return { results };
+		}
 		if (sql.startsWith("SELECT * FROM ( SELECT y.id")) {
 			const [
 				userId,
@@ -1263,6 +1355,18 @@ class FakeD1PreparedStatement implements D1PreparedStatement {
 					const isSent =
 						row.from_user_id === userId && row.to_user_id !== userId;
 					if (!isReceived && !isSent) {
+						return false;
+					}
+					const otherUserId =
+						row.from_user_id === userId ? row.to_user_id : row.from_user_id;
+					const isBlocked = this.db.userBlocks.some(
+						(block) =>
+							(block.blocker_user_id === userId &&
+								block.blocked_user_id === otherUserId) ||
+							(block.blocker_user_id === otherUserId &&
+								block.blocked_user_id === userId),
+					);
+					if (isBlocked) {
 						return false;
 					}
 					if (!hasCursor) {
@@ -1356,7 +1460,16 @@ class FakeD1PreparedStatement implements D1PreparedStatement {
 
 			const inbound = this.db.oys
 				.filter(
-					(row) => row.to_user_id === userId && isBeforeCursor(row),
+					(row) =>
+						row.to_user_id === userId &&
+						isBeforeCursor(row) &&
+						!this.db.userBlocks.some(
+							(block) =>
+								(block.blocker_user_id === userId &&
+									block.blocked_user_id === row.from_user_id) ||
+								(block.blocker_user_id === row.from_user_id &&
+									block.blocked_user_id === userId),
+						),
 				)
 				.sort(compareRows)
 				.slice(0, firstLimit)
@@ -1366,7 +1479,14 @@ class FakeD1PreparedStatement implements D1PreparedStatement {
 					(row) =>
 						row.from_user_id === userId &&
 						row.to_user_id !== userId &&
-						isBeforeCursor(row),
+						isBeforeCursor(row) &&
+						!this.db.userBlocks.some(
+							(block) =>
+								(block.blocker_user_id === userId &&
+									block.blocked_user_id === row.to_user_id) ||
+								(block.blocker_user_id === row.to_user_id &&
+									block.blocked_user_id === userId),
+						),
 				)
 				.sort(compareRows)
 				.slice(0, secondLimit)

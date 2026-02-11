@@ -1,0 +1,47 @@
+.blocked-users-screen {
+	padding: 8px 0 24px;
+}
+
+.blocked-users-description {
+	color: var(--text-light);
+	font-size: 0.92rem;
+}
+
+.blocked-users-status {
+	color: var(--text-light);
+	font-size: 0.9rem;
+}
+
+.blocked-users-list {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+}
+
+.blocked-users-item {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	padding: 14px 16px;
+	border-radius: 14px;
+	border: 1px solid var(--border);
+	background: var(--bg-card);
+}
+
+.blocked-users-item-name {
+	font-family: var(--font-display);
+	font-weight: 600;
+	color: var(--text);
+}
+
+.blocked-users-item-action {
+	white-space: nowrap;
+}
+
+.blocked-users-refresh {
+	align-self: flex-start;
+}

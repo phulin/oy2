@@ -1,4 +1,5 @@
 import { computeStreakLength, getStreakDateBoundaries } from "../lib";
+import { containsAbusiveText } from "../moderation";
 import type {
 	App,
 	FriendListRow,
@@ -317,6 +318,12 @@ export function registerFriendRoutes(app: App) {
 		}
 		if (normalizedDetails.length > 2000) {
 			return c.json({ error: "Report details too long" }, 400);
+		}
+		if (
+			containsAbusiveText(normalizedReason) ||
+			(normalizedDetails.length > 0 && containsAbusiveText(normalizedDetails))
+		) {
+			return c.json({ error: "Report contains disallowed language" }, 400);
 		}
 
 		const targetUserResult = await c

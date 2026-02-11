@@ -54,4 +54,16 @@ describe("auth", () => {
 		assert.equal(res.status, 401);
 		assert.equal(json.error, "Not authenticated");
 	});
+
+	it("rejects profane usernames in availability checks", async () => {
+		const { env } = createTestEnv();
+		const { res, json } = await jsonRequest(env, "/api/auth/username/check", {
+			method: "POST",
+			body: { username: "fuckface" },
+		});
+
+		assert.equal(res.status, 400);
+		assert.equal(json.available, false);
+		assert.equal(json.error, "Username contains disallowed language");
+	});
 });

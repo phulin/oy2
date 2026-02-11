@@ -1,4 +1,5 @@
 import { Button } from "@kobalte/core/button";
+import { A } from "@solidjs/router";
 import {
 	createEffect,
 	createResource,
@@ -297,6 +298,23 @@ export function SettingsScreen(props: SettingsScreenProps) {
 						</ul>
 					</Show>
 				</Show>
+			</section>
+
+			<section class="settings-section">
+				<div class="settings-section-row">
+					<div>
+						<h3 class="settings-section-title">Blocked Users</h3>
+						<p class="settings-section-description">
+							Review people you blocked and unblock them if needed.
+						</p>
+					</div>
+					<A
+						class="btn-secondary settings-link-button"
+						href="/settings/blocked"
+					>
+						View blocked users
+					</A>
+				</div>
 			</section>
 
 			<section class="settings-section settings-danger">

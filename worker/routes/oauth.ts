@@ -1,5 +1,6 @@
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { authUserPayload, createSession, updateLastSeen } from "../lib";
+import { validateCleanUsername } from "../moderation";
 import type { App, AppContext, User } from "../types";
 
 const OAUTH_STATE_PREFIX = "oauth_state:";
@@ -222,6 +223,7 @@ async function tryCreateOAuthUser(
 ): Promise<User | null> {
 	const trimmed = username.trim().toLowerCase();
 	if (!trimmed) return null;
+	if (validateCleanUsername(trimmed)) return null;
 
 	const existing = await c
 		.get("db")
@@ -650,6 +652,10 @@ export function registerOAuthRoutes(app: App) {
 		if (!trimmedUsername) {
 			return c.json({ error: "Username is required" }, 400);
 		}
+		const moderationError = validateCleanUsername(trimmedUsername);
+		if (moderationError) {
+			return c.json({ error: moderationError }, 400);
+		}
 
 		// Check if username exists
 		const existing = await c
@@ -809,6 +815,10 @@ export function registerOAuthRoutes(app: App) {
 
 		// New user with username provided — try to create
 		if (username) {
+			const moderationError = validateCleanUsername(username);
+			if (moderationError) {
+				return c.json({ error: moderationError }, 400);
+			}
 			const user = await tryCreateOAuthUser(
 				c,
 				username,
@@ -896,6 +906,10 @@ export function registerOAuthRoutes(app: App) {
 
 		// New user with username provided — try to create
 		if (username) {
+			const moderationError = validateCleanUsername(username);
+			if (moderationError) {
+				return c.json({ error: moderationError }, 400);
+			}
 			const user = await tryCreateOAuthUser(
 				c,
 				username,
