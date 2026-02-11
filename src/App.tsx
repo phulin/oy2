@@ -52,6 +52,7 @@ const initialTab =
 const cachedUserStorageKey = "cachedUser";
 const cachedFriendsStorageKey = "cachedFriends";
 const cachedLastOyInfoStorageKey = "cachedLastOyInfo";
+const seenNotificationIdsStorageKey = "seenNotificationIds";
 const passkeySetupSkipStorageKey = "passkeySetupSkipped";
 const locationExplainerSeenStorageKey = "locationExplainerSeen";
 const googleWebClientId = import.meta.env.VITE_GOOGLE_WEB_CLIENT_ID;
@@ -154,7 +155,9 @@ export default function App(props: AppProps) {
 		parsedOyId !== null && Number.isFinite(parsedOyId) ? parsedOyId : null;
 	let pendingExpandType: string | null = requestedExpand;
 	const seenNotificationLimit = 100;
-	const seenNotificationIdsRaw = localStorage.getItem("seenNotificationIds");
+	const seenNotificationIdsRaw = localStorage.getItem(
+		seenNotificationIdsStorageKey,
+	);
 	const seenNotificationIds = seenNotificationIdsRaw
 		? (JSON.parse(seenNotificationIdsRaw) as number[])
 		: [];
@@ -173,7 +176,7 @@ export default function App(props: AppProps) {
 			);
 		}
 		localStorage.setItem(
-			"seenNotificationIds",
+			seenNotificationIdsStorageKey,
 			JSON.stringify(seenNotificationIds),
 		);
 		return true;
@@ -937,6 +940,9 @@ export default function App(props: AppProps) {
 		localStorage.removeItem(cachedUserStorageKey);
 		localStorage.removeItem(cachedFriendsStorageKey);
 		localStorage.removeItem(cachedLastOyInfoStorageKey);
+		localStorage.removeItem(seenNotificationIdsStorageKey);
+		localStorage.removeItem(passkeySetupSkipStorageKey);
+		localStorage.removeItem(locationExplainerSeenStorageKey);
 		setAuthStep("login");
 		setFriends([]);
 		setLastOyInfo([]);

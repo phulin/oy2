@@ -606,6 +606,10 @@ export function LoginScreen(props: LoginScreenProps) {
 					Privacy
 				</A>
 				<span class="login-legal-separator">·</span>
+				<A class="login-legal-link" href="/cookies">
+					Cookies
+				</A>
+				<span class="login-legal-separator">·</span>
 				<A class="login-legal-link" href="/legal">
 					Other
 				</A>

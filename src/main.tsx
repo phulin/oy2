@@ -1,6 +1,7 @@
 import { Route, Router } from "@solidjs/router";
 import { render } from "solid-js/web";
 import App from "./App";
+import { CookiePolicyScreen } from "./components/CookiePolicyScreen";
 import { ErrorScreen } from "./components/ErrorScreen";
 import { PrivacyPolicyScreen } from "./components/PrivacyPolicyScreen";
 import { TermsOfUseScreen } from "./components/TermsOfUseScreen";
@@ -35,6 +36,7 @@ render(
 			</Route>
 			<Route path="/home" component={PublicHomeRoute} />
 			<Route path="/legal" component={LegalRoute} />
+			<Route path="/cookies" component={CookiePolicyScreen} />
 			<Route path="/privacy" component={PrivacyPolicyScreen} />
 			<Route path="/terms" component={TermsOfUseScreen} />
 			<Route path="*" component={ErrorScreen} />

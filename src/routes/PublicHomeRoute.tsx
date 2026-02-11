@@ -71,6 +71,10 @@ export function PublicHomeRoute() {
 						Privacy
 					</A>
 					<span class="public-home-legal-separator">·</span>
+					<A class="public-home-legal-link" href="/cookies">
+						Cookies
+					</A>
+					<span class="public-home-legal-separator">·</span>
 					<A class="public-home-legal-link" href="/legal">
 						Other
 					</A>
