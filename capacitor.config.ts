@@ -5,7 +5,9 @@ const config: CapacitorConfig = {
   appName: 'Oy',
   webDir: 'dist/client',
   server: {
-    url: process.env.CAP_SERVER_URL ?? 'https://oyme.site'
+    url: 'https://oyme.site',
+    iosScheme: 'https',
+    androidScheme: 'https'
   }
 };
 
