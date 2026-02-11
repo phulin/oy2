@@ -1,42 +1,39 @@
-# Oy App Store Implementation Checklist (Remaining Work)
+# Oy App Store Implementation Checklist (Current Status)
 
-This file tracks the remaining implementation work after the initial account deletion pass.
+This file tracks App Store readiness work with current implementation status.
 
 ## 1) Account Deletion Follow-Ups
 
-- [ ] Require recent re-auth before deletion (passkey or email code challenge) in `/src/components/SettingsScreen.tsx` and `/worker/routes/auth.ts`.
-- [ ] Add a second irreversible confirmation step (explicit final confirm after `DELETE` match) in `/src/components/SettingsScreen.tsx`.
-- [ ] Ensure account deletion action is rate-limited server-side in `/worker/routes/auth.ts`.
-- [ ] Update privacy language to explicitly describe in-app deletion behavior and timing in `/public/privacy.txt`.
-- [ ] Add worker tests for deletion success and unauthenticated rejection in `/tests/worker/auth.test.ts`.
+- [x] Move `Type DELETE` confirmation into a dedicated modal in `/src/components/SettingsScreen.tsx`.
+- [x] Keep irreversible final confirmation in modal before account deletion in `/src/components/SettingsScreen.tsx`.
+- [x] Ensure account deletion action is rate-limited server-side in `/worker/routes/auth.ts`.
+- [x] Update privacy language to explicitly describe in-app deletion behavior and timing in `/public/privacy.txt`.
+- [x] Add worker tests for deletion success and unauthenticated rejection in `/tests/worker/auth.test.ts`.
 
 ## 2) UGC Safety Controls (Block + Report + Moderation)
 
-- [ ] Add `blocks` table migration in `/migrations-pg` with `(user_id, blocked_user_id, created_at)` and indexes.
-- [ ] Add `reports` table migration in `/migrations-pg` with reporter, target user/content reference, reason, status, created_at.
-- [ ] Update `/production_schema.sql` to reflect new tables and indexes.
-- [ ] Add API endpoints:
-  - [ ] `POST /api/users/block`
-  - [ ] `DELETE /api/users/block/:id`
-  - [ ] `POST /api/reports`
-  in `/worker/routes/users.ts` or new route files registered from `/worker/index.ts`.
+- [x] Add block/report table migration in `/migrations-pg`.
+- [x] Update `/production_schema.sql` to reflect moderation tables and indexes.
+- [x] Add block/report API endpoints (implemented as friend-level routes):
+  - `POST /api/friends/:friendId/block`
+  - `POST /api/friends/:friendId/report`
+- [ ] Add unblock endpoint (if required for policy/product), e.g. `DELETE /api/users/block/:id`.
 - [ ] Enforce block rules in friend search/suggestions in `/worker/routes/users.ts`.
-- [ ] Enforce block rules in send/fetch Oys paths in `/worker/routes/oys.ts`.
-- [ ] Add block/report actions to UI:
-  - [ ] Friend-level actions in `/src/components/FriendsList.tsx`
-  - [ ] Oy-level actions in `/src/components/OysList.tsx`
-- [ ] Add report queue/admin tooling in `/src/components/AdminDashboard.tsx` and matching backend route.
+- [ ] Enforce block rules in fetch Oys path in `/worker/routes/oys.ts` (send path is already enforced).
+- [x] Add friend-level block/report actions to UI (implemented in `/src/components/FriendProfileCardsScreen.tsx`).
+- [ ] Add Oy-level report/block actions to UI in `/src/components/OysList.tsx`.
+- [x] Add report queue/admin tooling in `/src/components/AdminDashboard.tsx` and `/worker/routes/admin.ts`.
 - [ ] Add minimal abusive-username/content filter server-side in `/worker/routes/auth.ts` and relevant write endpoints.
-- [ ] Add tests for block/report behavior in `/tests/worker`.
+- [ ] Add/expand worker tests for block/report behavior in `/tests/worker`.
 
 ## 3) Sign in with Apple
 
-- [ ] Enable Apple provider in `/capacitor.config.ts`.
-- [ ] Add "Continue with Apple" to login UI in `/src/components/LoginScreen.tsx`.
-- [ ] Implement Apple OAuth/native verify endpoints in `/worker/routes/oauth.ts`.
-- [ ] Add required env vars to worker config/docs for Apple credentials.
-- [ ] Handle account-linking cases (existing email/passkey user) in `/worker/routes/oauth.ts`.
-- [ ] Add tests for Apple auth flow in `/tests/worker/oauth.test.ts`.
+- [x] Enable Apple provider in `/capacitor.config.ts`.
+- [x] Add Apple sign-in buttons to login UI in `/src/components/LoginScreen.tsx`.
+- [x] Implement Apple OAuth/native verify endpoints in `/worker/routes/oauth.ts`.
+- [x] Add required env vars/config/docs for Apple credentials.
+- [x] Handle account-linking/claiming cases in `/worker/routes/oauth.ts`.
+- [x] Add tests for Apple auth flow in `/tests/worker/oauth.test.ts`.
 
 ## 4) Location Permission Compliance
 
@@ -65,4 +62,3 @@ This file tracks the remaining implementation work after the initial account del
   - [ ] location share + permission flows
   - [ ] block/report
   - [ ] account deletion
-

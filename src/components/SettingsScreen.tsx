@@ -48,6 +48,7 @@ export function SettingsScreen(props: SettingsScreenProps) {
 	const [emailMessage, setEmailMessage] = createSignal<string | null>(null);
 	const [sendingEmail, setSendingEmail] = createSignal(false);
 	const [verifyingEmail, setVerifyingEmail] = createSignal(false);
+	const [showDeleteModal, setShowDeleteModal] = createSignal(false);
 	const [deleteConfirmValue, setDeleteConfirmValue] = createSignal("");
 	const [deleteError, setDeleteError] = createSignal<string | null>(null);
 	const [deletingAccount, setDeletingAccount] = createSignal(false);
@@ -144,6 +145,21 @@ export function SettingsScreen(props: SettingsScreenProps) {
 		} finally {
 			setDeletingAccount(false);
 		}
+	}
+
+	function openDeleteModal() {
+		setDeleteConfirmValue("");
+		setDeleteError(null);
+		setShowDeleteModal(true);
+	}
+
+	function closeDeleteModal() {
+		if (deletingAccount()) {
+			return;
+		}
+		setShowDeleteModal(false);
+		setDeleteConfirmValue("");
+		setDeleteError(null);
 	}
 
 	return (
@@ -294,32 +310,78 @@ export function SettingsScreen(props: SettingsScreenProps) {
 				</div>
 
 				<div class="settings-email-form">
-					<label class="settings-email-label" for="settings-delete-confirm">
-						Type DELETE to confirm
-					</label>
-					<input
-						id="settings-delete-confirm"
-						class="app-text-input settings-email-input"
-						type="text"
-						autocomplete="off"
-						placeholder="DELETE"
-						value={deleteConfirmValue()}
-						onInput={(event) =>
-							setDeleteConfirmValue(event.currentTarget.value)
-						}
-					/>
+					<div class="settings-delete-warning">
+						This action is irreversible. Continue to open confirmation.
+					</div>
 					<div class="settings-email-actions">
 						<Button
 							class="btn-secondary settings-delete-button"
-							onClick={handleDeleteAccount}
-							disabled={deletingAccount()}
+							onClick={openDeleteModal}
 						>
-							{deletingAccount() ? "Deleting..." : "Delete account"}
+							Delete account
 						</Button>
 					</div>
 				</div>
 				{deleteError() && <p class="form-error">{deleteError()}</p>}
 			</section>
+
+			<Show when={showDeleteModal()}>
+				<div class="settings-delete-modal-overlay">
+					<div
+						class="settings-delete-modal"
+						role="dialog"
+						aria-modal="true"
+						aria-labelledby="settings-delete-modal-title"
+					>
+						<h4
+							id="settings-delete-modal-title"
+							class="settings-delete-modal-title"
+						>
+							Confirm account deletion
+						</h4>
+						<p class="settings-delete-modal-text">
+							Type DELETE and confirm to permanently remove your account and
+							associated data.
+						</p>
+						<label
+							class="settings-email-label"
+							for="settings-delete-confirm-modal"
+						>
+							Type DELETE to confirm
+						</label>
+						<input
+							id="settings-delete-confirm-modal"
+							class="app-text-input settings-email-input"
+							type="text"
+							autocomplete="off"
+							placeholder="DELETE"
+							value={deleteConfirmValue()}
+							onInput={(event) =>
+								setDeleteConfirmValue(event.currentTarget.value)
+							}
+						/>
+						{deleteError() && <p class="form-error">{deleteError()}</p>}
+						<div class="settings-email-actions">
+							<Button
+								class="btn-primary"
+								onClick={closeDeleteModal}
+								disabled={deletingAccount()}
+							>
+								Cancel
+							</Button>
+							<Button
+								class="btn-secondary settings-delete-button"
+								onClick={handleDeleteAccount}
+								disabled={deletingAccount()}
+							>
+								{deletingAccount()
+									? "Deleting..."
+									: "Permanently delete account"}
+							</Button>
+						</div>
+					</div>
+				</div>
+			</Show>
 		</div>
 	);
 }

@@ -132,6 +132,46 @@
 	background: color-mix(in srgb, #c62828 10%, var(--bg-secondary));
 }
 
+.settings-delete-warning {
+	margin-top: 10px;
+	font-size: 0.85rem;
+	color: var(--text-light);
+}
+
+.settings-delete-modal-overlay {
+	position: fixed;
+	inset: 0;
+	background: color-mix(in srgb, #000 45%, transparent);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 20px;
+	z-index: 1000;
+}
+
+.settings-delete-modal {
+	width: min(440px, 100%);
+	background: var(--bg-card);
+	border: 1px solid var(--border);
+	border-radius: 16px;
+	padding: 18px;
+	box-shadow: var(--card-shadow);
+}
+
+.settings-delete-modal-title {
+	margin: 0;
+	font-family: var(--font-display);
+	font-size: 1rem;
+	font-weight: 700;
+	color: #7f1d1d;
+}
+
+.settings-delete-modal-text {
+	margin: 10px 0 14px;
+	font-size: 0.9rem;
+	color: var(--text-light);
+}
+
 @media (max-width: 600px) {
 	.settings-section-row {
 		align-items: flex-start;

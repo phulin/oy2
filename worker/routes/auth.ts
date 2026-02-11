@@ -2,6 +2,14 @@ import { deleteCookie } from "hono/cookie";
 import { authUserPayload, validateUsername } from "../lib";
 import type { App, AppContext, User } from "../types";
 
+const DELETE_RATE_PREFIX = "account_delete_rate:";
+const DELETE_RATE_TTL_SECONDS = 60 * 60;
+const DELETE_RATE_LIMIT_MAX = 3;
+
+type DeleteRateData = {
+	count: number;
+};
+
 function clearSessionCookie(c: AppContext) {
 	deleteCookie(c, "session", { path: "/" });
 }
@@ -85,6 +93,26 @@ export function registerAuthRoutes(app: App) {
 			clearSessionCookie(c);
 			return c.json({ error: "Not authenticated" }, 401);
 		}
+
+		const rateKey = `${DELETE_RATE_PREFIX}${user.id}`;
+		const rateDataRaw = await c.env.OY2.get(rateKey);
+		const rateData = rateDataRaw
+			? (JSON.parse(rateDataRaw) as DeleteRateData)
+			: { count: 0 };
+		if (rateData.count >= DELETE_RATE_LIMIT_MAX) {
+			return c.json(
+				{
+					error: "Too many account deletion attempts. Please try again later.",
+				},
+				429,
+			);
+		}
+
+		await c.env.OY2.put(
+			rateKey,
+			JSON.stringify({ count: rateData.count + 1 }),
+			{ expirationTtl: DELETE_RATE_TTL_SECONDS },
+		);
 
 		await c.get("db").query("DELETE FROM users WHERE id = $1", [user.id]);
 		clearSessionCookie(c);

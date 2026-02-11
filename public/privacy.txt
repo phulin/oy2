@@ -281,7 +281,14 @@ Account Information
 If you would at any time like to review or change the information in
 your account or terminate your account, you can:
 
+- Use the in-app delete account flow in Settings.
+
 - Contact us using the contact information provided.
+
+In-app account deletion requires typing "DELETE" in the confirmation
+modal and completing a final irreversible confirmation. Once confirmed,
+account data is removed from active systems immediately, and residual
+encrypted backups are deleted on rolling backup expiration cycles.
 
 Upon your request to terminate your account, we will deactivate or
 delete your account and information from our active databases. However,
@@ -589,7 +596,7 @@ information we collect from you, details about how we have processed it,
 correct inaccuracies, or delete your personal information. You may also
 have the right to withdraw your consent to our processing of your
 personal information. These rights may be limited in some circumstances
-by applicable law. To delete your account, navigate to
-https://oyme.site/settings and scroll to the bottom of the page. For any
-other request to review or update your personal information, please email
+by applicable law. To delete your account, open Settings > Delete
+Account in the app and complete the in-app deletion flow. For any other
+request to review or update your personal information, please email
 contact@oyme.site.

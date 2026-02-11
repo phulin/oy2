@@ -29,4 +29,29 @@ describe("auth", () => {
 		assert.equal(json.success, true);
 		assert.equal(db.sessions.length, 0);
 	});
+
+	it("deletes account when authenticated", async () => {
+		const { env, db } = createTestEnv();
+		const user = seedUser(db, { username: "DeleteMe" });
+		seedSession(db, user.id, "delete-token");
+
+		const { res, json } = await jsonRequest(env, "/api/auth/account", {
+			method: "DELETE",
+			headers: { "x-session-token": "delete-token" },
+		});
+
+		assert.equal(res.status, 200);
+		assert.equal(json.success, true);
+		assert.equal(db.users.find((row) => row.id === user.id), undefined);
+	});
+
+	it("rejects unauthenticated account deletion", async () => {
+		const { env } = createTestEnv();
+		const { res, json } = await jsonRequest(env, "/api/auth/account", {
+			method: "DELETE",
+		});
+
+		assert.equal(res.status, 401);
+		assert.equal(json.error, "Not authenticated");
+	});
 });

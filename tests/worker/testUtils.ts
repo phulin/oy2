@@ -353,6 +353,37 @@ class FakeD1PreparedStatement implements D1PreparedStatement {
 			const changes = before - this.db.sessions.length;
 			return { success: true, meta: { last_row_id: 0, changes } };
 		}
+		if (sql.startsWith("DELETE FROM users WHERE id = ?")) {
+			const [userId] = this.params as [number];
+			const before = this.db.users.length;
+			this.db.users = this.db.users.filter((row) => row.id !== userId);
+			this.db.sessions = this.db.sessions.filter((row) => row.user_id !== userId);
+			this.db.passkeys = this.db.passkeys.filter((row) => row.user_id !== userId);
+			this.db.friendships = this.db.friendships.filter(
+				(row) => row.user_id !== userId && row.friend_id !== userId,
+			);
+			this.db.lastOyInfo = this.db.lastOyInfo.filter(
+				(row) => row.user_id !== userId && row.friend_id !== userId,
+			);
+			this.db.pushSubscriptions = this.db.pushSubscriptions.filter(
+				(row) => row.user_id !== userId,
+			);
+			this.db.userLastSeen = this.db.userLastSeen.filter(
+				(row) => row.user_id !== userId,
+			);
+			this.db.userBlocks = this.db.userBlocks.filter(
+				(row) =>
+					row.blocker_user_id !== userId && row.blocked_user_id !== userId,
+			);
+			this.db.userReports = this.db.userReports.filter(
+				(row) =>
+					row.reporter_user_id !== userId && row.target_user_id !== userId,
+			);
+			return {
+				success: true,
+				meta: { last_row_id: 0, changes: before - this.db.users.length },
+			};
+		}
 		if (sql.startsWith("INSERT INTO friendships")) {
 			const [userId, friendId] = this.params as [number, number];
 			const existing = this.db.friendships.find(
