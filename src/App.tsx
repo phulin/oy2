@@ -48,6 +48,7 @@ type AuthStep =
 	| "initial"
 	| "login"
 	| "email_login"
+	| "email_signup"
 	| "choose_username"
 	| "passkey_setup";
 
@@ -92,6 +93,7 @@ export default function App(props: AppProps) {
 			? "passkey_setup"
 			: "initial";
 	const [authStep, setAuthStep] = createSignal<AuthStep>(initialAuthStep);
+	const [signupUsername, setSignupUsername] = createSignal<string | undefined>();
 	const [friends, setFriends] = createSignal<Friend[]>(initialCachedFriends);
 	const [lastOyInfo, setLastOyInfo] = createSignal<LastOyInfo[]>(
 		initialCachedLastOyInfo,
@@ -1043,6 +1045,17 @@ export default function App(props: AppProps) {
 											await tryPasskeyAuth();
 										}}
 										onEmailLogin={() => setAuthStep("email_login")}
+										onEmailSignup={(username: string) => {
+											setSignupUsername(username);
+											setAuthStep("email_signup");
+										}}
+									/>
+								</Show>
+								<Show when={authStep() === "email_signup"}>
+									<EmailLoginScreen
+										onSuccess={handleEmailLoginSuccess}
+										onBack={() => setAuthStep("login")}
+										signupUsername={signupUsername()}
 									/>
 								</Show>
 								<Show when={authStep() === "email_login"}>

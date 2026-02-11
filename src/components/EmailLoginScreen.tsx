@@ -7,17 +7,18 @@ import "./FormControls.css";
 import "./LoginScreen.css";
 import "./EmailLoginScreen.css";
 
+type EmailLoginResult =
+	| { status: "choose_username" }
+	| {
+			status: "authenticated";
+			user: { id: number; username: string };
+			needsPasskeySetup: boolean;
+	  };
+
 type EmailLoginScreenProps = {
-	onSuccess: (
-		result:
-			| { status: "choose_username" }
-			| {
-					status: "authenticated";
-					user: { id: number; username: string };
-					needsPasskeySetup: boolean;
-			  },
-	) => void;
+	onSuccess: (result: EmailLoginResult) => void;
 	onBack: () => void;
+	signupUsername?: string;
 };
 
 export function EmailLoginScreen(props: EmailLoginScreenProps) {
@@ -28,6 +29,34 @@ export function EmailLoginScreen(props: EmailLoginScreenProps) {
 	const [sending, setSending] = createSignal(false);
 	const [verifying, setVerifying] = createSignal(false);
 	const [resending, setResending] = createSignal(false);
+
+	async function tryCompleteWithUsername(
+		username: string,
+	): Promise<EmailLoginResult | null> {
+		try {
+			const response = await fetch("/api/auth/email/complete", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ username }),
+				credentials: "include",
+			});
+
+			if (!response.ok) return null;
+
+			const data = (await response.json()) as {
+				user: { id: number; username: string };
+				needsPasskeySetup: boolean;
+			};
+
+			return {
+				status: "authenticated",
+				user: data.user,
+				needsPasskeySetup: data.needsPasskeySetup,
+			};
+		} catch {
+			return null;
+		}
+	}
 
 	async function handleSendCode(event: SubmitEvent) {
 		event.preventDefault();
@@ -102,15 +131,22 @@ export function EmailLoginScreen(props: EmailLoginScreenProps) {
 				return;
 			}
 
-			props.onSuccess(
-				data as
-					| { status: "choose_username" }
-					| {
-							status: "authenticated";
-							user: { id: number; username: string };
-							needsPasskeySetup: boolean;
-					  },
-			);
+			const result = data as EmailLoginResult;
+
+			// If we have a pre-selected signup username and verification created a pending user,
+			// auto-complete registration with that username
+			if (result.status === "choose_username" && props.signupUsername) {
+				const completeResult = await tryCompleteWithUsername(
+					props.signupUsername,
+				);
+				if (completeResult) {
+					props.onSuccess(completeResult);
+					return;
+				}
+				// Fall through to choose_username if auto-complete failed
+			}
+
+			props.onSuccess(result);
 		} catch {
 			setError("Something went wrong. Please try again.");
 		} finally {

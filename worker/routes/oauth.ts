@@ -207,6 +207,58 @@ async function verifyGoogleIdToken(
 	}
 }
 
+// Try to create or claim a user with the given username and OAuth credentials.
+// Returns the user on success, or null if the username is taken.
+async function tryCreateOAuthUser(
+	c: AppContext,
+	username: string,
+	provider: string,
+	sub: string,
+	email: string | undefined,
+): Promise<User | null> {
+	const trimmed = username.trim().toLowerCase();
+	if (!trimmed) return null;
+
+	const existing = await c
+		.get("db")
+		.query<User>("SELECT * FROM users WHERE LOWER(username) = $1", [trimmed]);
+
+	if (existing.rows.length > 0) {
+		const existingUser = existing.rows[0];
+
+		// Can't claim if already has OAuth or passkey
+		if (existingUser.oauth_provider) return null;
+		const passkeys = await c
+			.get("db")
+			.query("SELECT id FROM passkeys WHERE user_id = $1 LIMIT 1", [
+				existingUser.id,
+			]);
+		if (passkeys.rows.length > 0) return null;
+
+		// Claim the existing user by linking OAuth credentials
+		await c.get("db").query(
+			`UPDATE users SET oauth_provider = $1, oauth_sub = $2, email = COALESCE(email, $3)
+			 WHERE id = $4`,
+			[provider, sub, email || null, existingUser.id],
+		);
+		existingUser.oauth_provider = provider;
+		existingUser.oauth_sub = sub;
+		if (!existingUser.email && email) {
+			existingUser.email = email;
+		}
+		return existingUser;
+	}
+
+	// Create new user
+	const result = await c.get("db").query<User>(
+		`INSERT INTO users (username, oauth_provider, oauth_sub, email)
+		 VALUES ($1, $2, $3, $4)
+		 RETURNING *`,
+		[trimmed, provider, sub, email || null],
+	);
+	return result.rows[0];
+}
+
 export function registerOAuthRoutes(app: App) {
 	// Apple Sign-In redirect
 	app.get("/api/auth/oauth/apple", async (c: AppContext) => {
@@ -238,11 +290,12 @@ export function registerOAuthRoutes(app: App) {
 	app.get("/api/auth/oauth/google", async (c: AppContext) => {
 		const state = await generateState();
 		const origin = getOrigin(c);
+		const signupUsername = c.req.query("username") || undefined;
 
-		// Store state with provider and origin
+		// Store state with provider, origin, and optional signup username
 		await c.env.OY2.put(
 			`${OAUTH_STATE_PREFIX}${state}`,
-			JSON.stringify({ provider: "google", origin }),
+			JSON.stringify({ provider: "google", origin, username: signupUsername }),
 			{ expirationTtl: 600 },
 		);
 
@@ -279,9 +332,14 @@ export function registerOAuthRoutes(app: App) {
 		}
 		await c.env.OY2.delete(`${OAUTH_STATE_PREFIX}${state}`);
 
-		const { provider, origin } = JSON.parse(stateData) as {
+		const {
+			provider,
+			origin,
+			username: signupUsername,
+		} = JSON.parse(stateData) as {
 			provider: string;
 			origin: string;
+			username?: string;
 		};
 
 		let oauthSub: string;
@@ -387,7 +445,25 @@ export function registerOAuthRoutes(app: App) {
 			return c.redirect("/");
 		}
 
-		// New user - store pending OAuth data and redirect to username selection
+		// New user - if we have a pre-selected username from sign-up, try to create directly
+		if (signupUsername) {
+			const user = await tryCreateOAuthUser(
+				c,
+				signupUsername,
+				provider,
+				oauthSub,
+				email,
+			);
+			if (user) {
+				const sessionToken = await createSession(c, user);
+				setSessionCookie(c, sessionToken);
+				updateLastSeen(c, user.id);
+				return c.redirect("/?passkey_setup=1");
+			}
+			// Username was taken (race condition) - fall through to choose_username
+		}
+
+		// Store pending OAuth data and redirect to username selection
 		const pendingId = await generateState();
 		await c.env.OY2.put(
 			`${OAUTH_PENDING_PREFIX}${pendingId}`,
@@ -427,9 +503,14 @@ export function registerOAuthRoutes(app: App) {
 		}
 		await c.env.OY2.delete(`${OAUTH_STATE_PREFIX}${state}`);
 
-		const { provider, origin } = JSON.parse(stateData) as {
+		const {
+			provider,
+			origin,
+			username: signupUsername,
+		} = JSON.parse(stateData) as {
 			provider: string;
 			origin: string;
+			username?: string;
 		};
 
 		if (provider !== "google") {
@@ -491,7 +572,24 @@ export function registerOAuthRoutes(app: App) {
 			return c.redirect("/");
 		}
 
-		// New user
+		// New user - if we have a pre-selected username from sign-up, try to create directly
+		if (signupUsername) {
+			const user = await tryCreateOAuthUser(
+				c,
+				signupUsername,
+				"google",
+				verified.sub,
+				verified.email,
+			);
+			if (user) {
+				const sessionToken = await createSession(c, user);
+				setSessionCookie(c, sessionToken);
+				updateLastSeen(c, user.id);
+				return c.redirect("/?passkey_setup=1");
+			}
+			// Username was taken (race condition) - fall through to choose_username
+		}
+
 		const pendingId = await generateState();
 		await c.env.OY2.put(
 			`${OAUTH_PENDING_PREFIX}${pendingId}`,

@@ -1,7 +1,12 @@
 .login-logo {
+	font-family: var(--font-display);
 	font-size: 4rem;
 	font-weight: 900;
-	color: var(--primary);
+	letter-spacing: -0.03em;
+	background: linear-gradient(135deg, #a78bfa 0%, #7c3aed 50%, #6d28d9 100%);
+	-webkit-background-clip: text;
+	-webkit-text-fill-color: transparent;
+	background-clip: text;
 	text-align: center;
 	margin: 3rem 0 0.5rem;
 }
@@ -15,6 +20,150 @@
 
 .login-tagline-secondary {
 	margin-bottom: 3rem;
+}
+
+/* Sign Up Section */
+.signup-heading {
+	font-size: 1.5rem;
+	font-weight: 700;
+	text-align: center;
+	color: var(--text);
+	margin: 1.5rem 0 1rem;
+}
+
+.signup-section {
+	display: flex;
+	flex-direction: column;
+}
+
+.signup-input-wrap {
+	position: relative;
+}
+
+.signup-input-wrap .signup-input {
+	padding-right: 3.5rem;
+	margin-bottom: 0;
+}
+
+.signup-arrow {
+	position: absolute;
+	right: 6px;
+	top: 50%;
+	transform: translateY(-50%);
+	width: 2.5rem;
+	height: 2.5rem;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: var(--primary);
+	color: #fff;
+	border: none;
+	border-radius: 8px;
+	cursor: pointer;
+	transition: opacity 0.15s ease;
+}
+
+.signup-arrow svg {
+	width: 20px;
+	height: 20px;
+}
+
+.signup-arrow:hover {
+	opacity: 0.9;
+}
+
+.signup-arrow:active {
+	opacity: 0.8;
+}
+
+.signup-arrow:disabled {
+	opacity: 0.5;
+	cursor: not-allowed;
+}
+
+.signup-buttons {
+	display: flex;
+	flex-direction: column;
+	gap: 0.75rem;
+}
+
+/* Divider */
+.login-divider {
+	display: flex;
+	align-items: center;
+	gap: 1rem;
+	margin: 2rem 0 1rem;
+}
+
+.login-divider::before,
+.login-divider::after {
+	content: "";
+	flex: 1;
+	height: 1px;
+	background: var(--border, #ddd);
+}
+
+.login-divider span {
+	font-size: 0.85rem;
+	color: var(--text-light);
+	white-space: nowrap;
+}
+
+/* Sign In Section */
+.signin-buttons {
+	display: flex;
+	flex-direction: column;
+	gap: 0.75rem;
+}
+
+.signin-button {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 0.75rem;
+	padding: 0.8rem 1.5rem;
+	border-radius: 8px;
+	font-size: 1rem;
+	font-weight: 500;
+	cursor: pointer;
+	transition: opacity 0.15s ease;
+}
+
+.signin-button:hover {
+	opacity: 0.9;
+}
+
+.signin-button:active {
+	opacity: 0.8;
+}
+
+.signin-button:disabled {
+	opacity: 0.5;
+	cursor: not-allowed;
+}
+
+.signin-passkey {
+	background: var(--bg-secondary);
+	color: var(--text);
+	border: 1px solid var(--border);
+}
+
+/* Mode toggle link */
+.login-mode-link {
+	display: block;
+	margin-top: 2rem;
+	background: none;
+	border: none;
+	color: var(--text-light);
+	font-size: 0.9rem;
+	cursor: pointer;
+	padding: 0.5rem;
+	text-align: center;
+	width: 100%;
+}
+
+.login-mode-link:hover {
+	color: var(--text);
 }
 
 .oauth-buttons {
