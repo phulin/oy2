@@ -131,7 +131,7 @@ async function main() {
 		]);
 
 		console.log("\n📦 Running migrations...\n");
-		const response = await fetch("https://oy2-migrate.oyme.workers.dev");
+		const response = await fetch("https://oy2-migrate.phulin.workers.dev");
 		const result = await response.text();
 		console.log(result);
 

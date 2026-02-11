@@ -365,11 +365,17 @@ export default function App(props: AppProps) {
 		]);
 	}
 
-	async function refresh() {
+	async function reloadData({
+		showLoadingAnimation,
+	}: {
+		showLoadingAnimation: boolean;
+	}) {
 		if (refreshing()) {
 			return;
 		}
-		setRefreshing(true);
+		if (showLoadingAnimation) {
+			setRefreshing(true);
+		}
 		try {
 			await Promise.all([
 				loadFriends({ noCache: true }),
@@ -377,8 +383,18 @@ export default function App(props: AppProps) {
 				loadOysPage({ reset: true, noCache: true }),
 			]);
 		} finally {
-			setRefreshing(false);
+			if (showLoadingAnimation) {
+				setRefreshing(false);
+			}
 		}
+	}
+
+	async function refresh() {
+		await reloadData({ showLoadingAnimation: true });
+	}
+
+	async function refreshWithoutAnimation() {
+		await reloadData({ showLoadingAnimation: false });
 	}
 
 	async function applyAuthSession(user: User) {
@@ -913,7 +929,7 @@ export default function App(props: AppProps) {
 		onCleanup(
 			onAppVisible(() => {
 				if (currentUser()) {
-					void refresh();
+					void refreshWithoutAnimation();
 				}
 			}),
 		);
