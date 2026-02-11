@@ -196,15 +196,27 @@ export default function App(props: AppProps) {
 		return null;
 	}
 
+	function getApnsEnvironmentForSubscribe() {
+		if (Capacitor.getPlatform() !== "ios") {
+			return undefined;
+		}
+		return Capacitor.DEBUG ? "sandbox" : "production";
+	}
+
 	async function subscribeNativePushToken(token: string) {
 		const platform = getNativePushPlatform();
 		if (!platform) {
 			return;
 		}
+		const apnsEnvironment = getApnsEnvironmentForSubscribe();
 
 		await api("/api/push/native/subscribe", {
 			method: "POST",
-			body: JSON.stringify({ token, platform }),
+			body: JSON.stringify({
+				token,
+				platform,
+				apnsEnvironment,
+			}),
 		});
 	}
 

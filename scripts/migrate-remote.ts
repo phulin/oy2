@@ -130,8 +130,11 @@ async function main() {
 			"scripts/migrate-wrangler.toml",
 		]);
 
+		console.log("\n⏱️ Waiting 5 seconds...\n");
+		await new Promise((resolve) => setTimeout(resolve, 5000));
+
 		console.log("\n📦 Running migrations...\n");
-		const response = await fetch("https://oy2-migrate.phulin.workers.dev");
+		const response = await fetch("https://oy2-migrate.phulin.workers.dev/");
 		const result = await response.text();
 		console.log(result);
 

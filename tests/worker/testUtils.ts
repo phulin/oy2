@@ -56,6 +56,7 @@ type PushSubscriptionRow = {
 	keys_p256dh: string | null;
 	keys_auth: string | null;
 	native_token: string | null;
+	apns_environment: "sandbox" | "production" | null;
 	created_at: number;
 };
 
@@ -683,7 +684,7 @@ class FakeD1PreparedStatement implements D1PreparedStatement {
 			};
 		}
 		if (sql.startsWith("INSERT INTO push_subscriptions")) {
-			if (this.params.length === 4) {
+			if (sql.includes("'web'") && this.params.length === 4) {
 				const [userId, endpoint, p256dh, auth] = this.params as [
 					number,
 					string,
@@ -697,15 +698,17 @@ class FakeD1PreparedStatement implements D1PreparedStatement {
 					keys_p256dh: p256dh,
 					keys_auth: auth,
 					native_token: null,
+					apns_environment: null,
 					created_at: nowSeconds(),
 				});
 				return { success: true, meta: { last_row_id: 0, changes: 1 } };
 			}
-			if (this.params.length === 3) {
-				const [userId, platform, token] = this.params as [
+			if (!sql.includes("'web'") && this.params.length === 4) {
+				const [userId, platform, token, apnsEnvironment] = this.params as [
 					number,
 					"ios" | "android",
 					string,
+					"sandbox" | "production" | null,
 				];
 				this.db.pushSubscriptions.push({
 					user_id: userId,
@@ -714,6 +717,7 @@ class FakeD1PreparedStatement implements D1PreparedStatement {
 					keys_p256dh: null,
 					keys_auth: null,
 					native_token: token,
+					apns_environment: apnsEnvironment,
 					created_at: nowSeconds(),
 				});
 				return { success: true, meta: { last_row_id: 0, changes: 1 } };
@@ -1198,7 +1202,7 @@ class FakeD1PreparedStatement implements D1PreparedStatement {
 		}
 		if (
 			sql.startsWith(
-				"SELECT platform, endpoint, keys_p256dh, keys_auth, native_token",
+				"SELECT platform, endpoint, keys_p256dh, keys_auth, native_token, apns_environment",
 			)
 		) {
 			const [userId] = this.params as [number];
@@ -1210,6 +1214,7 @@ class FakeD1PreparedStatement implements D1PreparedStatement {
 					keys_p256dh: row.keys_p256dh,
 					keys_auth: row.keys_auth,
 					native_token: row.native_token,
+					apns_environment: row.apns_environment,
 				}));
 			return { results };
 		}

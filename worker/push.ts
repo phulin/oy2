@@ -21,6 +21,7 @@ export type ProviderHealth = {
 type NativePushOptions = {
 	requestUrl?: string;
 	apnsUseSandbox?: boolean;
+	apnsEnvironment?: "sandbox" | "production";
 };
 
 let cachedFcmAccessToken: {
@@ -333,6 +334,10 @@ async function sendAndroidPushNotification(
 }
 
 function getApnsConfig(env: Bindings, options?: NativePushOptions) {
+	const useSandboxFromEnvironment =
+		options?.apnsEnvironment === undefined
+			? undefined
+			: options.apnsEnvironment === "sandbox";
 	return {
 		keyId: env.APPLE_KEY_ID ?? "",
 		teamId: env.APPLE_TEAM_ID ?? "",
@@ -340,6 +345,7 @@ function getApnsConfig(env: Bindings, options?: NativePushOptions) {
 		bundleId: env.APPLE_NATIVE_CLIENT_ID ?? env.APPLE_CLIENT_ID ?? "",
 		useSandbox:
 			options?.apnsUseSandbox ??
+			useSandboxFromEnvironment ??
 			resolveApnsUseSandbox(env.APNS_USE_SANDBOX, options?.requestUrl),
 	};
 }

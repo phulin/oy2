@@ -1,6 +1,7 @@
 import type { App, AppContext } from "../types";
 
 const NATIVE_PUSH_PLATFORMS = new Set(["ios", "android"]);
+const APNS_ENVIRONMENTS = new Set(["sandbox", "production"]);
 
 export function registerPushRoutes(app: App) {
 	app.post("/api/push/subscribe", async (c: AppContext) => {
@@ -49,14 +50,23 @@ export function registerPushRoutes(app: App) {
 			return c.json({ error: "Not authenticated" }, 401);
 		}
 
-		const { token, platform } = await c.req.json();
+		const { token, platform, apnsEnvironment } = await c.req.json();
 		const nativeToken = typeof token === "string" ? token.trim() : "";
 		const nativePlatform =
 			typeof platform === "string" ? platform.trim().toLowerCase() : "";
-
-		console.log("SUBSCRIBE", platform, token);
+		const nativeApnsEnvironment =
+			typeof apnsEnvironment === "string"
+				? apnsEnvironment.trim().toLowerCase()
+				: null;
 
 		if (!nativeToken || !NATIVE_PUSH_PLATFORMS.has(nativePlatform)) {
+			return c.json({ error: "Invalid native subscription" }, 400);
+		}
+		if (
+			nativeApnsEnvironment !== null &&
+			(!APNS_ENVIRONMENTS.has(nativeApnsEnvironment) ||
+				nativePlatform !== "ios")
+		) {
 			return c.json({ error: "Invalid native subscription" }, 400);
 		}
 
@@ -78,10 +88,15 @@ export function registerPushRoutes(app: App) {
 		await c.get("db").query(
 			`
       INSERT INTO push_subscriptions
-        (user_id, platform, endpoint, keys_p256dh, keys_auth, native_token)
-      VALUES ($1, $2, NULL, NULL, NULL, $3)
+        (user_id, platform, endpoint, keys_p256dh, keys_auth, native_token, apns_environment)
+      VALUES ($1, $2, NULL, NULL, NULL, $3, $4)
     `,
-			[user.id, nativePlatform, nativeToken],
+			[
+				user.id,
+				nativePlatform,
+				nativeToken,
+				nativePlatform === "ios" ? nativeApnsEnvironment : null,
+			],
 		);
 
 		return c.json({ success: true });

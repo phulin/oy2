@@ -62,7 +62,11 @@ describe("push subscriptions", () => {
 		const { res, json } = await jsonRequest(env, "/api/push/native/subscribe", {
 			method: "POST",
 			headers: { "x-session-token": "native-push-token" },
-			body: { token: "native-token-1", platform: "ios" },
+			body: {
+				token: "native-token-1",
+				platform: "ios",
+				apnsEnvironment: "sandbox",
+			},
 		});
 		assert.equal(res.status, 200);
 		assert.equal(json.success, true);
@@ -70,6 +74,7 @@ describe("push subscriptions", () => {
 			db.pushSubscriptions.filter((sub) => sub.platform !== "web").length,
 			1,
 		);
+		assert.equal(db.pushSubscriptions[0]?.apns_environment, "sandbox");
 
 		const { res: unsubRes, json: unsubJson } = await jsonRequest(
 			env,
@@ -86,5 +91,24 @@ describe("push subscriptions", () => {
 			db.pushSubscriptions.filter((sub) => sub.platform !== "web").length,
 			0,
 		);
+	});
+
+	it("rejects invalid native APNs environment combinations", async () => {
+		const { env, db } = createTestEnv();
+		const user = seedUser(db, { username: "NativePushyInvalid" });
+		seedSession(db, user.id, "native-push-invalid-token");
+
+		const { res, json } = await jsonRequest(env, "/api/push/native/subscribe", {
+			method: "POST",
+			headers: { "x-session-token": "native-push-invalid-token" },
+			body: {
+				token: "native-token-2",
+				platform: "android",
+				apnsEnvironment: "sandbox",
+			},
+		});
+
+		assert.equal(res.status, 400);
+		assert.equal(json.error, "Invalid native subscription");
 	});
 });

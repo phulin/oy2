@@ -111,7 +111,10 @@ async function sendSinglePush(
 		subscription.platform,
 		subscription.native_token as string,
 		payload,
-		{ requestUrl: options?.requestUrl },
+		{
+			requestUrl: options?.requestUrl,
+			apnsEnvironment: subscription.apns_environment ?? undefined,
+		},
 	);
 }
 
@@ -354,7 +357,7 @@ async function fetchPushSubscriptions(c: AppContext, userId: number) {
 		.get("dbNoCache")
 		.query<PushSubscriptionRow>(
 			`
-      SELECT platform, endpoint, keys_p256dh, keys_auth, native_token
+      SELECT platform, endpoint, keys_p256dh, keys_auth, native_token, apns_environment
       FROM push_subscriptions
       WHERE user_id = $1
     `,

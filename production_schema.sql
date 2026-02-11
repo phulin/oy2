@@ -91,6 +91,7 @@ CREATE TABLE IF NOT EXISTS push_subscriptions (
   keys_p256dh TEXT,
   keys_auth TEXT,
   native_token TEXT,
+  apns_environment TEXT CHECK (apns_environment IN ('sandbox', 'production')),
   created_at INTEGER DEFAULT EXTRACT(EPOCH FROM NOW())::INTEGER,
   CHECK (
     (
@@ -98,9 +99,17 @@ CREATE TABLE IF NOT EXISTS push_subscriptions (
       endpoint IS NOT NULL AND
       keys_p256dh IS NOT NULL AND
       keys_auth IS NOT NULL AND
-      native_token IS NULL
+      native_token IS NULL AND
+      apns_environment IS NULL
     ) OR (
-      platform IN ('ios', 'android') AND
+      platform = 'android' AND
+      native_token IS NOT NULL AND
+      endpoint IS NULL AND
+      keys_p256dh IS NULL AND
+      keys_auth IS NULL AND
+      apns_environment IS NULL
+    ) OR (
+      platform = 'ios' AND
       native_token IS NOT NULL AND
       endpoint IS NULL AND
       keys_p256dh IS NULL AND

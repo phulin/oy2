@@ -120,6 +120,7 @@ export type PushSubscriptionRow = {
 	keys_p256dh: string | null;
 	keys_auth: string | null;
 	native_token: string | null;
+	apns_environment: "sandbox" | "production" | null;
 };
 
 export type PushPayload = {
