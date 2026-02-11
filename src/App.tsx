@@ -596,10 +596,7 @@ export default function App(props: AppProps) {
 		}
 	}
 
-	function logout() {
-		api("/api/auth/logout", { method: "POST" }).catch((err) => {
-			console.error("Logout failed:", err);
-		});
+	function clearSessionState() {
 		setCurrentUser(null);
 		localStorage.removeItem(cachedUserStorageKey);
 		localStorage.removeItem(cachedFriendsStorageKey);
@@ -607,6 +604,25 @@ export default function App(props: AppProps) {
 		setAuthStep("login");
 		setFriends([]);
 		setLastOyInfo([]);
+	}
+
+	function logout() {
+		api("/api/auth/logout", { method: "POST" }).catch((err) => {
+			console.error("Logout failed:", err);
+		});
+		clearSessionState();
+
+		const registration = swRegistration();
+		if (registration) {
+			unsubscribePush(registration).catch((err) => {
+				console.error("Push unsubscribe failed:", err);
+			});
+		}
+	}
+
+	async function deleteAccount() {
+		await api("/api/auth/account", { method: "DELETE" });
+		clearSessionState();
 
 		const registration = swRegistration();
 		if (registration) {
@@ -1045,6 +1061,7 @@ export default function App(props: AppProps) {
 		setTab,
 		api,
 		logout,
+		deleteAccount,
 		handleSetupNotifications,
 		sendOy,
 		sendLo,

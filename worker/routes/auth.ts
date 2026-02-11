@@ -77,4 +77,18 @@ export function registerAuthRoutes(app: App) {
 
 		return c.json({ success: true });
 	});
+
+	app.delete("/api/auth/account", async (c: AppContext) => {
+		const user = c.get("user");
+		const sessionToken = c.get("sessionToken");
+		if (!user || !sessionToken) {
+			clearSessionCookie(c);
+			return c.json({ error: "Not authenticated" }, 401);
+		}
+
+		await c.get("db").query("DELETE FROM users WHERE id = $1", [user.id]);
+		clearSessionCookie(c);
+
+		return c.json({ success: true });
+	});
 }

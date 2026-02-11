@@ -17,6 +17,7 @@ import "./SettingsScreen.css";
 type SettingsScreenProps = {
 	user: User;
 	onSetupNotifications: () => Promise<void>;
+	onDeleteAccount: () => Promise<void>;
 	api: <T>(path: string, options?: RequestInit) => Promise<T>;
 };
 
@@ -48,6 +49,9 @@ export function SettingsScreen(props: SettingsScreenProps) {
 	const [emailMessage, setEmailMessage] = createSignal<string | null>(null);
 	const [sendingEmail, setSendingEmail] = createSignal(false);
 	const [verifyingEmail, setVerifyingEmail] = createSignal(false);
+	const [deleteConfirmValue, setDeleteConfirmValue] = createSignal("");
+	const [deleteError, setDeleteError] = createSignal<string | null>(null);
+	const [deletingAccount, setDeletingAccount] = createSignal(false);
 
 	createEffect(() => {
 		const email = props.user.email ?? "";
@@ -124,6 +128,22 @@ export function SettingsScreen(props: SettingsScreenProps) {
 			setEmailError(err instanceof Error ? err.message : String(err));
 		} finally {
 			setVerifyingEmail(false);
+		}
+	}
+
+	async function handleDeleteAccount() {
+		setDeleteError(null);
+		if (deleteConfirmValue().trim() !== "DELETE") {
+			setDeleteError('Type "DELETE" to confirm.');
+			return;
+		}
+		setDeletingAccount(true);
+		try {
+			await props.onDeleteAccount();
+		} catch (err) {
+			setDeleteError(err instanceof Error ? err.message : String(err));
+		} finally {
+			setDeletingAccount(false);
 		}
 	}
 
@@ -271,6 +291,44 @@ export function SettingsScreen(props: SettingsScreenProps) {
 						</ul>
 					</Show>
 				</Show>
+			</section>
+
+			<section class="settings-section settings-danger">
+				<div class="settings-section-row">
+					<div>
+						<h3 class="settings-section-title">Delete Account</h3>
+						<p class="settings-section-description">
+							This permanently removes your account and all associated data.
+						</p>
+					</div>
+				</div>
+
+				<div class="settings-email-form">
+					<label class="settings-email-label" for="settings-delete-confirm">
+						Type DELETE to confirm
+					</label>
+					<input
+						id="settings-delete-confirm"
+						class="app-text-input settings-email-input"
+						type="text"
+						autocomplete="off"
+						placeholder="DELETE"
+						value={deleteConfirmValue()}
+						onInput={(event) =>
+							setDeleteConfirmValue(event.currentTarget.value)
+						}
+					/>
+					<div class="settings-email-actions">
+						<Button
+							class="btn-secondary settings-delete-button"
+							onClick={handleDeleteAccount}
+							disabled={deletingAccount()}
+						>
+							{deletingAccount() ? "Deleting..." : "Delete account"}
+						</Button>
+					</div>
+				</div>
+				{deleteError() && <p class="form-error">{deleteError()}</p>}
 			</section>
 		</div>
 	);

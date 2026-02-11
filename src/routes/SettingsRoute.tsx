@@ -5,7 +5,7 @@ import { SettingsScreen } from "../components/SettingsScreen";
 import type { User } from "../types";
 
 export function SettingsRoute() {
-	const { currentUser, logout, handleSetupNotifications, api } =
+	const { currentUser, logout, deleteAccount, handleSetupNotifications, api } =
 		useAppContext();
 	const user = () => currentUser() as User;
 
@@ -15,6 +15,7 @@ export function SettingsRoute() {
 			<SettingsScreen
 				user={user()}
 				onSetupNotifications={handleSetupNotifications}
+				onDeleteAccount={deleteAccount}
 				api={api}
 			/>
 		</Screen>

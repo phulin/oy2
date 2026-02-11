@@ -149,6 +149,19 @@
 	text-decoration: none;
 }
 
+.settings-danger {
+	border-color: color-mix(in srgb, #c62828 45%, var(--border));
+}
+
+.settings-delete-button {
+	color: #c62828;
+	border-color: color-mix(in srgb, #c62828 50%, var(--border));
+}
+
+.settings-delete-button:hover {
+	background: color-mix(in srgb, #c62828 10%, var(--bg-secondary));
+}
+
 @media (max-width: 600px) {
 	.settings-section-row {
 		align-items: flex-start;
