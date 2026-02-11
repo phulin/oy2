@@ -6,6 +6,8 @@ const FCM_SCOPE = "https://www.googleapis.com/auth/firebase.messaging";
 const GOOGLE_TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token";
 const APNS_PRODUCTION_HOST = "https://api.push.apple.com";
 const APNS_SANDBOX_HOST = "https://api.sandbox.push.apple.com";
+const NATIVE_PUSH_SOUND_FILE = "oy.wav";
+const ANDROID_PUSH_CHANNEL_ID = "oy_notifications_v1";
 
 type PushSendError = Error & {
 	statusCode?: number;
@@ -307,6 +309,10 @@ async function sendAndroidPushNotification(
 					data: payloadData(payload),
 					android: {
 						priority: "high",
+						notification: {
+							channel_id: ANDROID_PUSH_CHANNEL_ID,
+							sound: NATIVE_PUSH_SOUND_FILE,
+						},
 					},
 				},
 			}),
@@ -413,7 +419,7 @@ async function sendIosPushNotification(
 					title: payload.title,
 					body: payload.body,
 				},
-				sound: "default",
+				sound: NATIVE_PUSH_SOUND_FILE,
 			},
 			...payload,
 		}),

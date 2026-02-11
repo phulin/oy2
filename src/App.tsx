@@ -57,6 +57,8 @@ const locationExplainerSeenStorageKey = "locationExplainerSeen";
 const googleWebClientId = import.meta.env.VITE_GOOGLE_WEB_CLIENT_ID;
 const googleIosClientId = import.meta.env.VITE_GOOGLE_IOS_CLIENT_ID;
 const appleNativeClientId = import.meta.env.VITE_APPLE_NATIVE_CLIENT_ID;
+const androidNativePushChannelId = "oy_notifications_v1";
+const nativePushSoundFile = "oy.wav";
 
 type AuthStep =
 	| "initial"
@@ -266,6 +268,16 @@ export default function App(props: AppProps) {
 		}
 		if (!Capacitor.isPluginAvailable("PushNotifications")) {
 			throw new Error("PushNotifications plugin unavailable");
+		}
+		if (Capacitor.getPlatform() === "android") {
+			await PushNotifications.createChannel({
+				id: androidNativePushChannelId,
+				name: "Oy Notifications",
+				description: "Notifications for new Oys",
+				importance: 4,
+				sound: nativePushSoundFile,
+				visibility: 1,
+			});
 		}
 
 		const permissionState = await PushNotifications.checkPermissions().then(

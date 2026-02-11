@@ -11,6 +11,40 @@ import {
 	seedOy,
 } from "./testUtils";
 
+function toPem(pkcs8: ArrayBuffer) {
+	const base64 = Buffer.from(pkcs8).toString("base64");
+	const lines = base64.match(/.{1,64}/g)?.join("\n") ?? base64;
+	return `-----BEGIN PRIVATE KEY-----\n${lines}\n-----END PRIVATE KEY-----`;
+}
+
+async function createRsaPrivateKeyPem() {
+	const pair = await crypto.subtle.generateKey(
+		{
+			name: "RSASSA-PKCS1-v1_5",
+			modulusLength: 2048,
+			publicExponent: new Uint8Array([1, 0, 1]),
+			hash: "SHA-256",
+		},
+		true,
+		["sign", "verify"],
+	);
+	const pkcs8 = await crypto.subtle.exportKey("pkcs8", pair.privateKey);
+	return toPem(pkcs8);
+}
+
+async function createEcPrivateKeyPem() {
+	const pair = await crypto.subtle.generateKey(
+		{
+			name: "ECDSA",
+			namedCurve: "P-256",
+		},
+		true,
+		["sign", "verify"],
+	);
+	const pkcs8 = await crypto.subtle.exportKey("pkcs8", pair.privateKey);
+	return toPem(pkcs8);
+}
+
 describe("oys and los", () => {
 	it("prevents sending to non-friends", async () => {
 		const { env, db } = createTestEnv();
@@ -157,6 +191,124 @@ describe("oys and los", () => {
 		assert.ok(notificationPayload.url.includes("expand=location"));
 		assert.equal(notificationPayload.fromUserId, sender.id);
 		assert.ok(Number.isFinite(notificationPayload.createdAt));
+	});
+
+	it("uses custom sound and channel for Android native push", async () => {
+		const { env, db } = createTestEnv();
+		const sender = seedUser(db, { username: "AndroidSender" });
+		const receiver = seedUser(db, { username: "AndroidReceiver" });
+		seedSession(db, sender.id, "android-oy-token");
+		seedSession(db, receiver.id, "android-receiver-token");
+		seedFriendship(db, sender.id, receiver.id);
+		seedFriendship(db, receiver.id, sender.id);
+		env.FCM_PROJECT_ID = "test-project";
+		env.FCM_CLIENT_EMAIL = "test@example.com";
+		env.FCM_PRIVATE_KEY = await createRsaPrivateKeyPem();
+
+		await jsonRequest(env, "/api/push/native/subscribe", {
+			method: "POST",
+			headers: { "x-session-token": "android-receiver-token" },
+			body: {
+				token: "android-device-token",
+				platform: "android",
+			},
+		});
+
+		let fcmSendBody: Record<string, unknown> | null = null;
+		const originalFetch = globalThis.fetch;
+		globalThis.fetch = async (input, init) => {
+			const url = typeof input === "string" ? input : input.toString();
+			if (url === "https://oauth2.googleapis.com/token") {
+				return Response.json({
+					access_token: "fcm-access-token",
+					expires_in: 3600,
+				});
+			}
+			if (
+				url ===
+				"https://fcm.googleapis.com/v1/projects/test-project/messages:send"
+			) {
+				fcmSendBody = JSON.parse(String(init?.body ?? "{}")) as Record<
+					string,
+					unknown
+				>;
+				return Response.json({});
+			}
+			return new Response("unexpected fetch", { status: 500 });
+		};
+
+		try {
+			const { res, json } = await jsonRequest(env, "/api/oy", {
+				method: "POST",
+				headers: { "x-session-token": "android-oy-token" },
+				body: { toUserId: receiver.id },
+			});
+
+			assert.equal(res.status, 200);
+			assert.equal(json.success, true);
+			assert.ok(fcmSendBody);
+			const message = (fcmSendBody?.message ?? {}) as {
+				android?: { notification?: { channel_id?: string; sound?: string } };
+			};
+			assert.equal(
+				message.android?.notification?.channel_id,
+				"oy_notifications_v1",
+			);
+			assert.equal(message.android?.notification?.sound, "oy.wav");
+		} finally {
+			globalThis.fetch = originalFetch;
+		}
+	});
+
+	it("uses custom sound for iOS native push", async () => {
+		const { env, db } = createTestEnv();
+		const sender = seedUser(db, { username: "IosSender" });
+		const receiver = seedUser(db, { username: "IosReceiver" });
+		seedSession(db, sender.id, "ios-oy-token");
+		seedSession(db, receiver.id, "ios-receiver-token");
+		seedFriendship(db, sender.id, receiver.id);
+		seedFriendship(db, receiver.id, sender.id);
+		env.APPLE_PRIVATE_KEY = await createEcPrivateKeyPem();
+
+		await jsonRequest(env, "/api/push/native/subscribe", {
+			method: "POST",
+			headers: { "x-session-token": "ios-receiver-token" },
+			body: {
+				token: "ios-device-token",
+				platform: "ios",
+				apnsEnvironment: "sandbox",
+			},
+		});
+
+		let apnsPayload: Record<string, unknown> | null = null;
+		const originalFetch = globalThis.fetch;
+		globalThis.fetch = async (input, init) => {
+			const url = typeof input === "string" ? input : input.toString();
+			if (url === "https://api.sandbox.push.apple.com/3/device/ios-device-token") {
+				apnsPayload = JSON.parse(String(init?.body ?? "{}")) as Record<
+					string,
+					unknown
+				>;
+				return Response.json({});
+			}
+			return new Response("unexpected fetch", { status: 500 });
+		};
+
+		try {
+			const { res, json } = await jsonRequest(env, "/api/oy", {
+				method: "POST",
+				headers: { "x-session-token": "ios-oy-token" },
+				body: { toUserId: receiver.id },
+			});
+
+			assert.equal(res.status, 200);
+			assert.equal(json.success, true);
+			assert.ok(apnsPayload);
+			const aps = (apnsPayload?.aps ?? {}) as { sound?: string };
+			assert.equal(aps.sound, "oy.wav");
+		} finally {
+			globalThis.fetch = originalFetch;
+		}
 	});
 
 	it("returns recent oys ordered and supports cursors", async () => {
