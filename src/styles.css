@@ -85,6 +85,17 @@ body {
 	color: var(--text);
 	line-height: 1.5;
 	-webkit-font-smoothing: antialiased;
+	-webkit-user-select: none;
+	user-select: none;
+}
+
+input,
+textarea,
+[contenteditable="true"],
+.allow-text-selection,
+.allow-text-selection * {
+	-webkit-user-select: text;
+	user-select: text;
 }
 
 .stack {

@@ -1,3 +1,5 @@
+import { Capacitor } from "@capacitor/core";
+import { Geolocation as CapacitorGeolocation } from "@capacitor/geolocation";
 import { Button } from "@kobalte/core/button";
 import { createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import type { Oy, OyPayload } from "../types";
@@ -35,6 +37,41 @@ export function OysList(props: OysListProps) {
 	};
 
 	onMount(() => {
+		const getCurrentLocation = async () => {
+			try {
+				if (Capacitor.isNativePlatform()) {
+					if (!Capacitor.isPluginAvailable("Geolocation")) {
+						throw new Error("Native geolocation plugin unavailable");
+					}
+
+					const position = await CapacitorGeolocation.getCurrentPosition();
+					setMyLocation({
+						lat: position.coords.latitude,
+						lon: position.coords.longitude,
+					});
+					return;
+				}
+
+				if (!("geolocation" in navigator)) {
+					return;
+				}
+
+				navigator.geolocation.getCurrentPosition(
+					(position) => {
+						setMyLocation({
+							lat: position.coords.latitude,
+							lon: position.coords.longitude,
+						});
+					},
+					(err) => {
+						console.warn("Geolocation failed:", err);
+					},
+				);
+			} catch (err) {
+				console.warn("Geolocation failed:", err);
+			}
+		};
+
 		const observer = new IntersectionObserver(
 			(entries) => {
 				if (entries[0]?.isIntersecting && props.hasMore()) {
@@ -48,19 +85,7 @@ export function OysList(props: OysListProps) {
 			observer.observe(sentinel);
 		}
 
-		if ("geolocation" in navigator) {
-			navigator.geolocation.getCurrentPosition(
-				(position) => {
-					setMyLocation({
-						lat: position.coords.latitude,
-						lon: position.coords.longitude,
-					});
-				},
-				(err) => {
-					console.warn("Geolocation failed:", err);
-				},
-			);
-		}
+		void getCurrentLocation();
 
 		onCleanup(() => {
 			observer.disconnect();
