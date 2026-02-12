@@ -67,6 +67,29 @@
 	line-height: 1;
 }
 
+.friend-profile-nickname-row {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	margin-top: 0.5rem;
+}
+
+.friend-profile-nickname-input {
+	width: 170px;
+	max-width: 100%;
+	border: 1px solid var(--border);
+	border-radius: 10px;
+	background: var(--bg-secondary);
+	color: var(--text);
+	font: inherit;
+	font-size: 0.85rem;
+	padding: 0.42rem 0.6rem;
+}
+
+.friend-profile-nickname-save {
+	font-size: 0.85rem;
+}
+
 .friend-profile-top-row {
 	display: flex;
 	justify-content: space-between;
@@ -215,7 +238,7 @@
 
 .friend-cards-sticky-header {
 	position: sticky;
-	top: 0;
+	top: max(0.5rem, env(safe-area-inset-top));
 	z-index: 30;
 	background: color-mix(in srgb, var(--bg) 82%, transparent);
 	backdrop-filter: blur(8px);

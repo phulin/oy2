@@ -49,6 +49,12 @@ export function FriendProfileCardsScreen(props: FriendProfileCardsScreenProps) {
 	const [reportSubmitting, setReportSubmitting] = createSignal(false);
 	const [confirmingAction, setConfirmingAction] = createSignal(false);
 	const [statusMessage, setStatusMessage] = createSignal<string | null>(null);
+	const [nicknameSavingFriendId, setNicknameSavingFriendId] = createSignal<
+		number | null
+	>(null);
+	const [nicknameDrafts, setNicknameDrafts] = createSignal<
+		Record<number, string>
+	>({});
 	const [pendingConfirmation, setPendingConfirmation] = createSignal<{
 		action: "unfriend" | "block" | "report";
 		profile: FriendProfile;
@@ -72,9 +78,18 @@ export function FriendProfileCardsScreen(props: FriendProfileCardsScreenProps) {
 				"/api/friends/profiles",
 			);
 			setProfiles(response.profiles);
+			setNicknameDrafts(
+				Object.fromEntries(
+					response.profiles.map((profile) => [
+						profile.id,
+						profile.nickname ?? "",
+					]),
+				),
+			);
 		} catch (err) {
 			setError(err instanceof Error ? err.message : String(err));
 			setProfiles([]);
+			setNicknameDrafts({});
 		} finally {
 			setLoading(false);
 		}
@@ -102,7 +117,10 @@ export function FriendProfileCardsScreen(props: FriendProfileCardsScreenProps) {
 			const headerElement = document.querySelector<HTMLElement>(
 				".friend-cards-sticky-header",
 			);
-			const headerOffset = (headerElement?.offsetHeight ?? 0) + 4;
+			const stickyTop = headerElement
+				? Number.parseFloat(getComputedStyle(headerElement).top) || 0
+				: 0;
+			const headerOffset = (headerElement?.offsetHeight ?? 0) + stickyTop + 4;
 			const containerCanScroll =
 				scrollContainer.scrollHeight > scrollContainer.clientHeight + 1;
 			if (containerCanScroll) {
@@ -178,6 +196,50 @@ export function FriendProfileCardsScreen(props: FriendProfileCardsScreenProps) {
 		}
 	};
 
+	const updateNicknameDraft = (friendId: number, value: string) => {
+		setNicknameDrafts((prev) => ({
+			...prev,
+			[friendId]: value,
+		}));
+	};
+
+	const saveNickname = async (profile: FriendProfile) => {
+		if (nicknameSavingFriendId() === profile.id) {
+			return;
+		}
+		setStatusMessage(null);
+		setNicknameSavingFriendId(profile.id);
+		try {
+			const draft = nicknameDrafts()[profile.id] ?? "";
+			const response = await props.api<{ nickname: string | null }>(
+				`/api/friends/${profile.id}/nickname`,
+				{
+					method: "PATCH",
+					body: JSON.stringify({ nickname: draft }),
+				},
+			);
+			setProfiles((prev) =>
+				prev.map((item) =>
+					item.id === profile.id
+						? {
+								...item,
+								nickname: response.nickname,
+							}
+						: item,
+				),
+			);
+			setNicknameDrafts((prev) => ({
+				...prev,
+				[profile.id]: response.nickname ?? "",
+			}));
+			setStatusMessage("Nickname updated.");
+		} catch (err) {
+			setStatusMessage(err instanceof Error ? err.message : String(err));
+		} finally {
+			setNicknameSavingFriendId(null);
+		}
+	};
+
 	createEffect(() => {
 		if (!loading() && profiles().length === 0) {
 			setActiveReportFriendId(null);
@@ -217,6 +279,36 @@ export function FriendProfileCardsScreen(props: FriendProfileCardsScreenProps) {
 									<div class="friend-profile-top-row">
 										<div>
 											<h2>{profile.username}</h2>
+											<div class="friend-profile-nickname-row">
+												<input
+													class="friend-profile-nickname-input"
+													type="text"
+													maxLength={40}
+													value={nicknameDrafts()[profile.id] ?? ""}
+													placeholder="Add nickname"
+													aria-label={`Nickname for ${profile.username}`}
+													onInput={(event) =>
+														updateNicknameDraft(
+															profile.id,
+															event.currentTarget.value,
+														)
+													}
+													onKeyDown={(event) => {
+														if (event.key === "Enter") {
+															event.preventDefault();
+															void saveNickname(profile);
+														}
+													}}
+												/>
+												<button
+													class="btn-text friend-profile-nickname-save"
+													type="button"
+													disabled={nicknameSavingFriendId() === profile.id}
+													onClick={() => void saveNickname(profile)}
+												>
+													Save
+												</button>
+											</div>
 										</div>
 										<div class="friend-profile-last-oy-wrap">
 											<Show when={profile.lastOyCreatedAt !== null}>
