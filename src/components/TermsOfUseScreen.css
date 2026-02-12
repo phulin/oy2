@@ -1,44 +1,7 @@
-.terms-screen {
-	min-height: 100vh;
-	display: flex;
-	flex-direction: column;
-	background: var(--bg);
-	color: var(--text);
-}
-
-.terms-header {
-	display: grid;
-	grid-template-columns: 1fr auto 1fr;
-	align-items: center;
-	gap: 12px;
-	padding: 16px 20px;
-	border-bottom: 1px solid var(--border);
-	background: var(--bg);
-	position: sticky;
-	top: 0;
-	z-index: 1;
-}
-
-.terms-back {
-	color: var(--primary);
-	font-weight: 600;
-	text-decoration: none;
-	justify-self: start;
-}
-
-.terms-logo {
-	font-size: 16px;
-	font-weight: 700;
-}
-
-.terms-spacer {
-	justify-self: end;
-}
-
 .terms-content {
 	flex: 1 1 auto;
 	white-space: pre-wrap;
-	padding: 20px;
+	padding: 4px 0 20px;
 	font-size: 14px;
 	line-height: 1.6;
 	color: var(--text);

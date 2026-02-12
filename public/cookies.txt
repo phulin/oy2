@@ -4,23 +4,17 @@ Last updated February 11, 2026
 
 Oy uses only essential storage needed to run the app and website.
 
-We do not sell your private data.
-We do not use advertising cookies.
-We do not use third-party tracking cookies for cross-site profiling.
+We do not sell your private data. We do not use advertising cookies. We do not use third-party tracking cookies for cross-site profiling.
 
 1) What are cookies?
 
-Cookies are small text files placed on your device by a website.
-They help websites remember information across requests and visits.
+Cookies are small text files placed on your device by a website. They help websites remember information across requests and visits.
 
-We also use similar browser storage technologies (like localStorage),
-which are not technically cookies but are often discussed together in
-cookie policies.
+We also use similar browser storage technologies (like localStorage), which are not technically cookies but are often discussed together in cookie policies.
 
 2) What this policy covers
 
-This policy explains cookies and similar browser storage used by Oy at
-https://oyme.site and in the app experience.
+This policy explains cookies and similar browser storage used by Oy at https://oyme.site and in the app experience.
 
 3) Why we use storage
 
@@ -32,26 +26,21 @@ We use storage only to:
 
 4) No non-essential tracking cookies
 
-Oy does not set non-essential cookies for ads, behavioral profiling, or
-cross-site tracking.
+Oy does not set non-essential cookies for ads, behavioral profiling, or cross-site tracking.
 
 5) First-party and third-party cookies
 
-Oy uses first-party essential storage for core app functionality.
-Oy does not use third-party advertising cookies.
+Oy uses first-party essential storage for core app functionality. Oy does not use third-party advertising cookies.
 
 6) How to control cookies
 
-Most browsers let you block or delete cookies in browser settings.
-If you block essential cookies, parts of Oy may stop working correctly.
+Most browsers let you block or delete cookies in browser settings. If you block essential cookies, parts of Oy may stop working correctly.
 
-Because we currently use only essential cookie/storage items, there is
-no separate opt-in banner for non-essential cookies at this time.
+Because we currently use only essential cookie/storage items, there is no separate opt-in banner for non-essential cookies at this time.
 
 7) Other tracking technologies
 
-Websites can also use similar technologies such as localStorage.
-This policy includes those technologies where used by Oy.
+Websites can also use similar technologies such as localStorage. This policy includes those technologies where used by Oy.
 
 8) Storage inventory (plain English)
 
@@ -72,15 +61,13 @@ Essential localStorage keys:
 - seenNotificationIds
   - What it does: stores recent notification IDs to avoid showing duplicates.
 - passkeySetupSkipped
-  - What it does: remembers if you skipped passkey setup so the app does not
-    keep prompting immediately.
+  - What it does: remembers if you skipped passkey setup so the app does not keep prompting immediately.
 - locationExplainerSeen
   - What it does: remembers if you already saw the Lo location explainer modal.
 
 9) Policy updates
 
-We may update this policy when our storage usage changes for operational,
-legal, or regulatory reasons. The date at the top shows the latest update.
+We may update this policy when our storage usage changes for operational, legal, or regulatory reasons. The date at the top shows the latest update.
 
 10) Contact
 

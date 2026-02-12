@@ -69,12 +69,12 @@ export function LegalScreen() {
 							For non-DSAR legal questions, email our support contact.
 						</p>
 					</div>
-					<A
+					<a
 						class="btn-secondary legal-link-button"
 						href="mailto:contact@oyme.site"
 					>
 						Email contact@oyme.site
-					</A>
+					</a>
 				</div>
 			</section>
 		</div>

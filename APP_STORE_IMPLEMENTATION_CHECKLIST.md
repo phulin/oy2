@@ -44,7 +44,7 @@ This file tracks App Store readiness work with current implementation status.
 
 ## 5) Submission Readiness
 
-- [ ] Prepare App Review notes with exact tester path (sign in, add friend, send Oy/Lo, report, block, delete account).
+- [x] Prepare App Review notes with exact tester path (sign in, add friend, send Oy/Lo, report, block, delete account). See `/APP_REVIEW_NOTES.md`.
 - [ ] Prepare a review/demo account with realistic seed data.
 - [ ] Verify privacy details in App Store Connect match app behavior.
 - [ ] Verify legal/support links are reachable in production.

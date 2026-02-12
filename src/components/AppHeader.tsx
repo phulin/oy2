@@ -7,11 +7,18 @@ import "./ButtonStyles.css";
 import "./AppHeader.css";
 
 type AppHeaderProps = {
-	user: User;
-	onLogout: () => void;
 	class?: string;
 	backHref?: string;
-};
+} & (
+	| {
+			user: User;
+			onLogout: () => void;
+	  }
+	| {
+			user?: undefined;
+			onLogout?: undefined;
+	  }
+);
 
 export function AppHeader(props: AppHeaderProps) {
 	const [menuOpen, setMenuOpen] = createSignal(false);
@@ -30,15 +37,17 @@ export function AppHeader(props: AppHeaderProps) {
 					</A>
 				) : null}
 				<h1 class="app-title">{appLogoText}</h1>
-				<button
-					class="app-user-trigger"
-					type="button"
-					onClick={() => setMenuOpen((open) => !open)}
-				>
-					{props.user.username}
-				</button>
+				{props.user ? (
+					<button
+						class="app-user-trigger"
+						type="button"
+						onClick={() => setMenuOpen((open) => !open)}
+					>
+						{props.user.username}
+					</button>
+				) : null}
 			</div>
-			{menuOpen() ? (
+			{props.user && menuOpen() ? (
 				<div class="app-user-panel">
 					{props.user.admin ? (
 						<A class="app-user-action" href="/admin">

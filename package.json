@@ -18,7 +18,8 @@
 		"format:fix": "biome format --write .",
 		"check": "tsc -b",
 		"db:migrate:local": "tsx scripts/migrate.ts",
-		"db:migrate:remote": "tsx scripts/migrate-remote.ts"
+		"db:migrate:remote": "tsx scripts/migrate-remote.ts",
+		"legal:reformat": "tsx scripts/reformat-legal-txt.ts"
 	},
 	"keywords": [
 		"oy",

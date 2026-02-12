@@ -1,6 +1,6 @@
-import { A } from "@solidjs/router";
 import { createResource } from "solid-js";
-import { appLogoText } from "../branding";
+import { AppHeader } from "./AppHeader";
+import { Screen } from "./Screen";
 import "./CookiePolicyScreen.css";
 
 async function loadCookiePolicy() {
@@ -12,15 +12,9 @@ export function CookiePolicyScreen() {
 	const [policy] = createResource(loadCookiePolicy);
 
 	return (
-		<div class="cookies-screen">
-			<header class="cookies-header">
-				<A class="cookies-back" href="/">
-					&lt; Back
-				</A>
-				<span class="cookies-logo">{appLogoText}</span>
-				<span class="cookies-spacer" aria-hidden="true" />
-			</header>
+		<Screen>
+			<AppHeader backHref="/" />
 			<pre class="cookies-content">{policy()}</pre>
-		</div>
+		</Screen>
 	);
 }
