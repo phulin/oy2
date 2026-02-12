@@ -10,6 +10,9 @@ const config: CapacitorConfig = {
     androidScheme: 'https'
   },
   plugins: {
+    PushNotifications: {
+      presentationOptions: ['sound', 'alert'],
+    },
     SocialLogin: {
       providers: {
         google: true,

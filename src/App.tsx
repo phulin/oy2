@@ -358,6 +358,31 @@ export default function App(props: AppProps) {
 		});
 	}
 
+	async function clearDeliveredNotifications() {
+		if (
+			Capacitor.isNativePlatform() &&
+			Capacitor.isPluginAvailable("PushNotifications")
+		) {
+			await PushNotifications.removeAllDeliveredNotifications();
+			return;
+		}
+		if (
+			!("serviceWorker" in navigator) ||
+			Notification.permission !== "granted"
+		) {
+			return;
+		}
+		const registrations = await navigator.serviceWorker.getRegistrations();
+		await Promise.all(
+			registrations.map(async (registration) => {
+				const notifications = await registration.getNotifications();
+				for (const notification of notifications) {
+					notification.close();
+				}
+			}),
+		);
+	}
+
 	function getErrorMessage(error: unknown) {
 		if (error instanceof Error) {
 			return error.message;
@@ -1422,8 +1447,10 @@ export default function App(props: AppProps) {
 	});
 
 	onMount(() => {
+		void clearDeliveredNotifications().catch(() => {});
 		onCleanup(
 			onAppVisible(() => {
+				void clearDeliveredNotifications().catch(() => {});
 				if (currentUser()) {
 					void refreshWithoutAnimation();
 				}
@@ -1501,6 +1528,19 @@ export default function App(props: AppProps) {
 				console.error("Push subscription refresh failed:", err);
 			});
 		}
+	});
+
+	createEffect(() => {
+		if (
+			!currentUser() ||
+			!Capacitor.isNativePlatform() ||
+			!Capacitor.isPluginAvailable("PushNotifications")
+		) {
+			return;
+		}
+		ensureNativePushRegistration().catch((err) => {
+			console.error("Native push setup failed:", err);
+		});
 	});
 
 	createEffect(() => {
