@@ -246,15 +246,19 @@ export function registerOyRoutes(app: App) {
 			created_at: number;
 			from_username: string;
 			to_username: string;
+			counterpart_nickname: string | null;
 		}>(
 			`
     WITH inbound AS (
       SELECT y.id, y.from_user_id, y.to_user_id, y.type, y.payload, y.created_at,
              u_from.username as from_username,
-             u_to.username as to_username
+             u_to.username as to_username,
+             f_self.nickname as counterpart_nickname
       FROM oys y
       INNER JOIN users u_from ON y.from_user_id = u_from.id
       INNER JOIN users u_to ON y.to_user_id = u_to.id
+      LEFT JOIN friendships f_self
+        ON f_self.user_id = $1 AND f_self.friend_id = y.from_user_id
       WHERE y.to_user_id = $1
         AND NOT EXISTS (
           SELECT 1
@@ -273,10 +277,13 @@ export function registerOyRoutes(app: App) {
     outbound AS (
       SELECT y.id, y.from_user_id, y.to_user_id, y.type, y.payload, y.created_at,
              u_from.username as from_username,
-             u_to.username as to_username
+             u_to.username as to_username,
+             f_self.nickname as counterpart_nickname
       FROM oys y
       INNER JOIN users u_from ON y.from_user_id = u_from.id
       INNER JOIN users u_to ON y.to_user_id = u_to.id
+      LEFT JOIN friendships f_self
+        ON f_self.user_id = $7 AND f_self.friend_id = y.to_user_id
       WHERE y.from_user_id = $7
         AND y.to_user_id != $8
         AND NOT EXISTS (

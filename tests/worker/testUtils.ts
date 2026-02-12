@@ -20,6 +20,7 @@ type UserLastSeenRow = {
 type FriendshipRow = {
 	user_id: number;
 	friend_id: number;
+	nickname: string | null;
 	created_at: number;
 	last_oy_id: number | null;
 	last_oy_type: string | null;
@@ -398,6 +399,7 @@ class FakeD1PreparedStatement implements D1PreparedStatement {
 			this.db.friendships.push({
 				user_id: userId,
 				friend_id: friendId,
+				nickname: null,
 				created_at: nowSeconds(),
 				last_oy_id: null,
 				last_oy_type: null,
@@ -425,6 +427,29 @@ class FakeD1PreparedStatement implements D1PreparedStatement {
 			return {
 				success: true,
 				meta: { last_row_id: 0, changes: before - this.db.friendships.length },
+			};
+		}
+		if (sql.startsWith("UPDATE friendships SET nickname = ?")) {
+			const [userId, friendId, nickname] = this.params as [
+				number,
+				number,
+				string | null,
+			];
+			const friendship = this.db.friendships.find(
+				(row) => row.user_id === userId && row.friend_id === friendId,
+			);
+			if (!friendship) {
+				return {
+					success: true,
+					results: [],
+					meta: { last_row_id: 0, changes: 0 },
+				};
+			}
+			friendship.nickname = nickname;
+			return {
+				success: true,
+				results: [{ friend_id: friendId }],
+				meta: { last_row_id: 0, changes: 1 },
 			};
 		}
 		if (sql.startsWith("INSERT INTO last_oy_info")) {
@@ -1132,7 +1157,7 @@ class FakeD1PreparedStatement implements D1PreparedStatement {
 			return { results };
 		}
 		if (
-			sql.startsWith("SELECT u.id, u.username FROM friendships f") &&
+			sql.startsWith("SELECT u.id, u.username, f.nickname FROM friendships f") &&
 			sql.includes("INNER JOIN users u")
 		) {
 			const [userId] = this.params as [number];
@@ -1146,10 +1171,14 @@ class FakeD1PreparedStatement implements D1PreparedStatement {
 					return {
 						id: user.id,
 						username: user.username,
+						nickname: row.nickname,
 					};
 				})
 				.filter(
-					(row): row is { id: number; username: string } => Boolean(row),
+					(
+						row,
+					): row is { id: number; username: string; nickname: string | null } =>
+						Boolean(row),
 				)
 				.sort((a, b) => a.username.localeCompare(b.username));
 			return { results };
@@ -1475,10 +1504,16 @@ class FakeD1PreparedStatement implements D1PreparedStatement {
 					const toUser = this.db.users.find(
 						(user) => user.id === row.to_user_id,
 					);
+					const counterpartId =
+						row.from_user_id === userId ? row.to_user_id : row.from_user_id;
+					const friendship = this.db.friendships.find(
+						(item) => item.user_id === userId && item.friend_id === counterpartId,
+					);
 					return {
 						...row,
 						from_username: fromUser?.username ?? "",
 						to_username: toUser?.username ?? "",
+						counterpart_nickname: friendship?.nickname ?? null,
 					};
 				})
 				.sort((a, b) => {
@@ -1532,10 +1567,16 @@ class FakeD1PreparedStatement implements D1PreparedStatement {
 					(user) => user.id === row.from_user_id,
 				);
 				const toUser = this.db.users.find((user) => user.id === row.to_user_id);
+				const counterpartId =
+					row.from_user_id === userId ? row.to_user_id : row.from_user_id;
+				const friendship = this.db.friendships.find(
+					(item) => item.user_id === userId && item.friend_id === counterpartId,
+				);
 				return {
 					...row,
 					from_username: fromUser?.username ?? "",
 					to_username: toUser?.username ?? "",
+					counterpart_nickname: friendship?.nickname ?? null,
 				};
 			};
 			const compareRows = (a: OyRow, b: OyRow) => {
@@ -1920,6 +1961,21 @@ class FakeD1PreparedStatement implements D1PreparedStatement {
 					}
 				: null;
 		}
+		if (sql.startsWith("UPDATE friendships SET nickname = ?")) {
+			const [userId, friendId, nickname] = this.params as [
+				number,
+				number,
+				string | null,
+			];
+			const friendship = this.db.friendships.find(
+				(row) => row.user_id === userId && row.friend_id === friendId,
+			);
+			if (!friendship) {
+				return null;
+			}
+			friendship.nickname = nickname;
+			return { friend_id: friendId };
+		}
 		throw new Error(`Unhandled SQL first: ${sql}`);
 	}
 }
@@ -2013,13 +2069,19 @@ export function seedFriendship(
 	userId: number,
 	friendId: number,
 	{
+		nickname = null,
 		lastOyCreatedAt = null,
 		streakStartDate = null,
-	}: { lastOyCreatedAt?: number | null; streakStartDate?: number | null } = {},
+	}: {
+		nickname?: string | null;
+		lastOyCreatedAt?: number | null;
+		streakStartDate?: number | null;
+	} = {},
 ) {
 	db.friendships.push({
 		user_id: userId,
 		friend_id: friendId,
+		nickname,
 		created_at: nowSeconds(),
 		last_oy_id: null,
 		last_oy_type: null,

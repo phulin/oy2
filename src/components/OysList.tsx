@@ -71,6 +71,8 @@ export function OysList(props: OysListProps) {
 		timeTick();
 		return formatTime(timestamp);
 	};
+	const displayName = (username: string, nickname: string | null) =>
+		nickname ? `${username} (${nickname})` : username;
 
 	return (
 		<div class="oys-list stack">
@@ -89,11 +91,11 @@ export function OysList(props: OysListProps) {
 						const isOutbound = oy.from_user_id === props.currentUserId;
 						const title = isOutbound
 							? isLocation
-								? `Lo to ${oy.to_username}`
-								: `Oy to ${oy.to_username}`
+								? `Lo to ${displayName(oy.to_username, oy.counterpart_nickname)}`
+								: `Oy to ${displayName(oy.to_username, oy.counterpart_nickname)}`
 							: isLocation
-								? `Lo from ${oy.from_username}`
-								: `Oy from ${oy.from_username}`;
+								? `Lo from ${displayName(oy.from_username, oy.counterpart_nickname)}`
+								: `Oy from ${displayName(oy.from_username, oy.counterpart_nickname)}`;
 
 						const location = myLocation();
 						const distance =

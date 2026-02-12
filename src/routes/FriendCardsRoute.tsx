@@ -6,8 +6,15 @@ import { Screen } from "../components/Screen";
 import type { User } from "../types";
 
 export function FriendCardsRoute() {
-	const { currentUser, logout, api, unfriend, blockUser, reportUser } =
-		useAppContext();
+	const {
+		currentUser,
+		logout,
+		api,
+		unfriend,
+		blockUser,
+		reportUser,
+		handleFriendNicknameUpdated,
+	} = useAppContext();
 	const user = () => currentUser() as User;
 
 	onMount(() => {
@@ -31,6 +38,7 @@ export function FriendCardsRoute() {
 				onUnfriend={unfriend}
 				onBlock={blockUser}
 				onReport={reportUser}
+				onNicknameUpdated={handleFriendNicknameUpdated}
 			/>
 		</Screen>
 	);

@@ -39,12 +39,40 @@ describe("friends", () => {
 			headers: { "x-session-token": "friends-list-token" },
 		});
 		const body = json as {
-			friends: Array<{ id: number; username: string }>;
+			friends: Array<{ id: number; username: string; nickname: string | null }>;
 		};
 		assert.equal(res.status, 200);
 		assert.equal(body.friends.length, 1);
 		assert.equal(body.friends[0].id, friend.id);
 		assert.equal(body.friends[0].username, "Pal");
+		assert.equal(body.friends[0].nickname, null);
+	});
+
+	it("updates friend nickname", async () => {
+		const { env, db } = createTestEnv();
+		const user = seedUser(db, { username: "Main" });
+		const friend = seedUser(db, { username: "Pal" });
+		seedSession(db, user.id, "friend-nickname-token");
+		seedFriendship(db, user.id, friend.id);
+		seedFriendship(db, friend.id, user.id);
+
+		const { res, json } = await jsonRequest(
+			env,
+			`/api/friends/${friend.id}/nickname`,
+			{
+				method: "PATCH",
+				headers: { "x-session-token": "friend-nickname-token" },
+				body: { nickname: "Bestie" },
+			},
+		);
+
+		assert.equal(res.status, 200);
+		assert.equal(json.success, true);
+		assert.equal(json.nickname, "Bestie");
+		const friendship = db.friendships.find(
+			(row) => row.user_id === user.id && row.friend_id === friend.id,
+		);
+		assert.equal(friendship?.nickname, "Bestie");
 	});
 
 	it("returns last oy info", async () => {

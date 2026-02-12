@@ -611,6 +611,27 @@ export default function App(props: AppProps) {
 		});
 	}
 
+	function handleFriendNicknameUpdated(
+		friendId: number,
+		nickname: string | null,
+	) {
+		setFriends((prev) => {
+			const nextFriends = prev.map((friend) =>
+				friend.id === friendId
+					? {
+							...friend,
+							nickname,
+						}
+					: friend,
+			);
+			localStorage.setItem(
+				cachedFriendsStorageKey,
+				JSON.stringify(nextFriends),
+			);
+			return nextFriends;
+		});
+	}
+
 	async function loadLastOyInfo({
 		noCache = false,
 	}: {
@@ -1533,6 +1554,7 @@ export default function App(props: AppProps) {
 		loadOysPage,
 		refresh,
 		handleFriendAdded,
+		handleFriendNicknameUpdated,
 		passkeyAddComplete,
 		passkeyAddCancel,
 	};

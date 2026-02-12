@@ -45,20 +45,20 @@ This file tracks App Store readiness work with current implementation status.
 ## 5) Submission Readiness
 
 - [x] Prepare App Review notes with exact tester path (sign in, add friend, send Oy/Lo, report, block, delete account). See `/APP_REVIEW_NOTES.md`.
-- [ ] Prepare a review/demo account with realistic seed data.
-- [ ] Verify privacy details in App Store Connect match app behavior.
-- [ ] Verify legal/support links are reachable in production.
+- [x] Prepare a review/demo account with realistic seed data.
+- [x] Verify privacy details in App Store Connect match app behavior.
+- [x] Verify legal/support links are reachable in production.
 
 ## 6) Final Engineering Validation
 
-- [ ] Run `yarn check && yarn lint:fix && yarn format:fix`.
-- [ ] Run worker tests (`yarn test`) and fix regressions.
-- [ ] Manual iOS verification on device:
-  - [ ] passkey login
-  - [ ] email login
-  - [ ] Google login
-  - [ ] Apple login
-  - [ ] push notifications
-  - [ ] location share + permission flows
-  - [ ] block/report
-  - [ ] account deletion
+- [x] Run `yarn check && yarn lint:fix && yarn format:fix`.
+- [x] Run worker tests (`yarn test`) and fix regressions.
+- [x] Manual iOS verification on device:
+  - [x] passkey login
+  - [x] email login
+  - [x] Google login
+  - [x] Apple login
+  - [x] push notifications
+  - [x] location share + permission flows
+  - [x] block/report
+  - [x] account deletion

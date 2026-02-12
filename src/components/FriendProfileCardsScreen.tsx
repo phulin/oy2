@@ -21,6 +21,7 @@ type FriendProfileCardsScreenProps = {
 		reason: string,
 		details?: string,
 	) => Promise<void>;
+	onNicknameUpdated: (friendId: number, nickname: string | null) => void;
 };
 
 const reportReasons = [
@@ -207,10 +208,14 @@ export function FriendProfileCardsScreen(props: FriendProfileCardsScreenProps) {
 		if (nicknameSavingFriendId() === profile.id) {
 			return;
 		}
+		const draft = (nicknameDrafts()[profile.id] ?? "").trim();
+		const current = profile.nickname ?? "";
+		if (draft === current) {
+			return;
+		}
 		setStatusMessage(null);
 		setNicknameSavingFriendId(profile.id);
 		try {
-			const draft = nicknameDrafts()[profile.id] ?? "";
 			const response = await props.api<{ nickname: string | null }>(
 				`/api/friends/${profile.id}/nickname`,
 				{
@@ -232,6 +237,7 @@ export function FriendProfileCardsScreen(props: FriendProfileCardsScreenProps) {
 				...prev,
 				[profile.id]: response.nickname ?? "",
 			}));
+			props.onNicknameUpdated(profile.id, response.nickname);
 			setStatusMessage("Nickname updated.");
 		} catch (err) {
 			setStatusMessage(err instanceof Error ? err.message : String(err));
@@ -299,15 +305,8 @@ export function FriendProfileCardsScreen(props: FriendProfileCardsScreenProps) {
 															void saveNickname(profile);
 														}
 													}}
+													onBlur={() => void saveNickname(profile)}
 												/>
-												<button
-													class="btn-text friend-profile-nickname-save"
-													type="button"
-													disabled={nicknameSavingFriendId() === profile.id}
-													onClick={() => void saveNickname(profile)}
-												>
-													Save
-												</button>
 											</div>
 										</div>
 										<div class="friend-profile-last-oy-wrap">

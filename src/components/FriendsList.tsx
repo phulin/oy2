@@ -37,6 +37,8 @@ export function FriendsList(props: FriendsListProps) {
 		timeTick();
 		return formatTime(timestamp);
 	};
+	const displayName = (username: string, nickname: string | null) =>
+		nickname ? `${username} (${nickname})` : username;
 
 	return (
 		<div class="friends-list stack">
@@ -115,7 +117,7 @@ export function FriendsList(props: FriendsListProps) {
 								>
 									<div class="friends-list-item-content stack stack-sm">
 										<div class="friends-list-item-title item-title">
-											{friend.username}
+											{displayName(friend.username, friend.nickname)}
 										</div>
 										<Show
 											when={lastOyCreatedAt !== null}

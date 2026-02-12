@@ -35,6 +35,7 @@ CREATE INDEX IF NOT EXISTS idx_user_last_seen_last_seen
 CREATE TABLE IF NOT EXISTS friendships (
   user_id INTEGER NOT NULL,
   friend_id INTEGER NOT NULL,
+  nickname TEXT,
   created_at INTEGER DEFAULT EXTRACT(EPOCH FROM NOW())::INTEGER,
   PRIMARY KEY (user_id, friend_id),
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,

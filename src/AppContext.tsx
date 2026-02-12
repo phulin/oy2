@@ -42,6 +42,10 @@ export type AppContextValue = {
 	loadOysPage: (options?: { reset?: boolean }) => Promise<void>;
 	refresh: () => Promise<void>;
 	handleFriendAdded: (friend: Friend) => void;
+	handleFriendNicknameUpdated: (
+		friendId: number,
+		nickname: string | null,
+	) => void;
 	passkeyAddComplete: () => void;
 	passkeyAddCancel: () => void;
 };

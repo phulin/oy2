@@ -23,6 +23,21 @@ const parseFriendId = (
 	return friendId;
 };
 
+const normalizeNickname = (rawValue: unknown): string | null | "invalid" => {
+	if (
+		typeof rawValue !== "string" &&
+		rawValue !== null &&
+		rawValue !== undefined
+	) {
+		return "invalid";
+	}
+	const trimmed = (rawValue ?? "").trim();
+	if (trimmed.length > 40) {
+		return "invalid";
+	}
+	return trimmed.length > 0 ? trimmed : null;
+};
+
 export function registerFriendRoutes(app: App) {
 	app.post("/api/friends", async (c) => {
 		const user = c.get("user");
@@ -78,6 +93,7 @@ export function registerFriendRoutes(app: App) {
 			friend: {
 				id: friend.id,
 				username: friend.username,
+				nickname: null,
 			},
 		});
 	});
@@ -94,7 +110,8 @@ export function registerFriendRoutes(app: App) {
 			`
     SELECT
       u.id,
-      u.username
+      u.username,
+      f.nickname
     FROM friendships f
     INNER JOIN users u ON u.id = f.friend_id
     LEFT JOIN user_blocks b1
@@ -112,6 +129,7 @@ export function registerFriendRoutes(app: App) {
 		const friendResults = friends.rows.map((row) => ({
 			id: row.id,
 			username: row.username,
+			nickname: row.nickname,
 		}));
 		return c.json({ friends: friendResults });
 	});
@@ -169,6 +187,7 @@ export function registerFriendRoutes(app: App) {
 				SELECT
 					u.id,
 					u.username,
+					f.nickname,
 					(
 						SELECT COUNT(*)
 						FROM friendships f_count
@@ -208,6 +227,7 @@ export function registerFriendRoutes(app: App) {
 			profiles: profilesResult.rows.map((row) => ({
 				id: row.id,
 				username: row.username,
+				nickname: row.nickname,
 				friendCount: Number(row.friend_count),
 				lifetimeOysSent: Number(row.lifetime_oys_sent),
 				lifetimeOysReceived: Number(row.lifetime_oys_received),
@@ -221,6 +241,42 @@ export function registerFriendRoutes(app: App) {
 					startOfYesterdayNY,
 				}),
 			})),
+		});
+	});
+
+	app.patch("/api/friends/:friendId/nickname", async (c) => {
+		const user = c.get("user");
+		if (!user) {
+			return c.json({ error: "Not authenticated" }, 401);
+		}
+
+		const friendId = parseFriendId(c.req.param("friendId"), user.id);
+		if (friendId === null) {
+			return c.json({ error: "Invalid friend ID" }, 400);
+		}
+
+		const { nickname } = (await c.req.json()) as { nickname?: unknown };
+		const normalizedNickname = normalizeNickname(nickname);
+		if (normalizedNickname === "invalid") {
+			return c.json({ error: "Invalid nickname" }, 400);
+		}
+
+		const updateResult = await c.get("db").query(
+			`
+				UPDATE friendships
+				SET nickname = $3
+				WHERE user_id = $1 AND friend_id = $2
+				RETURNING friend_id
+			`,
+			[user.id, friendId, normalizedNickname],
+		);
+		if (!updateResult.rows[0]) {
+			return c.json({ error: "Friend not found" }, 404);
+		}
+
+		return c.json({
+			success: true,
+			nickname: normalizedNickname,
 		});
 	});
 

@@ -72,6 +72,7 @@ export type FriendUser = {
 export type FriendListRow = {
 	id: number;
 	username: string;
+	nickname: string | null;
 };
 
 export type LastOyInfoRow = {
@@ -85,6 +86,7 @@ export type LastOyInfoRow = {
 export type FriendProfileRow = {
 	id: number;
 	username: string;
+	nickname: string | null;
 	friend_count: number;
 	lifetime_oys_sent: number;
 	lifetime_oys_received: number;
@@ -145,6 +147,7 @@ export type OyRow = {
 	created_at: number;
 	from_username: string;
 	to_username: string;
+	counterpart_nickname: string | null;
 };
 
 export type OysCursor = {

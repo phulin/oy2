@@ -193,6 +193,31 @@ describe("oys and los", () => {
 		assert.ok(Number.isFinite(notificationPayload.createdAt));
 	});
 
+	it("returns counterpart nickname on oys list", async () => {
+		const { env, db } = createTestEnv();
+		const user = seedUser(db, { username: "Sender" });
+		const friend = seedUser(db, { username: "Receiver" });
+		seedSession(db, user.id, "oys-nickname-token");
+		seedFriendship(db, user.id, friend.id, { nickname: "Bestie" });
+		seedFriendship(db, friend.id, user.id);
+		seedOy(db, {
+			fromUserId: user.id,
+			toUserId: friend.id,
+			type: "oy",
+		});
+
+		const { res, json } = await jsonRequest(env, "/api/oys", {
+			headers: { "x-session-token": "oys-nickname-token" },
+		});
+		const body = json as {
+			oys: Array<{ counterpart_nickname: string | null }>;
+		};
+
+		assert.equal(res.status, 200);
+		assert.equal(body.oys.length, 1);
+		assert.equal(body.oys[0].counterpart_nickname, "Bestie");
+	});
+
 	it("uses custom sound and channel for Android native push", async () => {
 		const { env, db } = createTestEnv();
 		const sender = seedUser(db, { username: "AndroidSender" });

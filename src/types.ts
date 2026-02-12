@@ -8,6 +8,7 @@ export type User = {
 export type Friend = {
 	id: number;
 	username: string;
+	nickname: string | null;
 };
 
 export type BlockedUser = {
@@ -19,6 +20,7 @@ export type BlockedUser = {
 export type FriendProfile = {
 	id: number;
 	username: string;
+	nickname: string | null;
 	friendCount: number;
 	lifetimeOysSent: number;
 	lifetimeOysReceived: number;
@@ -51,6 +53,7 @@ export type Oy = {
 	to_user_id: number;
 	from_username: string;
 	to_username: string;
+	counterpart_nickname: string | null;
 	created_at: number;
 	type: string;
 	payload?: OyPayload | null;
