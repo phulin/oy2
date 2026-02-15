@@ -182,8 +182,9 @@ export function registerFriendRoutes(app: App) {
 		}
 		const { startOfTodayNY, startOfYesterdayNY } = getStreakDateBoundaries();
 
-		const profilesResult = await c.get("db").query<FriendProfileRow>(
-			`
+		const [profilesResult, selfResult] = await Promise.all([
+			c.get("db").query<FriendProfileRow>(
+				`
 				SELECT
 					u.id,
 					u.username,
@@ -219,11 +220,51 @@ export function registerFriendRoutes(app: App) {
 					AND b1.blocker_user_id IS NULL
 					AND b2.blocker_user_id IS NULL
 				ORDER BY loi.last_oy_created_at DESC NULLS LAST, u.username
-			`,
-			[user.id],
-		);
+				`,
+				[user.id],
+			),
+			c.get("db").query<{
+				username: string;
+				friend_count: number;
+				lifetime_oys_sent: number;
+				lifetime_oys_received: number;
+			}>(
+				`
+				SELECT
+					u.username,
+					(
+						SELECT COUNT(*)
+						FROM friendships f_count
+						WHERE f_count.user_id = u.id
+					)::INTEGER AS friend_count,
+					(
+						SELECT COUNT(*)
+						FROM oys sent
+						WHERE sent.from_user_id = u.id
+					)::INTEGER AS lifetime_oys_sent,
+					(
+						SELECT COUNT(*)
+						FROM oys received
+						WHERE received.to_user_id = u.id
+					)::INTEGER AS lifetime_oys_received
+				FROM users u
+				WHERE u.id = $1
+				`,
+				[user.id],
+			),
+		]);
+
+		const selfRow = selfResult.rows[0];
 
 		return c.json({
+			self: selfRow
+				? {
+						username: selfRow.username,
+						friendCount: Number(selfRow.friend_count),
+						lifetimeOysSent: Number(selfRow.lifetime_oys_sent),
+						lifetimeOysReceived: Number(selfRow.lifetime_oys_received),
+					}
+				: null,
 			profiles: profilesResult.rows.map((row) => ({
 				id: row.id,
 				username: row.username,
