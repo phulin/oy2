@@ -17,6 +17,13 @@ export type BlockedUser = {
 	blocked_at: number;
 };
 
+export type SelfProfile = {
+	username: string;
+	friendCount: number;
+	lifetimeOysSent: number;
+	lifetimeOysReceived: number;
+};
+
 export type FriendProfile = {
 	id: number;
 	username: string;

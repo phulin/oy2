@@ -7,7 +7,7 @@ import {
 	onMount,
 	Show,
 } from "solid-js";
-import type { FriendProfile } from "../types";
+import type { FriendProfile, SelfProfile } from "../types";
 import { formatTime } from "../utils";
 import "./ButtonStyles.css";
 import "./FriendProfileCardsScreen.css";
@@ -34,6 +34,7 @@ const reportReasons = [
 
 export function FriendProfileCardsScreen(props: FriendProfileCardsScreenProps) {
 	const [searchParams] = useSearchParams();
+	const [selfProfile, setSelfProfile] = createSignal<SelfProfile | null>(null);
 	const [profiles, setProfiles] = createSignal<FriendProfile[]>([]);
 	const [loading, setLoading] = createSignal(true);
 	const [error, setError] = createSignal<string | null>(null);
@@ -75,9 +76,11 @@ export function FriendProfileCardsScreen(props: FriendProfileCardsScreenProps) {
 		setLoading(true);
 		setError(null);
 		try {
-			const response = await props.api<{ profiles: FriendProfile[] }>(
-				"/api/friends/profiles",
-			);
+			const response = await props.api<{
+				self: SelfProfile | null;
+				profiles: FriendProfile[];
+			}>("/api/friends/profiles");
+			setSelfProfile(response.self);
 			setProfiles(response.profiles);
 			setNicknameDrafts(
 				Object.fromEntries(
@@ -269,6 +272,36 @@ export function FriendProfileCardsScreen(props: FriendProfileCardsScreenProps) {
 			</Show>
 
 			<div class="friend-cards-scroll" ref={scrollContainerRef}>
+				<Show when={selfProfile()}>
+					{(self) => (
+						<section class="friend-profile-card">
+							<div class="friend-profile-card-inner">
+								<div class="friend-profile-identity">
+									<div class="friend-profile-top-row">
+										<div>
+											<h2>{self().username}</h2>
+										</div>
+									</div>
+								</div>
+
+								<ul class="friend-profile-metrics">
+									<li class="friend-metric">
+										<span>Friend Count</span>
+										<strong>{self().friendCount}</strong>
+									</li>
+									<li class="friend-metric">
+										<span>Lifetime Oys Sent</span>
+										<strong>{self().lifetimeOysSent}</strong>
+									</li>
+									<li class="friend-metric">
+										<span>Lifetime Oys Received</span>
+										<strong>{self().lifetimeOysReceived}</strong>
+									</li>
+								</ul>
+							</div>
+						</section>
+					)}
+				</Show>
 				<For each={profiles()}>
 					{(profile) => (
 						<section
