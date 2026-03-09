@@ -1,5 +1,9 @@
 import { registerSW } from "virtual:pwa-register";
-import { Capacitor, type PluginListenerHandle } from "@capacitor/core";
+import {
+	Capacitor,
+	registerPlugin,
+	type PluginListenerHandle,
+} from "@capacitor/core";
 import { Geolocation as CapacitorGeolocation } from "@capacitor/geolocation";
 import { PushNotifications } from "@capacitor/push-notifications";
 import { SocialLogin } from "@capgo/capacitor-social-login";
@@ -60,6 +64,12 @@ const googleIosClientId = import.meta.env.VITE_GOOGLE_IOS_CLIENT_ID;
 const appleNativeClientId = import.meta.env.VITE_APPLE_NATIVE_CLIENT_ID;
 const androidNativePushChannelId = "oy_notifications_v1";
 const nativePushSoundFile = "oy.wav";
+
+interface APNSEnvironmentPlugin {
+	getEnvironment(): Promise<{ environment: "sandbox" | "production" }>;
+}
+const APNSEnvironment =
+	registerPlugin<APNSEnvironmentPlugin>("APNSEnvironment");
 
 type AuthStep =
 	| "initial"
@@ -327,11 +337,18 @@ export default function App(props: AppProps) {
 		return null;
 	}
 
-	function getApnsEnvironmentForSubscribe() {
+	async function getApnsEnvironmentForSubscribe(): Promise<
+		"sandbox" | "production" | undefined
+	> {
 		if (Capacitor.getPlatform() !== "ios") {
 			return undefined;
 		}
-		return Capacitor.DEBUG ? "sandbox" : "production";
+		try {
+			const result = await APNSEnvironment.getEnvironment();
+			return result.environment;
+		} catch {
+			return Capacitor.DEBUG ? "sandbox" : "production";
+		}
 	}
 
 	async function subscribeNativePushToken(token: string) {
@@ -339,7 +356,7 @@ export default function App(props: AppProps) {
 		if (!platform) {
 			return;
 		}
-		const apnsEnvironment = getApnsEnvironmentForSubscribe();
+		const apnsEnvironment = await getApnsEnvironmentForSubscribe();
 
 		await api("/api/push/native/subscribe", {
 			method: "POST",
