@@ -1212,9 +1212,9 @@ export default function App(props: AppProps) {
 			}
 
 			const position = await getCurrentPosition({
-				enableHighAccuracy: true,
+				enableHighAccuracy: false,
 				timeout: 10000,
-				maximumAge: 0,
+				maximumAge: 30000,
 			});
 
 			const location = {
