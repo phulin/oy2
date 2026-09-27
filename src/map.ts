@@ -3,10 +3,20 @@ import markerIconUrl from "leaflet/dist/images/marker-icon.png";
 import markerIcon2xUrl from "leaflet/dist/images/marker-icon-2x.png";
 import markerShadowUrl from "leaflet/dist/images/marker-shadow.png";
 
-const LIGHT_TILE_URL =
-	"https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png";
-const DARK_TILE_URL =
-	"https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png";
+const CARTO_API_KEY = import.meta.env.VITE_CARTO_API_KEY as string | undefined;
+
+function cartoTileUrl(base: string): string {
+	return CARTO_API_KEY
+		? `${base}?key=${encodeURIComponent(CARTO_API_KEY)}`
+		: base;
+}
+
+const LIGHT_TILE_URL = cartoTileUrl(
+	"https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
+);
+const DARK_TILE_URL = cartoTileUrl(
+	"https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
+);
 const TILE_ATTRIBUTION = "&copy; OpenStreetMap contributors &copy; CARTO";
 
 L.Icon.Default.mergeOptions({
