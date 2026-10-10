@@ -152,10 +152,3 @@
 	font-family: var(--font-display);
 	font-weight: 600;
 }
-
-@media (prefers-color-scheme: dark) {
-	/* Boost tile contrast in dark mode without affecting SVG marker colors. */
-	.oys-list-item-map-slot .oys-location-map .leaflet-tile-pane {
-		filter: brightness(2.5);
-	}
-}

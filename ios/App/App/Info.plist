@@ -35,9 +35,9 @@
 	<string>132817325553-b4sn74mq1t6ijbig5mbsrnq68518tk3g.apps.googleusercontent.com</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
-	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Oy uses your location only when you send Lo to share your current location with a friend you choose.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Oy uses your location only when you send Lo to share your current location with a friend you choose.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Oy uses your location only when you send Lo to share your current location with a friend you choose.</string>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>

@@ -1,6 +1,6 @@
-import { createEffect } from "solid-js";
+import { createEffect, onCleanup } from "solid-js";
 import type { LoHistoryPoint } from "../map";
-import { initLocationMap } from "../map";
+import { initLocationMap, removeLocationMap } from "../map";
 import "./LocationMap.css";
 
 type LocationMapProps = {
@@ -12,6 +12,10 @@ type LocationMapProps = {
 
 export function LocationMap(props: LocationMapProps) {
 	let container: HTMLDivElement | undefined;
+
+	onCleanup(() => {
+		if (container) removeLocationMap(container);
+	});
 
 	createEffect(() => {
 		if (props.open && container) {

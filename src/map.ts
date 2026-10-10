@@ -1,13 +1,16 @@
+import { maplibreGL } from "@maplibre/maplibre-gl-leaflet";
 import L from "leaflet";
 import markerIconUrl from "leaflet/dist/images/marker-icon.png";
 import markerIcon2xUrl from "leaflet/dist/images/marker-icon-2x.png";
 import markerShadowUrl from "leaflet/dist/images/marker-shadow.png";
 
-const LIGHT_TILE_URL =
-	"https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png";
-const DARK_TILE_URL =
-	"https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png";
-const TILE_ATTRIBUTION = "&copy; OpenStreetMap contributors &copy; CARTO";
+import { setWorkerUrl } from "maplibre-gl";
+import workerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
+import "maplibre-gl/dist/maplibre-gl.css";
+
+const MAP_STYLE_URL = "https://tiles.openfreemap.org/styles/dark";
+
+setWorkerUrl(workerUrl);
 
 L.Icon.Default.mergeOptions({
 	iconUrl: markerIconUrl,
@@ -18,7 +21,6 @@ L.Icon.Default.imagePath = "";
 
 type MapContainer = HTMLDivElement & {
 	_leafletMap?: L.Map;
-	_leafletTileLayer?: L.TileLayer;
 	_historyAdded?: boolean;
 };
 
@@ -27,10 +29,6 @@ export type LoHistoryPoint = {
 	lon: number;
 	intensity: number;
 };
-
-function prefersDark() {
-	return window.matchMedia?.("(prefers-color-scheme: dark)").matches;
-}
 
 // Read a CSS variable from the document root, with a fallback hex value.
 // This keeps colors in sync with styles.css rather than duplicating hex literals.
@@ -88,13 +86,7 @@ export function initLocationMap(
 		attributionControl: false,
 	});
 
-	const tileLayer = L.tileLayer(
-		prefersDark() ? DARK_TILE_URL : LIGHT_TILE_URL,
-		{
-			attribution: TILE_ATTRIBUTION,
-		},
-	);
-	tileLayer.addTo(map);
+	maplibreGL({ style: MAP_STYLE_URL }).addTo(map);
 
 	if (history && history.length > 0) {
 		addHistoryMarkers(map, history);
@@ -106,14 +98,13 @@ export function initLocationMap(
 
 	container.dataset.mapInit = "true";
 	container._leafletMap = map;
-	container._leafletTileLayer = tileLayer;
+}
 
-	const media = window.matchMedia("(prefers-color-scheme: dark)");
-	const updateTiles = () => {
-		const url = prefersDark() ? DARK_TILE_URL : LIGHT_TILE_URL;
-		container._leafletTileLayer?.setUrl(url);
-	};
-	media.addEventListener("change", updateTiles);
+export function removeLocationMap(container: MapContainer) {
+	container._leafletMap?.remove();
+	delete container._leafletMap;
+	delete container._historyAdded;
+	delete container.dataset.mapInit;
 }
 
 // Render past lo locations as colored circle markers.
@@ -131,8 +122,8 @@ function addHistoryMarkers(map: L.Map, history: LoHistoryPoint[]) {
 			radius: lerp(3, 7, t),
 			color,
 			fillColor: color,
-			fillOpacity: lerpf(prefersDark() ? 0.45 : 0.2, 0.85, t),
-			opacity: lerpf(prefersDark() ? 0.45 : 0.3, 1, t),
+			fillOpacity: lerpf(0.45, 0.85, t),
+			opacity: lerpf(0.45, 1, t),
 			weight: lerpf(0.5, 2, t),
 		}).addTo(map);
 	}

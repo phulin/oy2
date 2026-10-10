@@ -39,10 +39,12 @@
 		"@capgo/capacitor-social-login": "^8.3.0",
 		"@gledly/capacitor-webauthn": "^0.2.7",
 		"@kobalte/core": "^0.13.11",
+		"@maplibre/maplibre-gl-leaflet": "^0.1.4",
 		"@simplewebauthn/server": "^13.2.2",
 		"@solidjs/router": "^0.15.4",
 		"hono": "^4.11.4",
 		"leaflet": "^1.9.4",
+		"maplibre-gl": "^6.13.0",
 		"obscenity": "^0.4.6",
 		"pg": "^8.17.2",
 		"solid-js": "^1.9.10"
